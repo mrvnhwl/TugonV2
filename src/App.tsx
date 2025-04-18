@@ -20,6 +20,10 @@ import FloatingAIButton from './components/FloatingAIButton';
 // Importing Tugonsense challenges pages
 // Evaluation
 import EvaluationDifficultySelector from './pages/tugonsense/Evaluation/evaluationdifficulty';
+import EvaluationPhase1 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase1";
+import EvaluationPhase2 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase2";
+import EvaluationPhase3 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase3";
+import EvaluationPhase4 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase4";
 
 import Introductiontopic from './pages/topics/introductiontopic';
 import Operationstopic from './pages/topics/operationstopic';
@@ -68,6 +72,10 @@ function AppContent() {
         {/* TugonSense quizzes */}
         {/* Evaluation */}
         <Route path="/evaluationdifficulty" element={<EvaluationDifficultySelector />} />
+        <Route path="/eEvaluationPhase1" element={<EvaluationPhase1 />} />
+        <Route path="/eEvaluationPhase2" element={<EvaluationPhase2 />} />
+        <Route path="/eEvaluationPhase3" element={<EvaluationPhase3 />} />
+        <Route path="/eEvaluationPhase4" element={<EvaluationPhase4 />} />
 
         <Route path="/introductiontopic" element={<Introductiontopic />} />
         <Route path="/operationstopic" element={<Operationstopic />} />

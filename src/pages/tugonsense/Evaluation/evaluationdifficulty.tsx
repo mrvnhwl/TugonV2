@@ -4,7 +4,7 @@ import Footer from "../../../components/Footer";
 import { useNavigate } from "react-router-dom";
 
 function DifficultySelector() {
-  const navigate = useNavigate();
+  const router = useNavigate();
   
   const difficultyInfo = {
     Easy: "Basic problems for quick practice and confidence building.",
@@ -18,10 +18,6 @@ function DifficultySelector() {
     Hard: "bg-red-500 hover:bg-red-600 text-white",
   };
   
-  const handleDifficultySelect = (level: string) => {
-    // Navigate to the appropriate route based on difficulty
-    navigate(`/evaluation/${level.toLowerCase()}`);
-  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -34,8 +30,9 @@ function DifficultySelector() {
               <div key={level} className="relative group">
                 <Button
                   className={`w-full py-6 text-lg font-medium ${difficultyColors[level as keyof typeof difficultyColors]}`}
-                  onClick={() => handleDifficultySelect(level)}
+                  onClick={() => router("/eEvaluationPhase1")}
                 >
+                 
                   {level}
                 </Button>
                 <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 w-64 bg-gray-800 text-white text-sm rounded-md px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none">
