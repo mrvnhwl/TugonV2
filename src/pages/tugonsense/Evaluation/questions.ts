@@ -19,6 +19,9 @@ export type Question = {
   }
   
   export const questions: Questions = {
+
+
+    //PHASE 1 Questions and Explanations
     phase1: [
       {
         id: "p1q1",
@@ -66,6 +69,8 @@ export type Question = {
         },
       },
     ],
+
+    //PHASE 2 Questions and Explanations
     phase2: [
       {
         id: "p2q1",
@@ -109,6 +114,9 @@ export type Question = {
         },
       },
     ],
+
+
+    //PHASE 3 Questions and Explanations
     phase3: [
       {
         id: "p3q1",
@@ -150,6 +158,8 @@ export type Question = {
         },
       },
     ],
+
+    //PHASE 4 Questions and Explanations
     phase4: [
       {
         id: "p4q1",

@@ -46,53 +46,79 @@ function App() {
 }
 
 function AppContent() {
-  const location = useLocation(); // Get the current route
+  const location = useLocation();
 
-  // Define routes or pages where the Navbar, Footer, and FloatingAIButton should not appear
-  const noNavbarRoutes = ['/evaluationdifficulty'];
-  const noFooterAndButtonRoutes = ['/evaluationdifficulty'];
+  const evaluationRoutes = [
+    '/evaluationdifficulty',
+    '/eEvaluationPhase1',
+    '/eEvaluationPhase2',
+    '/eEvaluationPhase3',
+    '/eEvaluationPhase4',
+  ];
+
+  const isEvaluationRoute = evaluationRoutes.includes(location.pathname);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-50">
-      {/* Conditionally render Navbar */}
-      {!noNavbarRoutes.includes(location.pathname) && <Navbar />}
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/quiz/:id" element={<Quiz />} />
-        <Route path="/create" element={<CreateQuiz />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/join" element={<JoinGame />} />
-        <Route path="/tugonsense" element={<TugonSense />} />
-        <Route path="/host" element={<HostGame />} />
-        <Route path="/game/:id" element={<Game />} />
-        <Route path="/operations" element={<Operation />} />
-        <Route path="/evaluation" element={<Evaluation />} />
+    <div className="min-h-screen">
+      {isEvaluationRoute ? (
+        // Apply Evaluation-specific layout
+        <div>
+          <header className="bg-indigo-600 text-white py-4 text-center">
+            <h1 className="text-2xl font-bold">TUGON SENSE</h1>
+            <p className="text-sm">Test your knowledge in multiple phases</p>
+          </header>
+          <main className="min-h-screen bg-gray-50 p-4">
+            <Routes>
+              <Route path="/evaluationdifficulty" element={<EvaluationDifficultySelector />} />
+              <Route path="/eEvaluationPhase1" element={<EvaluationPhase1 />} />
+              <Route path="/eEvaluationPhase2" element={<EvaluationPhase2 />} />
+              <Route path="/eEvaluationPhase3" element={<EvaluationPhase3 />} />
+              <Route path="/eEvaluationPhase4" element={<EvaluationPhase4 />} />
+            </Routes>
+          </main>
+          <footer className="bg-gray-800 text-white py-4 text-center">
+            <p className="text-sm">© 2025 Tugon Prototype. All rights reserved.</p>
+          </footer>
+        </div>
+      ) : (
+        // Apply global layout
+        <div>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/quiz/:id" element={<Quiz />} />
+            <Route path="/create" element={<CreateQuiz />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/join" element={<JoinGame />} />
+            <Route path="/tugonsense" element={<TugonSense />} />
+            <Route path="/host" element={<HostGame />} />
+            <Route path="/game/:id" element={<Game />} />
+            <Route path="/operations" element={<Operation />} />
+            <Route path="/evaluation" element={<Evaluation />} />
 
-        {/* TugonSense quizzes */}
-        {/* Evaluation */}
-        <Route path="/evaluationdifficulty" element={<EvaluationDifficultySelector />} />
-        <Route path="/eEvaluationPhase1" element={<EvaluationPhase1 />} />
-        <Route path="/eEvaluationPhase2" element={<EvaluationPhase2 />} />
-        <Route path="/eEvaluationPhase3" element={<EvaluationPhase3 />} />
-        <Route path="/eEvaluationPhase4" element={<EvaluationPhase4 />} />
-
-        <Route path="/introductiontopic" element={<Introductiontopic />} />
-        <Route path="/operationstopic" element={<Operationstopic />} />
-        <Route path="/evaluationtopic" element={<Evaluationtopic />} />
-        <Route path="/graphs" element={<InteractiveGraph />} />
-        <Route path="/compositiontopic" element={<Compositiontopic />} />
-        <Route path="/rationaltopic" element={<Rationaltopic />} />
-        <Route path="/Radio" element={<Radio />} />
-        <Route path="/asymptotestopic" element={<Asymptotestopic />} />
-        <Route path="/rationalinequalitiestopic" element={<RationalEquationsInequalities />} />
-        <Route path="/inversetopic" element={<Inversetopic />} />
-        <Route path="/exponentialandlogtopic" element={<ExponentialLogarithmictopic />} />
-        <Route path="/problemsolvingfunctopic" element={<FunctionProblemSolvingtopic />} />
-      </Routes>
-      {/* Conditionally render Footer and FloatingAIButton */}
-      {!noFooterAndButtonRoutes.includes(location.pathname) && (
-        <FloatingAIButton onWrongAnswer={(questionId) => console.log('Wrong answer for:', questionId)} />
+            {/* TugonSense quizzes */}
+            {/* Evaluation */}
+            <Route path="difficulty" element={<EvaluationDifficultySelector />} />
+            <Route path="phase1" element={<EvaluationPhase1 />} />
+            <Route path="phase2" element={<EvaluationPhase2 />} />
+            <Route path="phase3" element={<EvaluationPhase3 />} />
+            <Route path="phase4" element={<EvaluationPhase4 />} />
+            <Route path="/introductiontopic" element={<Introductiontopic />} />
+            <Route path="/operationstopic" element={<Operationstopic />} />
+            <Route path="/evaluationtopic" element={<Evaluationtopic />} />
+            <Route path="/graphs" element={<InteractiveGraph />} />
+            <Route path="/compositiontopic" element={<Compositiontopic />} />
+            <Route path="/rationaltopic" element={<Rationaltopic />} />
+            <Route path="/Radio" element={<Radio />} />
+            <Route path="/asymptotestopic" element={<Asymptotestopic />} />
+            <Route path="/rationalinequalitiestopic" element={<RationalEquationsInequalities />} />
+            <Route path="/inversetopic" element={<Inversetopic />} />
+            <Route path="/exponentialandlogtopic" element={<ExponentialLogarithmictopic />} />
+            <Route path="/problemsolvingfunctopic" element={<FunctionProblemSolvingtopic />} />
+          </Routes>
+          <FloatingAIButton onWrongAnswer={(questionId) => console.log('Wrong answer for:', questionId)} />
+        </div>
       )}
     </div>
   );
