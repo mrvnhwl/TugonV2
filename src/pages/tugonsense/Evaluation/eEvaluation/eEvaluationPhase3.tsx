@@ -52,39 +52,54 @@ export default function EvaluationPhase3() {
 
   const currentQuestion = questions.phase3[currentQuestionIndex]
 
-  const checkAnswer = () => {
-    if (!answer.trim()) return
+  const checkAnswer = (inputValue: string) => {
+    if (!inputValue) return;
 
-    const correct = answer.trim().toLowerCase() === currentQuestion.correct_answer.toLowerCase()
-    setIsCorrect(correct)
-    setProgress(((currentQuestionIndex + 1) / questions.phase3.length) * 100)
-    setAttempts((prev) => prev + 1)
+    const normalizedAnswer = inputValue.trim();
+    const normalizedCorrectAnswer = currentQuestion.correct_answer.trim();
+
+    console.log("Normalized Answer:", normalizedAnswer);
+    console.log("Normalized Correct Answer:", normalizedCorrectAnswer);
+
+    const isNumericAnswer = !isNaN(Number(normalizedAnswer));
+    const isNumericCorrectAnswer = !isNaN(Number(normalizedCorrectAnswer));
+
+    const correct =
+      isNumericAnswer && isNumericCorrectAnswer
+        ? parseFloat(normalizedAnswer) === parseFloat(normalizedCorrectAnswer)
+        : normalizedAnswer.toLowerCase() === normalizedCorrectAnswer.toLowerCase();
+
+    console.log("Is Correct:", correct);
+
+    setIsCorrect(correct);
+    setProgress(((currentQuestionIndex + 1) / questions.phase3.length) * 100);
+    setAttempts((prev) => prev + 1);
 
     if (correct) {
-      setFeedback("Correct! Well done.")
+      setFeedback("Correct! Well done.");
     } else {
-      // Safely access feedback with fallbacks
-      const feedbackOptions = currentQuestion.ai_feedback[answer.trim()] ||
-        currentQuestion.ai_feedback.default || ["Check your answer and try again."]
+      const feedbackOptions =
+        currentQuestion.ai_feedback[normalizedAnswer] ||
+        currentQuestion.ai_feedback.default ||
+        ["Check your answer and try again."];
 
-      setFeedback(getRandomFeedback(feedbackOptions))
+      setFeedback(getRandomFeedback(feedbackOptions));
     }
-  }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAnswer(e.target.value)
+    const inputValue = e.target.value;
+    setAnswer(inputValue);
 
-    // Clear any existing timeout
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
-    // Set a new timeout to check the answer after 2 seconds of inactivity
-    if (e.target.value.trim() && isCorrect === null) {
+    if (inputValue.length > 0 && isCorrect === null) {
       const timeout = setTimeout(() => {
-        checkAnswer()
-      }, 2000)
-      typingTimeoutRef.current = timeout
+        checkAnswer(inputValue);
+      }, 2000);
+      typingTimeoutRef.current = timeout;
     }
-  }
+  };
 
   const handleTryAgain = () => {
     setAnswer("")
@@ -102,6 +117,21 @@ export default function EvaluationPhase3() {
     return feedbackArray[Math.floor(Math.random() * feedbackArray.length)]
   }
 
+  const handleSubmit = () => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+
+    if (answer.length > 0 && isCorrect === null) {
+      checkAnswer(answer);
+    }
+  };
+
+  const handleShowHint = () => {
+    setShowHint(true);
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="mb-8">
@@ -117,14 +147,14 @@ export default function EvaluationPhase3() {
               <h3 className="font-semibold text-purple-700">Instructions</h3>
             </div>
             <p className="text-sm text-purple-700">
-              Type your answer in the input box. Your answer will be checked automatically after 2 seconds.
+              Type your answer in the input box and click "Submit" to check your answer.
             </p>
           </Card>
 
           {!isCorrect && (
             <Button
               variant="ghost"
-              onClick={() => setShowHint(true)}
+              onClick={handleShowHint}
               className="flex items-center space-x-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 w-full justify-start"
             >
               <Lightbulb className="h-4 w-4" />
@@ -154,9 +184,22 @@ export default function EvaluationPhase3() {
                 placeholder="Type your answer here..."
                 value={answer}
                 onChange={handleInputChange}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleSubmit();
+                  }
+                }}
                 disabled={isCorrect !== null}
                 className="w-full p-4 text-lg"
               />
+
+              <Button
+                onClick={handleSubmit}
+                disabled={isCorrect !== null}
+                className="w-full bg-purple-600 text-white hover:bg-purple-700"
+              >
+                Submit
+              </Button>
 
               {/* Feedback */}
               {feedback && (
