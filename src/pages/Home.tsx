@@ -3,28 +3,59 @@ import { Link } from "react-router-dom";
 import { Brain, Trophy, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import Footer from "../components/Footer";
+import Lottie from "react-lottie";
+import animationData from "../components/assets/animations/learning.json"; // Ensure this path is correct
+import createAnimation from "../components/assets/animations/create.json"; // Animation for Create Quiz
+import progressAnimation from "../components/assets/animations/progress.json"; // Animation for Track Progress
+import competeAnimation from "../components/assets/animations/comp.json"; // Animation for Compete
 
 const features = [
   {
     title: "Create Quizzes",
     description: "Easily create interactive quizzes with multiple choice questions and time limits.",
     icon: Brain,
+    animation: createAnimation, // Add animation for Create Quizzes
   },
   {
     title: "Track Progress",
     description: "Monitor student performance and progress with detailed analytics.",
     icon: Users,
+    animation: progressAnimation, // Add animation for Track Progress
   },
   {
     title: "Compete",
     description: "Engage students with real-time competition and leaderboards.",
     icon: Trophy,
+    animation: competeAnimation, // Add animation for Compete
   },
 ];
 
 function Home() {
+  const lottieOptions = (animationData) => ({
+    loop: true,
+    autoplay: true,
+    animationData: animationData,
+    rendererSettings: {
+      preserveAspectRatio: "xMidYMid slice",
+    },
+  });
+
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="relative flex flex-col min-h-screen overflow-hidden">
+      {/* Background SVG Animation */}
+      <div className="absolute inset-0 -z-10">
+        <motion.div
+          className="absolute top-0 left-0 w-96 h-96 bg-indigo-300 rounded-full opacity-50 blur-3xl"
+          animate={{ x: [0, 50, -50, 0], y: [0, -50, 50, 0] }}
+          transition={{ duration: 10, repeat: Infinity }}
+        />
+        <motion.div
+          className="absolute bottom-0 right-0 w-96 h-96 bg-purple-300 rounded-full opacity-50 blur-3xl"
+          animate={{ x: [0, -50, 50, 0], y: [0, 50, -50, 0] }}
+          transition={{ duration: 12, repeat: Infinity }}
+        />
+      </div>
+
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center">
           <motion.h1
@@ -63,6 +94,13 @@ function Home() {
           </motion.div>
         </div>
 
+        {/* Lottie Animation */}
+        <div className="mt-16 flex justify-center">
+          <div className="w-full max-w-lg">
+            <Lottie options={lottieOptions(animationData)} height="100%" width="100%" />
+          </div>
+        </div>
+
         <div className="mt-24">
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((feature, index) => (
@@ -76,12 +114,16 @@ function Home() {
                 <div className="group flow-root bg-white rounded-2xl px-6 pb-8 shadow-md hover:shadow-lg transition-all">
                   <div className="-mt-6 flex flex-col items-center text-center">
                     <div className="inline-flex items-center justify-center p-4 bg-indigo-500 rounded-full shadow-lg group-hover:scale-110 transition-transform">
-                      <feature.icon className="h-6 w-6 text-white" />
+                      {React.createElement(feature.icon, { className: "h-6 w-6 text-white" })}
                     </div>
                     <h3 className="mt-6 text-lg font-semibold text-gray-900 tracking-tight">
                       {feature.title}
                     </h3>
                     <p className="mt-4 text-base text-gray-500">{feature.description}</p>
+                    {/* Add Lottie Animation */}
+                    <div className="mt-4 w-full max-w-xs">
+                      <Lottie options={lottieOptions(feature.animation)} height="100%" width="100%" />
+                    </div>
                   </div>
                 </div>
               </motion.div>

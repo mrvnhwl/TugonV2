@@ -1,9 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Play } from "lucide-react";
+import { BookOpen, Play, Heart } from "lucide-react"; // Import Heart icon
 import Footer from "../components/Footer";
 import { motion } from "framer-motion";
-import Radio from "../components/Radio"; // Ensure this component exists
 
 const topics = [
   { title: "Operations on Functions", path: "/operations" },
@@ -18,6 +17,16 @@ const topics = [
 ];
 
 function TugonSense() {
+  const [favorites, setFavorites] = useState<string[]>([]); // State to track favorite topics
+
+  const toggleFavorite = (topicTitle: string) => {
+    setFavorites((prevFavorites) =>
+      prevFavorites.includes(topicTitle)
+        ? prevFavorites.filter((title) => title !== topicTitle) // Remove from favorites
+        : [...prevFavorites, topicTitle] // Add to favorites
+    );
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -52,18 +61,25 @@ function TugonSense() {
                     <BookOpen className="h-5 w-5 text-indigo-600 mr-3" aria-hidden="true" />
                     <span className="text-gray-900 font-medium">{topic.title}</span>
                   </div>
-                  <Link
-                    to={topic.path}
-                    className="flex items-center space-x-2 px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                  >
-                    <Play className="h-4 w-4" aria-hidden="true" />
-                    <span>Start</span>
-                  </Link>
-                </div>
-                
-                {/* Star Rating */}
-                <div className="mt-3 flex justify-center">
-                  <Radio />
+                  <div className="flex items-center space-x-2">
+                    <Link
+                      to={topic.path}
+                      className="flex items-center space-x-2 px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                    >
+                      <Play className="h-4 w-4" aria-hidden="true" />
+                      <span>Start</span>
+                    </Link>
+                    <button
+                      onClick={() => toggleFavorite(topic.title)}
+                      className="focus:outline-none"
+                    >
+                      <Heart
+                        className={`h-6 w-6 ${
+                          favorites.includes(topic.title) ? "text-red-500 fill-current" : "text-gray-400"
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             ))}

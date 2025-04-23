@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Play, Trophy, Clock, BarChart, BookOpen } from "lucide-react";
+import { Play, Trophy, Clock, BarChart, BookOpen, Heart } from "lucide-react"; // Import Heart icon
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import Footer from "../components/Footer";
@@ -40,6 +40,7 @@ function Dashboard() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [progress, setProgress] = useState<Progress[]>([]);
   const [loading, setLoading] = useState(true);
+  const [favorites, setFavorites] = useState<string[]>([]); // Track favorite topics
 
   useEffect(() => {
     if (!user) {
@@ -71,21 +72,28 @@ function Dashboard() {
         .eq("user_id", user?.id)
         .order("completed_at", { ascending: false });
 
+      if (progressData) {
+        const fixedProgress = progressData.map((item) => ({
+          ...item,
+          quiz: Array.isArray(item.quiz) ? item.quiz[0] : item.quiz, // ensure single object
+        }));
 
-     if (progressData) {
-  const fixedProgress = progressData.map((item) => ({
-    ...item,
-    quiz: Array.isArray(item.quiz) ? item.quiz[0] : item.quiz, // ensure single object
-  }));
-
-  setProgress(fixedProgress);
-}
+        setProgress(fixedProgress);
+      }
 
       setLoading(false);
     } catch (error) {
       console.error("Error loading dashboard:", error);
       setLoading(false);
     }
+  };
+
+  const toggleFavorite = (topicTitle: string) => {
+    setFavorites((prevFavorites) =>
+      prevFavorites.includes(topicTitle)
+        ? prevFavorites.filter((title) => title !== topicTitle) // Remove from favorites
+        : [...prevFavorites, topicTitle] // Add to favorites
+    );
   };
 
   if (loading) {
@@ -98,11 +106,6 @@ function Dashboard() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Back Button */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        
-      </div>
-
       <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Topics Section */}
         <motion.div
@@ -120,13 +123,22 @@ function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 + index * 0.1, duration: 0.5 }}
               >
-                <Link
-                  to={topic.path}
-                  className="flex items-center border border-gray-200 rounded-lg p-4 hover:border-indigo-500 transition-colors"
-                >
-                  <BookOpen className="h-5 w-5 text-indigo-600 mr-3" />
-                  <span className="text-gray-900 font-medium">{topic.title}</span>
-                </Link>
+                <div className="flex items-center border border-gray-200 rounded-lg p-4 hover:border-indigo-500 transition-colors relative">
+                  <Link to={topic.path} className="flex-grow flex items-center">
+                    <BookOpen className="h-5 w-5 text-indigo-600 mr-3" />
+                    <span className="text-gray-900 font-medium">{topic.title}</span>
+                  </Link>
+                  <button
+                    onClick={() => toggleFavorite(topic.title)}
+                    className="absolute top-2 right-2 focus:outline-none"
+                  >
+                    <Heart
+                      className={`h-5 w-5 ${
+                        favorites.includes(topic.title) ? "text-red-500 fill-current" : "text-gray-400"
+                      }`}
+                    />
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -180,10 +192,15 @@ function Dashboard() {
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Progress</h2>
             <div className="space-y-6">
               <div className="grid grid-cols-3 gap-4">
-                {[ 
+                {[
                   { icon: Trophy, value: progress.length, label: "Quizzes Completed" },
                   { icon: BarChart, value: progress.reduce((acc, curr) => acc + curr.score, 0), label: "Total Score" },
-                  { icon: Clock, value: quizzes.length > 0 ? Math.round((progress.length / quizzes.length) * 100) : 0, label: "Completion Rate", isPercent: true }
+                  {
+                    icon: Clock,
+                    value: quizzes.length > 0 ? Math.round((progress.length / quizzes.length) * 100) : 0,
+                    label: "Completion Rate",
+                    isPercent: true,
+                  },
                 ].map((item, index) => (
                   <motion.div
                     key={item.label}

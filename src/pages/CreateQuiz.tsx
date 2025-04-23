@@ -30,6 +30,7 @@ function CreateQuiz() {
       answers: Array(4).fill({ answer: "", is_correct: false }),
     },
   ]);
+  const [showModal, setShowModal] = useState(false); // State to control modal visibility
 
   const addQuestion = () => {
     setQuestions([
@@ -97,144 +98,182 @@ function CreateQuiz() {
         if (aError) throw aError;
       }
 
-      navigate("/dashboard");
+      setShowModal(true); // Show the modal after successful quiz creation
     } catch (error) {
       console.error("Error creating quiz:", error);
     }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="max-w-4xl mx-auto px-4 py-8"
-    >
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="bg-white rounded-lg shadow-lg p-6 space-y-4">
-          <h1 className="text-2xl font-bold text-gray-900">Create New Quiz</h1>
-
-          <input
-            type="text"
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-            placeholder="Quiz Title"
-          />
-
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-            placeholder="Quiz Description"
-            rows={3}
-          />
-        </div>
-
-        {questions.map((q, qIndex) => (
-          <motion.div
-            key={qIndex}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: qIndex * 0.1 }}
-            className="bg-white rounded-lg shadow-lg p-6 space-y-4"
-          >
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold">Question {qIndex + 1}</h2>
-              <button
-                type="button"
-                onClick={() => removeQuestion(qIndex)}
-                className="text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-5 w-5" />
-              </button>
-            </div>
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="max-w-4xl mx-auto px-4 py-8"
+      >
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="bg-white rounded-lg shadow-lg p-6 space-y-4">
+            <h1 className="text-2xl font-bold text-gray-900">Create New Quiz</h1>
 
             <input
               type="text"
               required
-              value={q.question}
-              onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="Question"
+              placeholder="Quiz Title"
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              placeholder="Quiz Description"
+              rows={3}
+            />
+          </div>
+
+          {questions.map((q, qIndex) => (
+            <motion.div
+              key={qIndex}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: qIndex * 0.1 }}
+              className="bg-white rounded-lg shadow-lg p-6 space-y-4"
+            >
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold">Question {qIndex + 1}</h2>
+                <button
+                  type="button"
+                  onClick={() => removeQuestion(qIndex)}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              </div>
+
               <input
-                type="number"
-                min="5"
-                max="120"
+                type="text"
                 required
-                value={q.time_limit}
-                onChange={(e) => updateQuestion(qIndex, "time_limit", parseInt(e.target.value))}
-                className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="Time Limit (sec)"
+                value={q.question}
+                onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
+                className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                placeholder="Question"
               />
-              <input
-                type="number"
-                min="100"
-                max="2000"
-                step="100"
-                required
-                value={q.points}
-                onChange={(e) => updateQuestion(qIndex, "points", parseInt(e.target.value))}
-                className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="Points"
-              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  type="number"
+                  min="5"
+                  max="120"
+                  required
+                  value={q.time_limit}
+                  onChange={(e) => updateQuestion(qIndex, "time_limit", parseInt(e.target.value))}
+                  className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  placeholder="Time Limit (sec)"
+                />
+                <input
+                  type="number"
+                  min="100"
+                  max="2000"
+                  step="100"
+                  required
+                  value={q.points}
+                  onChange={(e) => updateQuestion(qIndex, "points", parseInt(e.target.value))}
+                  className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  placeholder="Points"
+                />
+              </div>
+
+              <div className="space-y-2">
+                {q.answers.map((a, aIndex) => (
+                  <div key={aIndex} className="flex items-center space-x-3">
+                    <input
+                      type="text"
+                      required
+                      value={a.answer}
+                      onChange={(e) => updateAnswer(qIndex, aIndex, "answer", e.target.value)}
+                      className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                      placeholder={`Answer ${aIndex + 1}`}
+                    />
+                    <input
+                      type="radio"
+                      name={`correct-${qIndex}`}
+                      checked={a.is_correct}
+                      onChange={() => {
+                        const newQuestions = [...questions];
+                        newQuestions[qIndex].answers.forEach((ans, i) => {
+                          ans.is_correct = i === aIndex;
+                        });
+                        setQuestions(newQuestions);
+                      }}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm">Correct</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          ))}
+
+          <div className="flex justify-between">
+            <button
+              type="button"
+              onClick={addQuestion}
+              className="flex items-center space-x-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition"
+            >
+              <Plus className="h-5 w-5" />
+              <span>Add Question</span>
+            </button>
+
+            <button
+              type="submit"
+              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+            >
+              <Save className="h-5 w-5" />
+              <span>Save Quiz</span>
+            </button>
+          </div>
+        </form>
+      </motion.div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-96 space-y-4">
+            <h2 className="text-xl font-bold text-gray-900">Quiz Created Successfully!</h2>
+            <p className="text-gray-600">Go to dashboard to see created quiz or create another quiz.</p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+              >
+                Go to Dashboard
+              </button>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setTitle("");
+                  setDescription("");
+                  setQuestions([
+                    {
+                      question: "",
+                      time_limit: 30,
+                      points: 1000,
+                      answers: Array(4).fill({ answer: "", is_correct: false }),
+                    },
+                  ]);
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
+              >
+                Create Another Quiz
+              </button>
             </div>
-
-            <div className="space-y-2">
-              {q.answers.map((a, aIndex) => (
-                <div key={aIndex} className="flex items-center space-x-3">
-                  <input
-                    type="text"
-                    required
-                    value={a.answer}
-                    onChange={(e) => updateAnswer(qIndex, aIndex, "answer", e.target.value)}
-                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    placeholder={`Answer ${aIndex + 1}`}
-                  />
-                  <input
-                    type="radio"
-                    name={`correct-${qIndex}`}
-                    checked={a.is_correct}
-                    onChange={() => {
-                      const newQuestions = [...questions];
-                      newQuestions[qIndex].answers.forEach((ans, i) => {
-                        ans.is_correct = i === aIndex;
-                      });
-                      setQuestions(newQuestions);
-                    }}
-                    className="text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="text-sm">Correct</span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        ))}
-
-        <div className="flex justify-between">
-          <button
-            type="button"
-            onClick={addQuestion}
-            className="flex items-center space-x-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition"
-          >
-            <Plus className="h-5 w-5" />
-            <span>Add Question</span>
-          </button>
-
-          <button
-            type="submit"
-            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
-          >
-            <Save className="h-5 w-5" />
-            <span>Save Quiz</span>
-          </button>
+          </div>
         </div>
-      </form>
-    </motion.div>
+      )}
+    </>
   );
 }
 
