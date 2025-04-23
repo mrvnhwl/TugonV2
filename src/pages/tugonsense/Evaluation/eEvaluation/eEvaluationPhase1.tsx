@@ -39,14 +39,19 @@ export default function EvaluationPhase1() {
   const currentQuestion = questions.phase1[currentQuestionIndex]
 
   const handleAnswerSelect = (answer: string) => {
-    if (selectedAnswer) return // Prevent changing answer after selection
-
-    setSelectedAnswer(answer)
-    const correct = answer === currentQuestion.correct_answer
-    setIsCorrect(correct)
-    setProgress(((currentQuestionIndex + 1) / questions.phase1.length) * 100)
-    setAttempts((prev) => prev + 1)
-  }
+    if (selectedAnswer) return; // Prevent changing answer after selection
+  
+    setSelectedAnswer(answer);
+    const correct = answer === currentQuestion.correct_answer;
+    setIsCorrect(correct);
+  
+    if (correct) {
+      // Only update progress if the answer is correct
+      setProgress(((currentQuestionIndex + 1) / questions.phase1.length) * 100);
+    }
+  
+    setAttempts((prev) => prev + 1);
+  };
 
   const handleTryAgain = () => {
     setSelectedAnswer(null)
