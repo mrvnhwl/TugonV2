@@ -1,3 +1,5 @@
+"use client";
+
 import type React from "react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -20,6 +22,8 @@ export default function EvaluationPhase4() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingHint, setIsLoadingHint] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -66,7 +70,54 @@ export default function EvaluationPhase4() {
 
   const currentQuestion = questions.phase4[currentQuestionIndex];
 
-  const checkAnswer = (inputValue: string) => {
+  const getGeminiHint = async (inputValue: string) => {
+    if (!inputValue.trim()) return;
+
+    setIsLoadingHint(true);
+    setApiError(null);
+
+    try {
+      console.log("Sending request with:", {
+        question: currentQuestion.question,
+        userAnswer: inputValue.trim(),
+        correctAnswer: currentQuestion.correct_answer,
+      });
+
+      const response = await fetch("http://localhost:3000/api/gemini-hint", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: currentQuestion.question,
+          userAnswer: inputValue.trim(),
+          correctAnswer: currentQuestion.correct_answer,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to get hint");
+      }
+
+      const data = await response.json();
+      setFeedback(data.hint);
+    } catch (error) {
+      console.error("Error getting Gemini hint:", error);
+      setApiError("Failed to get AI hint. Using fallback hint.");
+
+      // Fallback to static hints
+      const feedbackOptions =
+        currentQuestion.ai_feedback[inputValue.trim()] ||
+        currentQuestion.ai_feedback.default ||
+        ["Check your answer and try again."];
+      setFeedback(getRandomFeedback(feedbackOptions));
+    } finally {
+      setIsLoadingHint(false);
+    }
+  };
+
+  const checkAnswer = async (inputValue: string) => {
     if (!inputValue) return;
 
     const normalizedAnswer = inputValue.trim();
@@ -92,12 +143,7 @@ export default function EvaluationPhase4() {
     if (correct) {
       setFeedback("Correct! Well done.");
     } else {
-      const feedbackOptions =
-        currentQuestion.ai_feedback[normalizedAnswer] ||
-        currentQuestion.ai_feedback.default ||
-        ["Check your answer and try again."];
-
-      setFeedback(getRandomFeedback(feedbackOptions));
+      await getGeminiHint(inputValue);
     }
   };
 
@@ -120,6 +166,7 @@ export default function EvaluationPhase4() {
     setIsCorrect(null);
     setFeedback(null);
     setShowExplanation(false);
+    setApiError(null);
   };
 
   const handleNext = () => {
@@ -139,6 +186,10 @@ export default function EvaluationPhase4() {
     if (answer.length > 0 && isCorrect === null) {
       checkAnswer(answer);
     }
+  };
+
+  const handleShowHint = () => {
+    setShowHint(true);
   };
 
   return (
@@ -162,7 +213,7 @@ export default function EvaluationPhase4() {
           {!isCorrect && (
             <Button
               variant="ghost"
-              onClick={() => setShowHint(true)}
+              onClick={handleShowHint}
               className="flex items-center space-x-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 w-full justify-start"
             >
               <Lightbulb className="h-4 w-4" />

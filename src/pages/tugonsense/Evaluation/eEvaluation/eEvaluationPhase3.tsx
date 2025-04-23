@@ -1,42 +1,43 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState, useEffect, useRef } from "react"
-import { useNavigate} from "react-router-dom"
-import { Brain, Lightbulb, ArrowRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Input } from "@/components/ui/input"
-import { questions } from "../questions"
+import type React from "react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { Brain, Lightbulb, ArrowRight, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { questions } from "../questions";
 
 export default function EvaluationPhase3() {
-  const router = useNavigate()
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-  const [answer, setAnswer] = useState("")
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
-  const [showExplanation, setShowExplanation] = useState(false)
-  const [showHint, setShowHint] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [attempts, setAttempts] = useState(0)
-  const [feedback, setFeedback] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const router = useNavigate();
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [answer, setAnswer] = useState("");
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [attempts, setAttempts] = useState(0);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingHint, setIsLoadingHint] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check if questions data is available
   useEffect(() => {
     if (questions && questions.phase3 && questions.phase3.length > 0) {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [])
+  }, []);
 
   // Clear any existing timeout when component unmounts
   useEffect(() => {
     return () => {
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
-    }
-  }, [])
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
 
   // Show loading state if questions aren't loaded yet
   if (isLoading) {
@@ -47,12 +48,59 @@ export default function EvaluationPhase3() {
           <p>Please wait while we prepare your evaluation.</p>
         </Card>
       </div>
-    )
+    );
   }
 
-  const currentQuestion = questions.phase3[currentQuestionIndex]
+  const currentQuestion = questions.phase3[currentQuestionIndex];
 
-  const checkAnswer = (inputValue: string) => {
+  const getGeminiHint = async (inputValue: string) => {
+    if (!inputValue.trim()) return;
+
+    setIsLoadingHint(true);
+    setApiError(null);
+
+    try {
+      console.log("Sending request with:", {
+        question: currentQuestion.question,
+        userAnswer: inputValue.trim(),
+        correctAnswer: currentQuestion.correct_answer,
+      });
+
+      const response = await fetch("http://localhost:3000/api/gemini-hint", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: currentQuestion.question,
+          userAnswer: inputValue.trim(),
+          correctAnswer: currentQuestion.correct_answer,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to get hint");
+      }
+
+      const data = await response.json();
+      setFeedback(data.hint);
+    } catch (error) {
+      console.error("Error getting Gemini hint:", error);
+      setApiError("Failed to get AI hint. Using fallback hint.");
+
+      // Fallback to static hints
+      const feedbackOptions =
+        currentQuestion.ai_feedback[inputValue.trim()] ||
+        currentQuestion.ai_feedback.default ||
+        ["Check your answer and try again."];
+      setFeedback(getRandomFeedback(feedbackOptions));
+    } finally {
+      setIsLoadingHint(false);
+    }
+  };
+
+  const checkAnswer = async (inputValue: string) => {
     if (!inputValue) return;
 
     const normalizedAnswer = inputValue.trim();
@@ -78,12 +126,7 @@ export default function EvaluationPhase3() {
     if (correct) {
       setFeedback("Correct! Well done.");
     } else {
-      const feedbackOptions =
-        currentQuestion.ai_feedback[normalizedAnswer] ||
-        currentQuestion.ai_feedback.default ||
-        ["Check your answer and try again."];
-
-      setFeedback(getRandomFeedback(feedbackOptions));
+      await getGeminiHint(inputValue);
     }
   };
 
@@ -102,20 +145,20 @@ export default function EvaluationPhase3() {
   };
 
   const handleTryAgain = () => {
-    setAnswer("")
-    setIsCorrect(null)
-    setFeedback(null)
-    setShowExplanation(false)
-  }
+    setAnswer("");
+    setIsCorrect(null);
+    setFeedback(null);
+    setShowExplanation(false);
+    setApiError(null);
+  };
 
   const handleNext = () => {
-    // Always navigate to Phase 4 after answering a question
-    router("/eEvaluationPhase4")
-  }
+    router("/eEvaluationPhase4");
+  };
 
   const getRandomFeedback = (feedbackArray: string[]) => {
-    return feedbackArray[Math.floor(Math.random() * feedbackArray.length)]
-  }
+    return feedbackArray[Math.floor(Math.random() * feedbackArray.length)];
+  };
 
   const handleSubmit = () => {
     if (typingTimeoutRef.current) {
@@ -244,5 +287,5 @@ export default function EvaluationPhase3() {
         </div>
       </div>
     </div>
-  )
+  );
 }
