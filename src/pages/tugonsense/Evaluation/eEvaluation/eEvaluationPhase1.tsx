@@ -12,11 +12,12 @@ import wrongSound from "@/components/assets/sound/wrong.mp3"; // Wrong answer so
 import dragSound from "@/components/assets/sound/drag.mp3"; // Dragging sound
 import Lottie from "react-lottie"; // Import Lottie
 import robotAnimation from "@/components/assets/animations/robot1.json"; // Import robot animation
-
+import 'katex/dist/katex.min.css'; // Import KaTeX CSS
+import { BlockMath } from "react-katex";
 export default function EvaluationPhase1() {
   const router = useNavigate();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [selectedAnswer, setSelectedAnswer]   = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -56,6 +57,15 @@ export default function EvaluationPhase1() {
         </Card>
       </div>
     );
+  }
+
+
+  //Formattitng the hints
+  const formatFeedback= (text: string): string => {
+    return text
+      .split("\n")                           // Split on newlines
+      .map(line => `\\text{${line}}`)        // Wrap each line in \text{}
+      .join(" \\\\ ")                        // Join lines with LaTeX line break
   }
 
   const currentQuestion = questions.phase1[currentQuestionIndex];
@@ -151,7 +161,7 @@ export default function EvaluationPhase1() {
           {/* Question Column */}
           <div className="md:col-span-2 space-y-4">
             <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-6">{currentQuestion.question}</h2>
+              <h2 className="text-xl font-semibold mb-6"><BlockMath math={currentQuestion.question}/></h2>
 
               {/* Answer Options */}
               <div className="space-y-3">

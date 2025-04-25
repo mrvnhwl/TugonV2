@@ -12,6 +12,17 @@ import Navbar from "@/components/Navbar" // Import the Navbar component
 import Lottie from "react-lottie" // Import Lottie
 import robotAnimation from "@/components/assets/animations/robot1.json" // Import robot animation
 import { questions } from "../questions"
+import "../../../../index.css"; // Import custom styles for the component
+import "katex/dist/katex.min.css" // Import KaTeX CSS
+import { BlockMath } from "react-katex" // Import KaTeX for math rendering
+// Helper function to determine progress bar color
+const getColorForProgress = (percent: number): string => {
+  if (percent < 25) return "#333"; // Dark grayx`
+  if (percent < 50) return "#666"; // Medium gray
+  if (percent < 75) return "#a3d3a1"; // Soft green
+  if (percent < 100) return "#5ec576"; // Medium green
+  return "#2ecc71"; // Full green
+};
 
 export default function EvaluationPhase2() {
   const router = useNavigate()
@@ -37,7 +48,61 @@ export default function EvaluationPhase2() {
       preserveAspectRatio: "xMidYMid slice",
     },
   }
-
+  //Handles Hint Formatting
+   //Formattitng the hints
+   
+   const formatFeedback = (text: string, maxWidth: number): string => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return text;
+  
+    // Set the font style to match your CSS (adjust as needed)
+    context.font = "16px Arial";
+  
+    const formattedLines: string[] = [];
+    let currentLine = "";
+  
+    text.split(" ").forEach((word) => {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = context.measureText(testLine).width;
+  
+      if (testWidth > maxWidth) {
+        // If the test line exceeds the max width, push the current line and start a new one
+        formattedLines.push(currentLine);
+        currentLine = word;
+      } else {
+        // Otherwise, add the word to the current line
+        currentLine = testLine;
+      }
+    });
+  
+    // Push the last line if it exists
+    if (currentLine) {
+      formattedLines.push(currentLine);
+    }
+  
+    // Convert lines to LaTeX format
+    const latexLines = formattedLines.map((line) =>
+      line
+        .split(" ")
+        .map((word) => {
+          // Check if the word contains a fraction pattern (e.g., "a\b")
+          const fractionMatch = word.match(/^(.+?)\\(.+?)$/); // Regex to detect "a\b" pattern
+          if (fractionMatch) {
+            const numerator = fractionMatch[1]; // Extract numerator
+            const denominator = fractionMatch[2]; // Extract denominator
+            return `\\frac{${numerator}}{${denominator}}`; // Convert to \frac{}
+          }
+  
+          // Check if the word is a math number/symbol or plain text
+          const isMath = /^[0-9+\-*/^=()]+$/.test(word); // Regex to detect math symbols/numbers
+          return isMath ? word : `\\text{${word}}`; // Wrap plain text in \text{}
+        })
+        .join(" \\ ") // Add LaTeX space (\ ) between words
+    );
+  
+    return `\\begin{array}{l}${latexLines.join(" \\\\ ")}\\end{array}`; // Wrap in array environment
+  };
   // Check if questions data is available
   useEffect(() => {
     if (questions && questions.phase2 && questions.phase2.length > 0) {
@@ -51,6 +116,15 @@ export default function EvaluationPhase2() {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    console.log("Progress updated:", progress);
+    const progressBar = document.querySelector(".progress-bar") as HTMLElement;
+    if (progressBar) {
+      progressBar.style.backgroundColor = getColorForProgress(progress);
+      console.log("Progress bar color updated:", getColorForProgress(progress));
+    }
+  }, [progress]);
 
   // Show loading state if questions aren't loaded yet
   if (isLoading) {
@@ -98,6 +172,7 @@ export default function EvaluationPhase2() {
 
       const data = await response.json()
       setFeedback(data.hint)
+      console.log("Feedback provided by AI:", data.hint); 
     } catch (error) {
       console.error("Error getting Gemini hint:", error)
       setApiError("Failed to get AI hint. Using fallback hint.")
@@ -145,20 +220,35 @@ export default function EvaluationPhase2() {
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const inputValue = e.target.value
-    setAnswer(inputValue)
+    const inputValue = e.target.value;
+    setAnswer(inputValue);
+
+    // Compare user input with the correct answer
+    const correctAnswer = currentQuestion.correct_answer;
+    const maxLength = Math.max(inputValue.length, correctAnswer.length);
+    let matchedCharacters = 0;
+
+    for (let i = 0; i < inputValue.length; i++) {
+      if (inputValue[i] === correctAnswer[i]) {
+        matchedCharacters++;
+      }
+    }
+
+    // Calculate progress as a percentage of matched characters
+    const newProgress = Math.min((matchedCharacters / maxLength) * 100, 100);
+    setProgress(newProgress);
 
     // Clear any existing timeout
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     // Set a new timeout to check the answer after 2 seconds of inactivity
     if (inputValue.length > 0 && isCorrect === null) {
       const timeout = setTimeout(() => {
-        checkAnswer(inputValue) // Pass the current input value
-      }, 2000)
-      typingTimeoutRef.current = timeout
+        checkAnswer(inputValue); // Pass the current input value
+      }, 2000);
+      typingTimeoutRef.current = timeout;
     }
-  }
+  };
 
   const handleTryAgain = () => {
     setAnswer("")
@@ -201,7 +291,6 @@ export default function EvaluationPhase2() {
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <Progress value={progress} className="h-2" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -275,9 +364,13 @@ export default function EvaluationPhase2() {
                 />
 
                 {/* Submit Button */}
-                <Button
+                <Button 
                   onClick={handleSubmit}
                   disabled={isCorrect !== null || isLoadingHint}
+                  style={{
+                    backgroundColor: getColorForProgress(progress), // Dynamically set background color
+                    transition: "background-color 0.3s ease", // Smooth transition for color change
+                  }}
                   className="w-full bg-indigo-600 text-white hover:bg-indigo-700"
                 >
                   {isLoadingHint ? (
@@ -300,8 +393,15 @@ export default function EvaluationPhase2() {
 
                 {/* Feedback */}
                 {feedback && !isLoadingHint && (
-                  <div className={`p-4 rounded-lg ${isCorrect ? "bg-green-50" : "bg-yellow-50"}`}>
-                    <p className={`font-medium ${isCorrect ? "text-green-700" : "text-amber-700"}`}>{feedback}</p>
+                  <div
+                    className={`p-6  rounded-lg ${isCorrect ? "bg-green-50" : "bg-yellow-50"} feedback-container`}
+                  >
+                    <div
+                      style={{ textAlign: "center" }} // Optional: Align text to the left
+                      className={`font-medium ${isCorrect ? "text-green-700" : "text-amber-700"} break-words`}
+                    >
+                      <BlockMath math={formatFeedback(feedback, 300)} />
+                    </div>
 
                     {!isCorrect && (
                       <div className="mt-4 flex space-x-4">
