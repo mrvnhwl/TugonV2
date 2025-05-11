@@ -1,36 +1,46 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Brain, Trophy, Users } from "lucide-react";
+import { BookOpen, Play, BarChart } from "lucide-react";
 import { motion } from "framer-motion";
 import Footer from "../components/Footer";
 import Lottie from "react-lottie";
-import animationData from "../components/assets/animations/learning.json"; // Ensure this path is correct
-import createAnimation from "../components/assets/animations/create.json"; // Animation for Create Quiz
+import createAnimation from "../components/assets/animations/create.json"; // Animation for Explore Topics
+import competeAnimation from "../components/assets/animations/comp.json"; // Animation for Take Quizzes
 import progressAnimation from "../components/assets/animations/progress.json"; // Animation for Track Progress
-import competeAnimation from "../components/assets/animations/comp.json"; // Animation for Compete
+import quizAnimation from "../components/assets/animations/quiz.json";
 
 const features = [
   {
-    title: "Create Quizzes",
-    description: "Easily create interactive quizzes with multiple choice questions and time limits.",
-    icon: Brain,
-    animation: createAnimation, // Add animation for Create Quizzes
+    title: "Explore Topics",
+    description: "Dive into a variety of topics to enhance your knowledge and understanding.",
+    icon: BookOpen,
+    animation: createAnimation,
+    link: "/studentDashboard",
+  },
+  {
+    title: "Take Quizzes",
+    description: "Test your knowledge and challenge yourself with interactive quizzes.",
+    icon: Play,
+    animation: quizAnimation,
+    link: "/studentDashboard",
   },
   {
     title: "Track Progress",
-    description: "Monitor student performance and progress with detailed analytics.",
-    icon: Users,
-    animation: progressAnimation, // Add animation for Track Progress
+    description: "Monitor your learning journey and achievements over time.",
+    icon: BarChart,
+    animation: progressAnimation,
+    link: "/studentDashboard",
   },
   {
-    title: "Compete",
-    description: "Engage students with real-time competition and leaderboards.",
-    icon: Trophy,
-    animation: competeAnimation, // Add animation for Compete
+    title: "Compete with Friends",
+    description: "Engage in exciting quiz competitions and challenge your friends in real-time.",
+    icon: Play,
+    animation: competeAnimation,
+    link: "/studentDashboard",
   },
 ];
 
-function Home() {
+function StudentHome() {
   const lottieOptions = (animationData) => ({
     loop: true,
     autoplay: true,
@@ -42,7 +52,7 @@ function Home() {
 
   return (
     <div className="relative flex flex-col min-h-screen overflow-hidden">
-      {/* Background SVG Animation */}
+      {/* Background Animation */}
       <div className="absolute inset-0 -z-10">
         <motion.div
           className="absolute top-0 left-0 w-96 h-96 bg-indigo-300 rounded-full opacity-50 blur-3xl"
@@ -64,10 +74,8 @@ function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7 }}
           >
-            <>
-              <span className="block">Welcome to</span>
-              <span className="block text-indigo-600">Tugon</span>
-            </>
+            <span className="block">Welcome to</span>
+            <span className="block text-indigo-600">Tugon for Students</span>
           </motion.h1>
 
           <motion.p
@@ -76,7 +84,7 @@ function Home() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3, duration: 0.7 }}
           >
-            Create engaging quizzes, track student progress, and make learning fun!
+            Your journey to mastering new skills starts here. Explore topics, take quizzes, and track your progress.
           </motion.p>
 
           <motion.div
@@ -86,7 +94,7 @@ function Home() {
             transition={{ delay: 0.5, duration: 0.7 }}
           >
             <Link
-              to="/login"
+              to="/studentDashboard"
               className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-2xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-md md:py-4 md:text-lg md:px-10 transition-all"
             >
               Get Started
@@ -94,15 +102,9 @@ function Home() {
           </motion.div>
         </div>
 
-        {/* Lottie Animation */}
-        <div className="mt-16 flex justify-center">
-          <div className="w-full max-w-lg">
-            <Lottie options={lottieOptions(animationData)} height="100%" width="100%" />
-          </div>
-        </div>
-
         <div className="mt-24">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Responsive Grid: 2 per row on medium screens and above */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {features.map((feature, index) => (
               <motion.div
                 key={feature.title}
@@ -124,6 +126,12 @@ function Home() {
                     <div className="mt-4 w-full max-w-xs">
                       <Lottie options={lottieOptions(feature.animation)} height="100%" width="100%" />
                     </div>
+                    <Link
+                      to={feature.link}
+                      className="mt-4 inline-block text-indigo-600 hover:underline"
+                    >
+                      Learn More
+                    </Link>
                   </div>
                 </div>
               </motion.div>
@@ -138,4 +146,4 @@ function Home() {
   );
 }
 
-export default Home;
+export default StudentHome;

@@ -3,8 +3,7 @@
 import type React from "react";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Brain, Lightbulb, ArrowRight, Loader2,XCircle } from "lucide-react";
-
+import { Brain, Lightbulb, ArrowRight, Loader2, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,8 +14,7 @@ import { questions } from "../questions";
 import "../../../../index.css";
 import "katex/dist/katex.min.css";
 import { BlockMath } from "react-katex";
-import { n } from "node_modules/framer-motion/dist/types.d-B50aGbjN";
-
+import { Progress } from "@radix-ui/react-progress";
 
 const getColorForProgress = (percent: number): string => {
   if (percent < 25) return "#333";
@@ -26,11 +24,9 @@ const getColorForProgress = (percent: number): string => {
   return "#2ecc71";
 };
 
-
-export default function EvaluationPhase2() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export default function HEvaluationPhase4() {
   const router = useNavigate();
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(2);
   const [answer, setAnswer] = useState("");
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
@@ -38,14 +34,13 @@ export default function EvaluationPhase2() {
   const [progress, setProgress] = useState(0);
   const [attempts, setAttempts] = useState(0);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [completed, setCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingHint, setIsLoadingHint] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [characterCount, setCharacterCount] = useState(0);;
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [characterCount, setCharacterCount] = useState(0);
-  const [showQuitPopup, setShowQuitPopup] = useState(false); // State for quit confirmation popup
-  const [tryAgainCount, setTryAgainCount] = useState(0); // Track "Try again" clicks
-
+   const [tryAgainCount, setTryAgainCount] = useState(0); 
   const robotOptions = {
     loop: true,
     autoplay: true,
@@ -99,12 +94,8 @@ export default function EvaluationPhase2() {
       "Observation:",
       "Suggestion:",
       "Recommendation:",
-      "Feedback:",
     ];
 
-
-  
-  
     const finalLines: string[] = [];
 
     formattedLines.forEach((line) => {
@@ -131,7 +122,7 @@ export default function EvaluationPhase2() {
   
 
   useEffect(() => {
-    if (questions && questions.phase2 && questions.phase2.length > 0) {
+    if (questions && questions.phase4 && questions.phase4.length > 0) {
       setIsLoading(false);
     }
   }, []);
@@ -160,18 +151,67 @@ export default function EvaluationPhase2() {
     );
   }
 
-  const currentQuestion = questions.phase2[currentQuestionIndex];
+  if (completed) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Card className="p-8 text-center">
+          <div className="flex justify-center mb-6">
+            <CheckCircle className="h-16 w-16 text-green-500" />
+          </div>
+          <h1 className="text-3xl font-bold mb-4">Evaluation Completed!</h1>
+          <p className="text-gray-600 mb-8">
+            Congratulations! You have successfully completed all phases of the evaluation.
+          </p>
+          <Button onClick={() => router("./evaluationdifficulty")} size="lg">
+            Return to Home
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
- 
+  const currentQuestion = questions.phase4[currentQuestionIndex];
+
+  const getGeminiHint = async (inputValue: string) => {
+    if (!inputValue.trim()) return;
+
+    setIsLoadingHint(true);
+    setApiError(null);
+
+    try {
+      const response = await fetch("http://localhost:3000/api/gemini-hint", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: currentQuestion.question,
+          userAnswer: inputValue.trim(),
+          correctAnswer: currentQuestion.correct_answer,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to get hint");
+      }
+
+      const data = await response.json();
+      setFeedback(data.hint);
+    } catch (error) {
+      setApiError("Failed to get AI hint. Using fallback hint.");
+      const feedbackOptions =
+        currentQuestion.ai_feedback[inputValue.trim()] ||
+        currentQuestion.ai_feedback.default ||
+        ["Check your answer and try again."];
+      setFeedback(getRandomFeedback(feedbackOptions));
+    } finally {
+      setIsLoadingHint(false);
+    }
+  };
+
   const checkAnswer = async (inputValue: string, scenario: string) => {
     if (!inputValue) return;
-
-    // --- Frontend Check for Completion ---
-    // Determine if the input *currently* matches the correct answer
-    const correctAnswer = currentQuestion.correct_answer;
-    // Simple direct comparison is often sufficient if format is consistent
-    const isFrontendCorrect = inputValue.trim() === correctAnswer.trim();
-    // --- End Frontend Check ---
 
     try {
       const response = await fetch("http://localhost:3000/api/gemini-hint", {
@@ -187,38 +227,20 @@ export default function EvaluationPhase2() {
         }),
       });
 
-      const data = await response.json();
-      console.log("Full API Response:", data); // Log the full API response
-
-      // --- Prioritize Frontend Correctness ---
-      if (isFrontendCorrect) {
-        // If the frontend comparison confirms correctness, force isCorrect to true
-        console.log("Frontend determined correct. Setting isCorrect=true.");
-        setIsCorrect(true);
-        // Use a specific success message or the API's hint if desired
-        setFeedback(data.hint || "Good Job! Your answer is correct.");
-      } else {
-        // If frontend didn't detect a match, trust the API response
-        console.log("Frontend did not detect exact match. Trusting API.");
-        const apiIsCorrect = data.isCorrect ?? false; // Default to false if undefined
-        setIsCorrect(apiIsCorrect);
-        setFeedback(data.hint || "No feedback provided.");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to get hint");
       }
-      // --- End Prioritization ---
 
+      const data = await response.json();
+      setFeedback(data.hint);
     } catch (error) {
       console.error("Error getting hint:", error);
-      setFeedback("Error getting feedback from the server.");
-      setIsCorrect(false); // Assume incorrect on error
     }
   };
-  
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isSubmitting) {
-      return; // Skip autochecking if handleSubmit is being processed
-    }
     const inputValue = e.target.value;
-    const isBackspace = (e.nativeEvent as InputEvent).inputType === "deleteContentBackward";
 
     // Filter input to count only alphanumeric characters (letters and numbers)
     const alphanumericCount = inputValue.replace(/[^a-zA-Z0-9]/g, "").length;
@@ -233,8 +255,8 @@ export default function EvaluationPhase2() {
     }
 
     // Update the answer and character count only if the input is not caused by backspace
-    setAnswer(inputValue);
-    if (!isBackspace) {
+    if ((e.nativeEvent as InputEvent).inputType !== "deleteContentBackward") {
+      setAnswer(inputValue);
       setCharacterCount(alphanumericCount); // Update character count with alphanumeric count
       console.log("Alphanumeric characters typed so far:", alphanumericCount); // Log character count
     }
@@ -251,65 +273,51 @@ export default function EvaluationPhase2() {
 
     const newProgress = Math.min((matchedCharacters / maxLength) * 100, 100);
     console.log("Progress:", newProgress, "%");
-    setProgress(newProgress); // Update progress state immediately
-
     let timeoutDuration = 2000;
     let scenario = "";
 
-    if (newProgress == 100) {
-      timeoutDuration = 2000;
-      scenario = "progress_completed";
-    } else if (newProgress > progress) {
+    if (newProgress > progress) {
       timeoutDuration = 1500;
       scenario = "progress_increased";
     } else if (newProgress < progress) {
       timeoutDuration = 3000;
       scenario = "progress_decreased";
-    }  else { // Covers newProgress === 0 or newProgress === progress
+    } else if (newProgress === progress && newProgress < 100) {
+      timeoutDuration = 2000;
       scenario = "no_progress";
-      timeoutDuration = 1000;
     }
 
-    console.log("New Progress:", newProgress);
-    console.log("Scenario:", scenario);
+    setProgress(newProgress);
 
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current); // Clear any existing timeout
 
-    if (inputValue.length > 0) {
+    // Set a timeout to trigger progress-related scenarios
+    if (inputValue.length > 0 && isCorrect === null) {
       typingTimeoutRef.current = setTimeout(() => {
-        if (typingTimeoutRef.current) { // Check if timeout wasn't cleared by submit
-           checkAnswer(inputValue, scenario);
-        }
+        checkAnswer(inputValue, scenario);
       }, timeoutDuration);
     }
   };
-  
+
+
   const handleTryAgain = () => {
     setAnswer("");
     setIsCorrect(null);
     setFeedback(null);
     setShowExplanation(false);
     setApiError(null);
+    setCharacterCount(0); // Reset character count
 
     setTryAgainCount((prevCount) => prevCount + 1); // Increment the "Try again" count
   };
 
   const handleNext = () => {
-    router("/eEvaluationPhase3");
-  };
-  const handleQuit = () => {
-    setShowQuitPopup(true); // Show the quit confirmation popup
+    setCompleted(true);
   };
 
-  const confirmQuit = () => {
-    router("/tugonsense"); // Navigate back to TugonSense
+  const getRandomFeedback = (feedbackArray: string[]) => {
+    return feedbackArray[Math.floor(Math.random() * feedbackArray.length)];
   };
-
-  const cancelQuit = () => {
-    setShowQuitPopup(false); // Close the quit confirmation popup
-  };
-
- 
 
   const handleSubmit = () => {
     if (typingTimeoutRef.current) {
@@ -317,46 +325,56 @@ export default function EvaluationPhase2() {
       typingTimeoutRef.current = null;
     }
 
-    if (answer.length > 0) {
-      setCharacterCount(0);
-
-      // Determine scenario based on CURRENT progress state when submitting
-      let scenario = "manual_submit"; // Default scenario for manual submit
-      if (progress === 100) {
-         scenario = "progress_completed";
-      }
-
-      checkAnswer(answer, scenario); // Call checkAnswer
+    if (answer.length > 0 && isCorrect === null) {
+      setCharacterCount(0); // Reset character count
+      checkAnswer(answer, "manual_submit");
     }
   };
-
 
   return (
     <div className="relative min-h-screen bg-gray-50">
       <Navbar />
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-8"></div>
+        <div className="mb-8">
+          <Progress value={progress} className="h-2" />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-4">
-            <Card className="p-4 bg-green-50 border-green-200">
+            <Card className="p-4 bg-amber-50 border-amber-200">
               <div className="flex items-center space-x-3 mb-2">
-                <Brain className="h-5 w-5 text-green-600" />
-                <h3 className="font-semibold text-green-700">Substitute</h3>
+                <Brain className="h-5 w-5 text-amber-600" />
+                <h3 className="font-semibold text-amber-700">Instructions</h3>
               </div>
-              <p className="text-sm text-green-700">
-                 Given the equation f(x)=-4x-5 and your previous answer.<br />
-                 Substitute the value obtain from the previous question.<br/>
+              <p className="text-sm text-amber-700">
+                Type your answer in the input box and click "Submit" to check your answer.
               </p>
             </Card>
             <div className="flex justify-center">
               <Lottie options={robotOptions} height={150} width={150} />
             </div>
-           
+            {!isCorrect && (
+              <Button
+                variant="ghost"
+                onClick={() => setShowHint(true)}
+                className="flex items-center space-x-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 w-full justify-start"
+              >
+                <Lightbulb className="h-4 w-4" />
+                <span>Need a hint?</span>
+              </Button>
+            )}
+            {showHint && (
+              <Card className="p-4 bg-amber-50 border-amber-200">
+                <div className="flex items-center space-x-2">
+                  <Lightbulb className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm text-amber-700">{currentQuestion.hint}</span>
+                </div>
+              </Card>
+            )}
           </div>
           <div className="md:col-span-2 space-y-4">
             <Card className="p-6">
               <h2 className="text-xl font-semibold mb-6">
-                  <BlockMath math= {currentQuestion.question}/>
+                <BlockMath math={currentQuestion.question} />
               </h2>
               <div className="space-y-4">
                 <Input
@@ -369,17 +387,17 @@ export default function EvaluationPhase2() {
                       handleSubmit();
                     }
                   }}
-                  disabled={isCorrect === true || isLoadingHint} // Disable input if feedback is sent
+                  disabled={isCorrect === false || isLoadingHint} 
                   className="w-full p-4 text-lg"
                 />
                 <Button
                   onClick={handleSubmit}
-                  disabled={isCorrect === false || isLoadingHint} // Allow clicking when isCorrect is true
+                  disabled={isCorrect !== null || isLoadingHint}
                   style={{
                     backgroundColor: getColorForProgress(progress),
                     transition: "background-color 0.3s ease",
                   }}
-                  className="w-full bg-green-600 text-white hover:bg-green-700"
+                  className="w-full bg-amber-600 text-white hover:bg-amber-700"
                 >
                   {isLoadingHint ? (
                     <>
@@ -392,7 +410,7 @@ export default function EvaluationPhase2() {
                 </Button>
                 {isLoadingHint && !isCorrect && (
                   <div className="flex items-center justify-center p-4 rounded-lg bg-gray-50">
-                    <Loader2 className="h-5 w-5 text-green-600 animate-spin mr-2" />
+                    <Loader2 className="h-5 w-5 text-amber-600 animate-spin mr-2" />
                     <p>Getting AI hint for your answer...</p>
                   </div>
                 )}
@@ -408,34 +426,18 @@ export default function EvaluationPhase2() {
                         isCorrect ? "text-green-700" : "text-amber-700"
                       } break-words`}
                     >
-                      <BlockMath math={formatFeedback(feedback, 370)} />
+                      <BlockMath math={formatFeedback(feedback, 400)} />
                     </div>
-
-                    {/* --- Button Logic --- */}
-                    <div className="mt-4 flex space-x-4">
-                      {isCorrect ? (
-                        // Show "Next Phase" button if the answer is correct
-                        <Button onClick={handleNext} className="flex items-center space-x-2">
-                          <span>Next Phase</span>
-                          <ArrowRight className="h-4 w-4" />
+                    {!isCorrect && (
+                      <div className="mt-4 flex space-x-4">
+                        <Button onClick={handleTryAgain} variant="secondary">
+                          Try again
                         </Button>
-                      ) : (
-                        // Show "Try Again" and potentially "See Answer" if incorrect
-                        <>
-                          <Button onClick={handleTryAgain} variant="secondary">
-                            Try again
-                          </Button>
-                          {/* Show "See Answer" only if incorrect AND after enough tries */}
-                          {tryAgainCount >= 2 && (
-                            <Button onClick={() => setShowExplanation(true)} variant="outline">
-                              See answer
-                            </Button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    {/* --- End Button Logic --- */}
-
+                        <Button onClick={() => setShowExplanation(true)} variant="outline">
+                          See answer
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
                 {showExplanation && (
@@ -447,52 +449,21 @@ export default function EvaluationPhase2() {
                         Correct answer: {currentQuestion.correct_answer}
                       </p>
                     </div>
-                    <div className="mt-4 flex justify-end">
+                  </div>
+                )}
+                {(isCorrect || showExplanation) && (
+                  <div className="flex justify-end">
                     <Button onClick={handleNext} className="flex items-center space-x-2">
-                      <span>Next Phase</span>
+                      <span>Finish</span>
                       <ArrowRight className="h-4 w-4" />
                     </Button>
-                  </div>
                   </div>
                 )}
               </div>
             </Card>
           </div>
         </div>
-        
       </div>
-       {/* Quit Quiz Button */}
-       <div className="absolute bottom-4 left-4">
-        <Button
-          variant="outline"
-          onClick={handleQuit}
-          className="flex items-center space-x-2 text-red-600 hover:text-red-700 border border-red-600 px-4 py-2 text-lg"
-        >
-          <XCircle className="h-6 w-6" />
-          <span>Quit Quiz</span>
-        </Button>
-      </div>
-
-      {/* Quit Confirmation Popup */}
-      {showQuitPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="p-8 max-w-md w-full">
-            <div className="flex justify-center mb-6">
-              <Lottie options={robotOptions} height={120} width={120} />
-            </div>
-            <h3 className="text-xl font-semibold text-center mb-6">Are you sure you want to quit?</h3>
-            <div className="flex justify-between">
-              <Button onClick={confirmQuit} className="bg-red-600 text-white hover:bg-red-700 px-6 py-2 text-lg">
-                Quit
-              </Button>
-              <Button onClick={cancelQuit} variant="outline" className="px-6 py-2 text-lg">
-                Continue
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
     </div>
-    
   );
 }

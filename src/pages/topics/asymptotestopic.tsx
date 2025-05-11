@@ -33,7 +33,7 @@ function Asymptotestopic() {
               <p className="font-semibold text-gray-800">Vertical Asymptote</p>
               <p className="text-sm text-gray-700">Example: f(x) = 1 / (x - 2) has a vertical asymptote at x = 2.</p>
               <img
-                src="/images/vertical-asymptote.png"
+                src="/images/vertical.png"
                 alt="Graph with vertical asymptote"
                 className="mt-2 w-full h-auto rounded shadow"
               />
@@ -43,7 +43,7 @@ function Asymptotestopic() {
               <p className="font-semibold text-gray-800">Horizontal Asymptote</p>
               <p className="text-sm text-gray-700">Example: f(x) = 3 / (x + 1) has a horizontal asymptote at y = 0.</p>
               <img
-                src="/images/horizontal-asymptote.png"
+                src="/images/horizontal.png"
                 alt="Graph with horizontal asymptote"
                 className="mt-2 w-full h-auto rounded shadow"
               />
@@ -53,7 +53,7 @@ function Asymptotestopic() {
               <p className="font-semibold text-gray-800">Oblique Asymptote</p>
               <p className="text-sm text-gray-700">Example: f(x) = (2x² + 3) / (x) has an oblique asymptote y = 2x.</p>
               <img
-                src="/images/oblique-asymptote.png"
+                src="\images\oblique.png"
                 alt="Graph with oblique asymptote"
                 className="mt-2 w-full h-auto rounded shadow"
               />
@@ -65,7 +65,6 @@ function Asymptotestopic() {
           </p>
         </div>
       </main>
-      <BackButton />
       <Footer />
     </div>
   );

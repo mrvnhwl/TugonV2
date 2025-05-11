@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Brain, Lightbulb, ArrowRight, XCircle } from "lucide-react";
+import { Brain, Lightbulb, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -14,10 +14,9 @@ import Lottie from "react-lottie"; // Import Lottie
 import robotAnimation from "@/components/assets/animations/robot1.json"; // Import robot animation
 import 'katex/dist/katex.min.css'; // Import KaTeX CSS
 import { BlockMath } from "react-katex";
-
-export default function EvaluationPhase1() {
+export default function AEvaluationPhase1() {
   const router = useNavigate();
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(1);
   const [selectedAnswer, setSelectedAnswer]   = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
@@ -25,7 +24,7 @@ export default function EvaluationPhase1() {
   const [progress, setProgress] = useState(0);
   const [attempts, setAttempts] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [showQuitPopup, setShowQuitPopup] = useState(false); // State for quit confirmation popup
+
   // Initialize sounds
   const [playCorrect] = useSound(correctSound);
   const [playWrong] = useSound(wrongSound);
@@ -91,21 +90,8 @@ export default function EvaluationPhase1() {
 
   const handleNext = () => {
     // Always navigate to Phase 2 after answering a question
-    router("/eEvaluationPhase2");
+    router("/aEvaluationPhase2");
   };
-
-  const handleQuit = () => {
-    setShowQuitPopup(true); // Show the quit confirmation popup
-  };
-
-  const confirmQuit = () => {
-    router("/tugonsense"); // Navigate back to TugonSense
-  };
-
-  const cancelQuit = () => {
-    setShowQuitPopup(false); // Close the quit confirmation popup
-  };
-
 
   const getRandomFeedback = (feedbackArray: string[]) => {
     return feedbackArray[Math.floor(Math.random() * feedbackArray.length)];
@@ -119,6 +105,9 @@ export default function EvaluationPhase1() {
 
   return (
     <div className="relative min-h-screen bg-gray-50">
+      {/* Navigation Bar */}
+      <Navbar /> {/* Use the Navbar component */}
+
       <div className="max-w-4xl mx-auto px-4 py-8">
   
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -130,8 +119,8 @@ export default function EvaluationPhase1() {
                 <h3 className="font-semibold text-blue-700">Identify</h3>
               </div>
                 <p className="text-sm text-blue-700">
-                  Given the function f(x) = -4x - 5,<br />
-                  find the value of f(-4).
+                  Given f(x) = 3x^2 + 2x + 1,<br />
+                  find the value of f(2). 
                 </p>
             </Card>
 
@@ -210,38 +199,6 @@ export default function EvaluationPhase1() {
           </div>
         </div>
       </div>
-       {/* Quit Quiz Button */}
-       <div className="absolute bottom-4 left-4">
-        <Button
-          variant="outline"
-          onClick={handleQuit}
-          className="flex items-center space-x-2 text-red-600 hover:text-red-700 border border-red-600 px-4 py-2 text-lg"
-        >
-          <XCircle className="h-6 w-6" />
-          <span>Quit Quiz</span>
-        </Button>
-      </div>
-
-      {/* Quit Confirmation Popup */}
-            {showQuitPopup && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <Card className="p-8 max-w-md w-full">
-                  <div className="flex justify-center mb-6">
-                    <Lottie options={robotOptions} height={120} width={120} />
-                  </div>
-                  <h3 className="text-xl font-semibold text-center mb-6">Are you sure you want to quit?</h3>
-                  <div className="flex justify-between">
-                    <Button onClick={confirmQuit} className="bg-red-600 text-white hover:bg-red-700 px-6 py-2 text-lg">
-                      Quit
-                    </Button>
-                    <Button onClick={cancelQuit} variant="outline" className="px-6 py-2 text-lg">
-                      Continue
-                    </Button>
-                  </div>
-                </Card>
-              </div>
-            )}
     </div>
-    
   );
 }

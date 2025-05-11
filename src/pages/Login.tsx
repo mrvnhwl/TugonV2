@@ -22,11 +22,22 @@ function Login() {
       } else {
         await signIn(email, password);
       }
-      navigate('/dashboard');
+      // Redirect to UserTypeSelection after successful login/signup
+      navigate('/');
     } catch (err: any) {
       setError(err.message);
     }
   };
+
+  function handleLogin(userType: string) {
+    // Example: After successful login
+    localStorage.setItem("userType", userType); // Set userType as "student" or "teacher"
+    if (userType === "student") {
+      navigate("/studentDashboard");
+    } else if (userType === "teacher") {
+      navigate("/teacherDashboard");
+    }
+  }
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-tr from-indigo-50 to-indigo-100">

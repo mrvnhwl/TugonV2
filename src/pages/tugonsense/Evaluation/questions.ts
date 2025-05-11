@@ -1,3 +1,4 @@
+
 export type Question = {
     id: string
     question: string
@@ -25,17 +26,17 @@ export type Question = {
     phase1: [
       {
         id: "p1q1",
-        question: "Evaluate f(x) = 2x^2 + 3 when x = 4",
+        question: "\\text {What is the value of x?}",
         explanation:
-          "To evaluate f(x) = 2x^2 + 3 when x = 4, substitute 4 for x: f(4) = 2(4)^2 + 3 = 2(16) + 3 = 32 + 3 = 35",
-        hint: "Substitute the value of x into the function and simplify.",
-        options: ["27", "32", "35", "39"],
-        correct_answer: "35",
+          "The x-value is -4 because the problem specifically asks for the value of f(-4)f(-4), meaning we substitute -4 into the function. ",
+        hint: " ",
+        options: ["4", "-4", "5", "0"],
+        correct_answer: "-4",
         ai_feedback: {
-          "27": ["Not quite. Did you square x correctly?"],
-          "32": ["Close, but don't forget to add the constant 3."],
-          "35": ["Great job! You evaluated the function correctly."],
-          "39": ["Hmm, check your multiplication step again."],
+          "4": ["Close. Not quite the right value."],
+          "-4": ["Close, but don't forget to add the constant 3."],
+          "5": ["Hmm, check again."],
+          "0": ["Not quite..."],
         },
       },
       {
@@ -74,11 +75,11 @@ export type Question = {
     phase2: [
       {
         id: "p2q1",
-        question: "Evaluate k(x) = (x + 2)/(x - 1) when x = 3.",
+        question: "\\text {Substitute -4 into x? if f(x) = -4x - 5}",
         explanation:
-          "To evaluate k(x) = (x + 2)/(x - 1) when x = 3, substitute 3 for x: k(3) = (3 + 2)/(3 - 1) = 5/2 = 2.5",
-        hint: "Substitute x = 3 into the function and simplify the fraction.",
-        correct_answer: "2.5",
+          " ",
+        hint: " ",
+        correct_answer: "-4(-4)-5",
         ai_feedback: {
           "2": ["Not quite. Did you simplify the fraction correctly?"],
           "5": ["You've calculated the numerator correctly, but don't forget to divide by (x-1)."],
@@ -120,10 +121,10 @@ export type Question = {
     phase3: [
       {
         id: "p3q1",
-        question: "If f(x) = 2^x and g(x) = x+1, find (f∘g)(2).",
+        question: "\\text {What is the value of} -4(-4)-5?",
         explanation: "To find (f∘g)(2), first calculate g(2) = 2+1 = 3. Then calculate f(g(2)) = f(3) = 2^3 = 8.",
         hint: "Remember that (f∘g)(x) means f(g(x)). First find g(2), then apply f to that result.",
-        correct_answer: "8",
+        correct_answer: "16-5",
         ai_feedback: {
           "6": ["You might have calculated f(2) ∘ g(2) instead of f(g(2))."],
           "4": ["Check the order of operations in function composition."],
@@ -163,11 +164,11 @@ export type Question = {
     phase4: [
       {
         id: "p4q1",
-        question: "Find the range of the function f(x) = 2x² + 3.",
+        question: "\\text {What is the final value of} f(-4)=16-5?",
         explanation:
           "Since x² ≥ 0 for all real numbers, 2x² ≥ 0 as well. This means f(x) = 2x² + 3 ≥ 3 for all x. The minimum value of f(x) is 3 (when x = 0). Therefore, the range is [3,∞).",
         hint: "What is the smallest possible value of this function? Consider the behavior of the quadratic term.",
-        correct_answer: "[3,∞)",
+        correct_answer: "11",
         ai_feedback: {
           "(3,∞)": ["Close! But remember that the function actually attains the value 3 when x = 0."],
           "(-∞,∞)": ["That's not correct. A quadratic function with a positive coefficient has a minimum value."],

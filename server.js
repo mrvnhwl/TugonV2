@@ -26,23 +26,91 @@ app.use(cors({ origin: "http://localhost:5173" })); // Allow requests from the f
 app.use(express.json());
 
 app.post("/api/gemini-hint", async (req, res) => {
-  const { question, userAnswer, correctAnswer } = req.body;
+  const { question, userAnswer, correctAnswer, scenario } = req.body;
 
-  const prompt = `
+  let prompt = "";
+
+
+  if (scenario === "progress_completed") {
+    // Congratulatory prompt when progress reaches 100%
+    prompt = `
+      Question: ${question}
+      User's answer: ${userAnswer}
+      Correct answer: ${correctAnswer}
+  
+     Congratulate the user briefly (1-2 sentences) for completing the question successfully. Be enthusiastic but concise. Encourage them to continue to the next challenge.
+      `;
+  } else if (scenario === "progress_increased") {
+    // Motivational prompt when progress increases
+    prompt = `
+      Question: ${question}
+      User's answer: ${userAnswer}
+      Correct answer: ${correctAnswer}
+
+      Give a short motivational message (1-2 sentences) to recognize their progress and encourage them to keep going.
+    `;
+  } else if (scenario === "progress_decreased") {
+    // Hint prompt when progress decreases
+    prompt = `
+    Use this context to generate a hint for the user.
+      Question: ${question}
+      User's answer: ${userAnswer}
+      Correct answer: ${correctAnswer}
+
+      Compare the user's answer with the correct answer. In 1-2 sentences, 
+      give short feedback about how close they are, then offer a brief hint. 
+      Include a quick, similar example using different numbers but the same solution method. 
+      Avoid directly referencing the original question.
+    `;
+  } else if (scenario === "no_progress") {
+    // Prompt when there is no progress increase
+    prompt = `
+      Question: ${question}
+      User's answer: ${userAnswer}
+      Correct answer: ${correctAnswer}
+  
+        Give a short motivational boost (1 sentence). 
+        Then provide a very brief hint (1-2 sentences) with a simple example using different values. 
+        Keep the total response under 80 words.
+      `;
+  } 
+ else if (scenario === "hint_requested") {
+  // Prompt when the "Need a hint?" button is clicked
+  prompt = `
     Question: ${question}
     User's answer: ${userAnswer}
     Correct answer: ${correctAnswer}
+
+    Give a short and helpful hint without revealing the answer. 
+    Use simple words. 
+    Optionally include a short, similar example using different numbers. 
+    Keep the hint under 80 words.
+    `;
+}
+  else if (scenario === "character_limit") {
+    // Prompt when the user exceeds the character limit
+    prompt = `
+      Provide a short one sentence indicating and scolding the students is guessing. 
+    `;
+  }
+  else if (scenario === "manual_submit") {
+    prompt = `
+      Question: ${question}
+      User's answer: ${userAnswer}
+      Correct answer: ${correctAnswer}
     
-    Can you provide a helpful hint that guides the user toward the correct answer without giving it away directly? 
-    Keep your response under 100 words and focus on addressing misconceptions in their answer.
-  `;
+      Briefly validate the user's answer. 
+      If correct, congratulate them in 1 sentence.
+      If incorrect, provide a short hint (1-2 sentences) without revealing the answer.
+      `;
+  }
 
   try {
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": apiKey, // Use the API key from the .env file
+        "x-goog-api-key": apiKey,
       },
       body: JSON.stringify({
         contents: [
