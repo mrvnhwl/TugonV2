@@ -1,3 +1,4 @@
+
 export type Question = {
     id: string
     question: string
@@ -25,7 +26,7 @@ export type Question = {
     phase1: [
       {
         id: "p1q1",
-        question: "Evaluate f(x) = 2x^2 + 3 when x = 4",
+        question: "\\text { Evaluate } f(x) = 2x^2 + \\frac{3}{5} \\text { when } x = 4",
         explanation:
           "To evaluate f(x) = 2x^2 + 3 when x = 4, substitute 4 for x: f(4) = 2(4)^2 + 3 = 2(16) + 3 = 32 + 3 = 35",
         hint: "Substitute the value of x into the function and simplify.",

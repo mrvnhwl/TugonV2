@@ -61,12 +61,8 @@ function AppContent() {
   return (
     <div className="min-h-screen">
       {isEvaluationRoute ? (
-        // Apply Evaluation-specific layout
+  
         <div>
-          <header className="bg-indigo-600 text-white py-4 text-center">
-            <h1 className="text-2xl font-bold">TUGON SENSE</h1>
-            <p className="text-sm">Test your knowledge in multiple phases</p>
-          </header>
           <main className="min-h-screen bg-gray-50 p-4">
             <Routes>
               <Route path="/evaluationdifficulty" element={<EvaluationDifficultySelector />} />

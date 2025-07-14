@@ -70,3 +70,10 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
 }
+
+.feedback-container {
+  max-width: 100%; /* Constrain the width */
+  overflow: hidden; /* Prevent overflow */
+  word-wrap: break-word; /* Break long words */
+  white-space: normal; /* Allow wrapping */
+}
