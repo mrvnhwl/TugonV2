@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, Play, Heart, ArrowLeft } from "lucide-react"; // Import ArrowLeft for Back button
+import { BookOpen, Play, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 
 const topics = [
@@ -16,25 +16,16 @@ const topics = [
 ];
 
 function TugonSense() {
-  const [favorites, setFavorites] = useState<string[]>([]); // State to track favorite topics
   const navigate = useNavigate();
 
   // Function to handle Back button navigation
   const handleBack = () => {
-    const userType = localStorage.getItem("userType"); // Assuming userType is stored in localStorage
+    const userType = localStorage.getItem("userType");
     if (userType === "student") {
       navigate("/studentDashboard");
     } else if (userType === "teacher") {
       navigate("/teacherDashboard");
     }
-  };
-
-  const toggleFavorite = (topicTitle: string) => {
-    setFavorites((prevFavorites) =>
-      prevFavorites.includes(topicTitle)
-        ? prevFavorites.filter((title) => title !== topicTitle) // Remove from favorites
-        : [...prevFavorites, topicTitle] // Add to favorites
-    );
   };
 
   return (
@@ -80,30 +71,13 @@ function TugonSense() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 + index * 0.1, duration: 0.5 }}
-                className="flex flex-col justify-between border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                className="flex flex-col justify-between border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-gray-50"
               >
                 {/* Topic Title and Icon */}
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <BookOpen className="h-6 w-6 text-indigo-600 mr-3" aria-hidden="true" />
-                    <span className="text-gray-900 font-medium">{topic.title}</span>
-                  </div>
-                  {/* Favorite Button */}
-                  <button
-                    onClick={() => toggleFavorite(topic.title)}
-                    className="focus:outline-none"
-                    aria-label={`${
-                      favorites.includes(topic.title) ? "Remove from favorites" : "Add to favorites"
-                    }`}
-                  >
-                    <Heart
-                      className={`h-6 w-6 ${
-                        favorites.includes(topic.title) ? "text-red-500 fill-current" : "text-gray-400"
-                      }`}
-                    />
-                  </button>
+                <div className="flex items-center mb-4">
+                  <BookOpen className="h-6 w-6 text-indigo-600 mr-3" aria-hidden="true" />
+                  <span className="text-gray-900 font-medium text-lg">{topic.title}</span>
                 </div>
-
                 {/* Start Button */}
                 <div className="mt-4">
                   <Link
