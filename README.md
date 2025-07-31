@@ -62,6 +62,16 @@ If the branch already exists remotely:
 
 git push login/usertype_selection
 
+
+✅ ALWAYS PULL FIRST FOR THE UPDATES IN THE REPO
+
+git checkout main
+
+
+git pull origin main
+
+
+
 🔁 MUST DO
 
 After pushing your changes, return to the main branch:
