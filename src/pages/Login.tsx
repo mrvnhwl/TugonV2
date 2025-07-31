@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'framer-motion';
-import { Lock, UserPlus, LogIn } from 'lucide-react';
+import { Lock, UserPlus, LogIn, User } from 'lucide-react';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -22,22 +22,13 @@ function Login() {
       } else {
         await signIn(email, password);
       }
-      // Redirect to UserTypeSelection after successful login/signup
-      navigate('/');
+      // Always set as teacher and route to teacher dashboard
+      localStorage.setItem("userType", "teacher");
+      navigate('/teacherDashboard');
     } catch (err: any) {
       setError(err.message);
     }
   };
-
-  function handleLogin(userType: string) {
-    // Example: After successful login
-    localStorage.setItem("userType", userType); // Set userType as "student" or "teacher"
-    if (userType === "student") {
-      navigate("/studentDashboard");
-    } else if (userType === "teacher") {
-      navigate("/teacherDashboard");
-    }
-  }
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-tr from-indigo-50 to-indigo-100">
@@ -54,16 +45,13 @@ function Login() {
             transition={{ repeat: Infinity, duration: 2, repeatType: 'reverse' }}
             className="flex justify-center mb-4"
           >
-            {isSignUp ? (
-              <UserPlus className="h-12 w-12 text-indigo-600" />
-            ) : (
-              <Lock className="h-12 w-12 text-indigo-600" />
-            )}
+            <User className="h-12 w-12 text-indigo-600" />
           </motion.div>
 
           <h2 className="text-2xl font-bold text-gray-800">
-            {isSignUp ? 'Create your account' : 'Sign in to your account'}
+            {isSignUp ? 'Teacher Sign Up' : 'Teacher Sign In'}
           </h2>
+          <p className="text-sm text-gray-500 mt-1">For teachers only</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -83,7 +71,7 @@ function Login() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email address"
+              placeholder="Teacher email address"
               className="w-full px-4 py-2 border rounded-md shadow-sm focus:ring-2 focus:ring-indigo-400"
             />
 

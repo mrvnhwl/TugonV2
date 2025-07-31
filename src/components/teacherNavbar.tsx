@@ -1,10 +1,15 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Brain, Play, Users } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 
 function TeacherNavbar() {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignIn = () => {
+    navigate("/");
+  };
 
   return (
     <nav className="bg-indigo-600 text-white shadow-lg">
@@ -66,7 +71,11 @@ function TeacherNavbar() {
 
                 {/* Logout Button */}
                 <button
-                  onClick={signOut}
+                  onClick={async () => {
+                    await signOut();
+                    localStorage.removeItem("userType");
+                    navigate("/");
+                  }}
                   className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-md text-sm font-medium"
                 >
                   Logout
@@ -74,12 +83,12 @@ function TeacherNavbar() {
               </>
             ) : (
               // Sign In Button (if user is not logged in)
-              <Link
-                to="/login"
+              <button
+                onClick={handleSignIn}
                 className="bg-white text-indigo-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-100"
               >
                 Sign In
-              </Link>
+              </button>
             )}
           </div>
         </div>
