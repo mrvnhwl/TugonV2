@@ -15,6 +15,7 @@ Before cloning this repository, make sure you have the following installed:
 VS Code (or any code editor of your choice)
 
 🚀 Getting Started
+
 Follow these steps to run the project locally:
 
 Clone the repository
@@ -34,11 +35,13 @@ Start the development server
 npm run dev
 
 🧑‍💻 Start Coding
+
 Before you begin coding, create a branch first based on your assigned task.
 Example:
 git checkout -b login/usertype_selection
 
 ✅ After Coding
+
 Stage your changes:
 git add .
 
@@ -46,16 +49,20 @@ Check the status of your changes:
 git status
 
 Commit your changes:
+
 git commit -m "Update Login Page"
 
 Push your branch:
 
 If you created the branch:
+
 git push login/usertype_selection
 
 If the branch already exists remotely:
+
 git push login/usertype_selection
 
 🔁 MUST DO
+
 After pushing your changes, return to the main branch:
 git checkout main
