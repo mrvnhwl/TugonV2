@@ -143,55 +143,140 @@ const handleVoiceInput = () => {
   
 
 
-    const NAVIGATION_ROUTES: Record<string, string> = {
-    "home": "/",
-    "dashboard": "/dashboard",
-    "tugonsense": "/tugonsense",
-    "studentDashboard": "/studentDashboard",
-    "introductiontofunction": "/introductiontopic",
-    "operations": "/operationstopic",
-    "quizzes": "/quizzes",
-    "reviewer": "/reviewer",
-    "calculator": "/tools/calculator",
-  };
+  const NAVIGATION_ROUTES: Record<string, string> = {
+  // Core pages
+  "home": "/",
+  "main": "/",
+  "start": "/",
+  "landing": "/",
+
+  "dashboard": "/dashboard",
+  "student dashboard": "/studentDashboard",
+  "student": "/studentDashboard",
+  "user dashboard": "/studentDashboard",
+
+  "tugon": "/tugonsense",
+  "tugonsense": "/tugonsense",
+  "ai tutor": "/tugonsense",
+  "sense": "/tugonsense",
+  "tugon sense": "/tugonsense",
+
+  "quiz": "/quizzes",
+  "quizzes": "/quizzes",
+  "take quiz": "/quizzes",
+  "practice quiz": "/quizzes",
+  "quiz section": "/quizzes",
+
+  // Topics with corrected paths
+  "introduction": "/introductiontopic",
+  "introduction to functions": "/introductiontopic",
+  "intro": "/introductiontopic",
+  "functions intro": "/introductiontopic",
+
+  "operations": "/operationstopic",
+  "operations on functions": "/operationstopic",
+  "function operations": "/operationstopic",
+  "apply operations": "/operationstopic",
+
+  "evaluation": "/evaluationtopic",
+  "evaluate functions": "/evaluationtopic",
+  "function evaluation": "/evaluationtopic",
+
+  "composition": "/compositiontopic",
+  "composition of functions": "/compositiontopic",
+  "composite functions": "/compositiontopic",
+  "function composition": "/compositiontopic",
+
+  "rational": "/rationaltopic",
+  "rational functions": "/rationaltopic",
+  "rational expressions": "/rationaltopic",
+
+  "asymptotes": "/asymptotestopic",
+  "vertical asymptotes": "/asymptotestopic",
+  "horizontal asymptotes": "/asymptotestopic",
+  "oblique asymptotes": "/asymptotestopic",
+  "graph asymptotes": "/asymptotestopic",
+
+  "solving": "/rationalinequalitiestopic",
+  "solve rational equations": "/rationalinequalitiestopic",
+  "rational inequalities": "/rationalinequalitiestopic",
+  "solving rational": "/rationalinequalitiestopic",
+
+  "inverse": "/inversetopic",
+  "inverse functions": "/inversetopic",
+  "inverse of function": "/inversetopic",
+
+  "exponential": "/exponentialandlogtopic",
+  "logarithmic": "/exponentialandlogtopic",
+  "exponential functions": "/exponentialandlogtopic",
+  "logarithmic functions": "/exponentialandlogtopic",
+
+  "problem solving": "/problemsolvingfunctopic",
+  "function word problems": "/problemsolvingfunctopic",
+  "word problems": "/problemsolvingfunctopic",
+
+  "graphs": "/graphstopic",
+  "graphing functions": "/graphs",
+  "function graphs": "/graphs",
+  "graphs of functions": "/graphs",
+};
 
 
-  
     const sendMessage = async () => {
-    const trimmedInput = userInput.trim();
-    if (!trimmedInput) return;
+  const trimmedInput = userInput.trim();
+  if (!trimmedInput) return;
 
-    const normalizedInput = trimmedInput.toLowerCase();
+  const normalizedInput = trimmedInput.toLowerCase();
 
-    // 🔍 Try to match a navigation keyword
-    const matchedRoute = Object.keys(NAVIGATION_ROUTES).find((keyword) =>
-      normalizedInput.includes(keyword)
-    );
+  //Define trigger phrases that imply intent to navigate
+  const navigationIntentPhrases = [
+    "go to",
+    "navigate to",
+    "take me to",
+    "open",
+    "where is",
+    "show me",
+    "bring me to",
+    "redirect to",
+    "navigate me to",
+    
+  ];
 
-    if (matchedRoute) {
-      setChatHistory((prev) => [
-        ...prev,
-        { sender: "user", text: trimmedInput },
-        { sender: "tugonAI", text: `🔀 Navigating you to the ${matchedRoute} page.` },
-      ]);
-      setUserInput("");
-      setIsLoading(false);
-      setTimeout(() => {
-        window.location.href = NAVIGATION_ROUTES[matchedRoute];
-      }, 1500);
-      return;
-    }
+  //Check if input contains a navigation phrase
+  const hasNavigationIntent = navigationIntentPhrases.some((phrase) =>
+    normalizedInput.includes(phrase)
+  );
 
-    setChatHistory((prev) => [...prev, { sender: "user", text: trimmedInput }]);
+  // 🔍 Try to match a navigation keyword
+  const matchedRoute = Object.keys(NAVIGATION_ROUTES).find((keyword) =>
+    normalizedInput.includes(keyword)
+  );
+
+  //Only navigate if user clearly intends to
+  if (matchedRoute && hasNavigationIntent) {
+    setChatHistory((prev) => [
+      ...prev,
+      { sender: "user", text: trimmedInput },
+      { sender: "tugonAI", text: `🔀 Navigating you to the ${matchedRoute} page.` },
+    ]);
     setUserInput("");
-    setIsLoading(true);
+    setIsLoading(false);
+    setTimeout(() => {
+      window.location.href = NAVIGATION_ROUTES[matchedRoute];
+    }, 1500);
+    return;
+  }
 
-    const faqAnswer = findFAQAnswer(trimmedInput);
-    if (faqAnswer) {
-      setChatHistory((prev) => [...prev, { sender: "tugonAI", text: faqAnswer }]);
-      setIsLoading(false);
-      return;
-    }
+  setChatHistory((prev) => [...prev, { sender: "user", text: trimmedInput }]);
+  setUserInput("");
+  setIsLoading(true);
+
+  const faqAnswer = findFAQAnswer(trimmedInput);
+  if (faqAnswer) {
+    setChatHistory((prev) => [...prev, { sender: "tugonAI", text: faqAnswer }]);
+    setIsLoading(false);
+    return;
+  }
 
     const systemPrompt = `
 If you are asked what this project is about or who you are, answer: "TugonAI is designed as an educational assistant specialized in General Mathematics."
