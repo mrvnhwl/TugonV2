@@ -141,10 +141,46 @@ const handleVoiceInput = () => {
 };
   
   
+
+
+    const NAVIGATION_ROUTES: Record<string, string> = {
+    "home": "/",
+    "dashboard": "/dashboard",
+    "tugonsense": "/tugonsense",
+    "studentDashboard": "/studentDashboard",
+    "introductiontofunction": "/introductiontopic",
+    "operations": "/operationstopic",
+    "quizzes": "/quizzes",
+    "reviewer": "/reviewer",
+    "calculator": "/tools/calculator",
+  };
+
+
   
-  const sendMessage = async () => {
+    const sendMessage = async () => {
     const trimmedInput = userInput.trim();
     if (!trimmedInput) return;
+
+    const normalizedInput = trimmedInput.toLowerCase();
+
+    // 🔍 Try to match a navigation keyword
+    const matchedRoute = Object.keys(NAVIGATION_ROUTES).find((keyword) =>
+      normalizedInput.includes(keyword)
+    );
+
+    if (matchedRoute) {
+      setChatHistory((prev) => [
+        ...prev,
+        { sender: "user", text: trimmedInput },
+        { sender: "tugonAI", text: `🔀 Navigating you to the ${matchedRoute} page.` },
+      ]);
+      setUserInput("");
+      setIsLoading(false);
+      setTimeout(() => {
+        window.location.href = NAVIGATION_ROUTES[matchedRoute];
+      }, 1500);
+      return;
+    }
 
     setChatHistory((prev) => [...prev, { sender: "user", text: trimmedInput }]);
     setUserInput("");
@@ -158,34 +194,33 @@ const handleVoiceInput = () => {
     }
 
     const systemPrompt = `
-If you are ask what is this project all about or who you are you answer, "TugonAI is designed as an educational assistant specialized in General Mathematics."
+If you are asked what this project is about or who you are, answer: "TugonAI is designed as an educational assistant specialized in General Mathematics."
+
 Only answer questions related to math topics such as algebra, functions, interest, sequences, etc.
 
 If a question is not math-related, respond with: "I can only help with General Mathematics questions."
 
-If a question is not clear, respond with: "Hmm, I didn’t quite catch that. Could you please rephrase or be more specific with your question? I’m here to help!"
+If a question is unclear, respond with: "Hmm, I didn’t quite catch that. Could you please rephrase or be more specific with your question? I’m here to help!"
+
 Keep your answers clear, factual, student-friendly and 1 sentence only.
 
-If the user ask why tugon is the name or what is the meaning of tugon you answer all of this, "The name Tugonsense comes from the core function of the AI itself. The Tugon AI is designed to identify errors in a student’s step-by-step answers, hence the term "sense" in the name. It "senses" or detects mistakes in reasoning or computation as students work through problems."
+If the user asks why Tugon is the name or what is the meaning of Tugon, answer: "The name Tugonsense comes from the core function of the AI itself. The Tugon AI is designed to identify errors in a student’s step-by-step answers, hence the term 'sense' in the name. It 'senses' or detects mistakes in reasoning or computation as students work through problems."
 
-If the user input a inappropriate or offensive content, respond with: "Avoid using inappropriate or offensive language."
+If the user inputs inappropriate or offensive content, respond with: "Avoid using inappropriate or offensive language."
 
-If the user asks "Who is John Raven Aquino ?", answer:
-Raven is the leader and developer of Tugon. 
+If the user asks "Who is John Raven Aquino ?", answer: Raven is the leader and developer of Tugon.
 
-If the user asks "Who is Mervin Howell Gundaya?", answer:
-Howell is the lead programmer and the team’s coding wizard.
+If the user asks "Who is Mervin Howell Gundaya?", answer: Howell is the lead programmer and the team’s coding wizard.
 
-If the user asks "Who is John Lester Malonzo?", answer:
-Malonzo is the second-in-command and a key programmer. 
+If the user asks "Who is John Lester Malonzo?", answer: Malonzo is the second-in-command and a key programmer.
 
-If the user asks "Who is Meann Saguid?", answer:
-Mean is the team’s sharp-eyed document analyst, the mind behind the paper. 
+If the user asks "Who is Meann Saguid?", answer: Mean is the team’s sharp-eyed document analyst, the mind behind the paper.
 
-If the user asks "Who is Manuell Terenz Cruz?", answer:
-Manuel is a driven researcher and document lead.
+If the user asks "Who is Manuell Terenz Cruz?", answer: Manuel is a driven researcher and document lead.
 
+If a user asks where to find something on the website (e.g., 'Where is the interest page?'), respond with: “🔀 Navigating you to the [name] page.” and the system will redirect them automatically.
 
+If it's not a known page, respond with: “Hmm, I couldn’t find that page. Try using keywords like ‘interest’, ‘quizzes’, or ‘profile’.”
 `;
 
     const fullPrompt = `${systemPrompt}\n\nUser: ${trimmedInput}`;
@@ -193,6 +228,7 @@ Manuel is a driven researcher and document lead.
     setChatHistory((prev) => [...prev, { sender: "tugonAI", text: reply }]);
     setIsLoading(false);
   };
+
 
   useEffect(() => {
     if (chatRef.current) {
