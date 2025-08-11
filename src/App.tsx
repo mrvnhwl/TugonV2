@@ -1,4 +1,4 @@
-import React from 'react';
+
 import './index.css';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import StudentNavbar from './components/studentNavbar'; // Import StudentNavbar
@@ -30,14 +30,14 @@ import EvaluationPhase4 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluat
 import Introductiontopic from './pages/topics/introductiontopic';
 import Operationstopic from './pages/topics/operationstopic';
 import Evaluationtopic from './pages/topics/evaluationtopic';
-import InteractiveGraph from './pages/topics/graphs';
+import Piecewisetopic from './pages/topics/piecewise';
 import Compositiontopic from './pages/topics/compositiontopic';
 import Rationaltopic from './pages/topics/rationaltopic';
 import Asymptotestopic from './pages/topics/asymptotestopic';
 import RationalEquationsInequalities from './pages/topics/rationalinequalitiestopic';
 import Inversetopic from './pages/topics/inversetopic';
-import ExponentialLogarithmictopic from './pages/topics/exponentialandlogtopic';
-import FunctionProblemSolvingtopic from './pages/topics/problemsolvingfunctopic';
+import Exponentialtopic from './pages/topics/exponentialtopic';
+import Logarithmictopic from './pages/topics/logarithmictopic';
 import UserTypeSelection from "./pages/UserTypeSelection"; // Import the new component
 
 function App() {
@@ -116,15 +116,16 @@ function AppContent() {
             <Route path="/introductiontopic" element={<Introductiontopic />} />
             <Route path="/operationstopic" element={<Operationstopic />} />
             <Route path="/evaluationtopic" element={<Evaluationtopic />} />
-            <Route path="/graphs" element={<InteractiveGraph />} />
+
             <Route path="/compositiontopic" element={<Compositiontopic />} />
             <Route path="/rationaltopic" element={<Rationaltopic />} />
+            <Route path="/piecewise" element={<Piecewisetopic />} />
             <Route path="/Radio" element={<Radio />} />
             <Route path="/asymptotestopic" element={<Asymptotestopic />} />
             <Route path="/rationalinequalitiestopic" element={<RationalEquationsInequalities />} />
             <Route path="/inversetopic" element={<Inversetopic />} />
-            <Route path="/exponentialandlogtopic" element={<ExponentialLogarithmictopic />} />
-            <Route path="/problemsolvingfunctopic" element={<FunctionProblemSolvingtopic />} />
+            <Route path="/exponentialtopic" element={<Exponentialtopic />} />
+            <Route path="/logarithmictopic" element={<Logarithmictopic />} />
           </Routes>
           <FloatingAIButton onWrongAnswer={(questionId) => console.log('Wrong answer for:', questionId)} />
         </div>

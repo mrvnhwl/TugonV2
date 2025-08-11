@@ -23,16 +23,17 @@ interface StudentProgress {
 
 const topics = [
   { title: "Introduction to Functions", path: "/introductiontopic" },
+  { title: "Evaluating Functions", path: "/evaluationtopic" },
+  { title: "Piecewise-Defined Functions", path: "/piecewise" },
   { title: "Operations on Functions", path: "/operationstopic" },
-  { title: "Evaluation of Functions", path: "/evaluationtopic" },
   { title: "Composition of Functions", path: "/compositiontopic" },
   { title: "Rational Functions", path: "/rationaltopic" },
   { title: "Vertical, Horizontal and Oblique Asymptotes", path: "/asymptotestopic" },
-  { title: "Solving Rational Equations and Inequalities", path: "/rationalinequalitiestopic" },
+  { title: "SRational Equations and Inequalities", path: "/rationalinequalitiestopic" },
   { title: "Inverse Functions", path: "/inversetopic" },
-  { title: "Exponential and Logarithmic Functions", path: "/exponentialandlogtopic" },
-  { title: "Problem Solving Involving Functions", path: "/problemsolvingfunctopic" },
-  { title: "Graphs", path: "/graphs" },
+  { title: "Exponential Functions", path: "/exponentialtopic" },
+  { title: "Logarithmic Functions", path: "/logarithmictopic" },
+ 
 ];
 
 const quizzes: Quiz[] = [
