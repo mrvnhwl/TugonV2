@@ -9,9 +9,10 @@ type Level = {
 type Props = {
   courses?: Course[];
   onActiveChange?: (course: Course) => void;
+  onActiveIndexChange?: (index: number) => void;
 };
 
-export default function ProgressMap({ courses, onActiveChange }: Props) {
+export default function ProgressMap({ courses, onActiveChange, onActiveIndexChange }: Props) {
   // Define levels and their topics
   const levels: Level[] = useMemo(
     () => [
@@ -87,6 +88,12 @@ const observer = new IntersectionObserver(
     if (current < 0 || current >= courses.length) return;
     onActiveChange(courses[current]);
   }, [current, courses, onActiveChange]);
+
+  // Notify parent of index changes (independent of courses)
+  useEffect(() => {
+    if (!onActiveIndexChange) return;
+    onActiveIndexChange(current);
+  }, [current, onActiveIndexChange]);
 
   return (
     <div className="w-full max-w-md mx-auto bg-white rounded-2xl ring-1 ring-black/10 shadow-sm p-4 md:p-6">
