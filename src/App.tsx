@@ -13,13 +13,13 @@ import StudentDashboard from './pages/studentDashboard'; // Student Dashboard
 import JoinGame from './pages/JoinGame';
 import HostGame from './pages/HostGame';
 import Game from './pages/Game';
-import TugonSense from './pages/TugonSense';
+import TugonSense from './pages/reviewer/TugonSense';
 
 import Operation from './pages/tugonsense/operations';
 import Evaluation from './pages/tugonsense/evaluation';
 import Radio from './components/Radio';
 import FloatingAIButton from './components/FloatingAIButton';
-import TugonPlay from './pages/TugonPlay';
+import TugonPlay from './pages/reviewer/TugonPlay';
 
 // Importing TugonSense challenges pages
 import EvaluationDifficultySelector from './pages/tugonsense/Evaluation/evaluationdifficulty';

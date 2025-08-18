@@ -1,8 +1,8 @@
 import { useState } from "react";
-import TugonSenseNavbar from "../components/TugonSenseNavbar";
-import CourseCard from "../components/CourseCard";
-import ProgressMap from "../components/ProgressMap";
-import { courses } from "../data/courses";
+import TugonSenseNavbar from "../../components/TugonSenseNavbar";
+import CourseCard from "../../components/CourseCard";
+import ProgressMap from "../../components/ProgressMap";
+import { courses } from "../../data/courses";
 
 export default function TugonSense() {
   const [activeIndex, setActiveIndex] = useState(0);
