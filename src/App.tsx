@@ -19,6 +19,7 @@ import Operation from './pages/tugonsense/operations';
 import Evaluation from './pages/tugonsense/evaluation';
 import Radio from './components/Radio';
 import FloatingAIButton from './components/FloatingAIButton';
+import TugonPlay from './pages/TugonPlay';
 
 // Importing TugonSense challenges pages
 import EvaluationDifficultySelector from './pages/tugonsense/Evaluation/evaluationdifficulty';
@@ -102,6 +103,7 @@ function AppContent() {
             <Route path="/studentDashboard" element={<StudentDashboard />} /> {/* Student Dashboard */}
             <Route path="/join" element={<JoinGame />} />
             <Route path="/tugonsense" element={<TugonSense />} />
+            <Route path="/tugon-play" element={<TugonPlay />} />
             <Route path="/host" element={<HostGame />} />
             <Route path="/game/:id" element={<Game />} />
             <Route path="/operations" element={<Operation />} />
