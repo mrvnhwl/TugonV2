@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 // Step-like type to avoid tight coupling with AnswerWizard's Step
-type StepLike = { id: string; label: string } & Record<string, any>;
+type StepLike = { id: string; label?: string } & Record<string, any>;
 
 export type GraphPoint = { x: number; y: number };
 export type GraphValue = { xLimit: number | null; yLimit: number | null; points: GraphPoint[] };

@@ -4,7 +4,7 @@ import QuestionBox from "../../components/tugon/QuestionBox";
 import HintBubble from "../../components/tugon/HintBubble";
 import Character from "../../components/tugon/Character";
 import TugonPlayNav from "../../components/tugon/TugonPlayNav";
-import AnswerWizard, { Step } from "../../components/tugon/AnswerWizard";
+import AnswerWizard, { Step, WizardStep } from "../../components/tugon/AnswerWizard";
 
 export default function TugonPlay() {
   const navigate = useNavigate();
@@ -15,9 +15,9 @@ export default function TugonPlay() {
   ];
   // coin indicator placeholder
   const [coins] = useState<number>(0);
-  const handleSubmit = (answers: Record<string, any>) => {
-    console.log("Answers:", answers);
-    alert("Submitted! Check console for answers.");
+  const handleSubmit = (finalSteps: WizardStep[]) => {
+    console.log("Wizard steps:", finalSteps);
+    alert("Submitted! Check console for steps.");
   };
 
   return (
@@ -33,7 +33,7 @@ export default function TugonPlay() {
           {/* middle row */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 items-start">
             <div className="md:col-span-2">
-        <AnswerWizard steps={steps} onSubmit={handleSubmit} />
+  <AnswerWizard steps={steps} onSubmit={handleSubmit} />
             </div>
             <div className="flex items-start gap-4 justify-center md:justify-end">
               <HintBubble>

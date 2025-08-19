@@ -1,40 +1,60 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { cn } from "../cn";
 import GraphAnswerComp, { GraphValue } from "./answers/GraphAnswer";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Toggle } from "@/components/ui/toggle";
+import { ActivitySquare, AlignLeft, ChevronLeft, ChevronRight, MinusCircle, PlusCircle, Type as TypeIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-// Allowed answer types (MCQ removed by spec change)
+// Allowed answer types
 export type AnswerType = "single" | "multi" | "graph";
 
+// Public input step shape (for initializing the wizard)
 export type Step = {
   id: string;
-  label: string;
+  label?: string;
   placeholder?: string;
   rows?: number;
+  type?: AnswerType;
+  value?: string | GraphValue;
 };
 
-type AnswerValue = { type: AnswerType; value: any };
+// Internal state shape that the wizard manages
+export type WizardStep = {
+  id: string;
+  label?: string;
+  placeholder?: string;
+  rows?: number;
+  type: AnswerType;
+  value: string | GraphValue;
+};
 
 type AnswerWizardProps = {
-  steps: Step[];
-  onSubmit: (answers: Record<string, AnswerValue>) => void;
+  steps?: Step[]; // treated as initial/hydration
+  onSubmit: (steps: WizardStep[]) => void;
   className?: string;
 };
 
-// Child components (defined in-file) — accept { value, onChange, step }
+// Child components (accept { value, onChange, step })
 type ChildProps<T = any> = {
   value: T;
   onChange: (v: T) => void;
-  step: Step;
+  step: WizardStep | Step;
 };
 
 function SingleLineAnswer({ value, onChange, step }: ChildProps<string>) {
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">{step.label}</label>
-      <input
+      {step?.label && (
+        <div className="text-sm font-medium text-foreground">{step.label}</div>
+      )}
+      <Input
         type="text"
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        placeholder={step.placeholder}
+        placeholder={(step as any)?.placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -45,11 +65,12 @@ function SingleLineAnswer({ value, onChange, step }: ChildProps<string>) {
 function MultiLineAnswer({ value, onChange, step }: ChildProps<string>) {
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">{step.label}</label>
-      <textarea
-        rows={step.rows ?? 3}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
-        placeholder={step.placeholder}
+      {step?.label && (
+        <div className="text-sm font-medium text-foreground">{step.label}</div>
+      )}
+      <Textarea
+        rows={(step as any)?.rows ?? 3}
+        placeholder={(step as any)?.placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -57,153 +78,234 @@ function MultiLineAnswer({ value, onChange, step }: ChildProps<string>) {
   );
 }
 
-// MCQ removed
+const defaultGraph: GraphValue = { xLimit: null, yLimit: null, points: [] };
+const defaultFor = (t: AnswerType): string | GraphValue => (t === "graph" ? defaultGraph : "");
 
-
-export default function AnswerWizard({ steps, onSubmit, className }: AnswerWizardProps) {
-  // answers keyed by step.id: { type, value }
-  const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
+export default function AnswerWizard({ steps: initialSteps = [], onSubmit, className }: AnswerWizardProps) {
+  // Initialize steps from props or start with one default step
+  const [steps, setSteps] = useState<WizardStep[]>(
+    () => (initialSteps.length ? initialSteps : [{ id: "s1" }]).map((s, i) => ({
+      id: s.id ?? `s${i + 1}`,
+      label: s.label,
+      placeholder: s.placeholder,
+      rows: s.rows,
+      type: s.type ?? "single",
+      value: s.value ?? defaultFor(s.type ?? "single"),
+    }))
+  );
   const [index, setIndex] = useState(0);
-  // per-step selected type
-  const [selectedType, setSelectedType] = useState<Record<string, AnswerType>>({});
+  const idCounter = useRef(steps.length + 1);
 
   const total = steps.length;
   const current = steps[index];
 
-  const defaultGraph: GraphValue = { xLimit: null, yLimit: null, points: [] };
-  const defaultFor = (t: AnswerType) => (t === "graph" ? defaultGraph : "");
-
-  // (init handled inline when rendering)
-
-  const setTypeForStep = (id: string, t: AnswerType) => {
-    setSelectedType((prev) => ({ ...prev, [id]: t }));
-    // reset value to default on type change
-    setAnswers((prev) => ({ ...prev, [id]: { type: t, value: defaultFor(t) } }));
+  const setTypeForCurrent = (t: AnswerType) => {
+    if (!current) return;
+    setSteps((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], type: t, value: defaultFor(t) };
+      return next;
+    });
   };
 
-  const updateValue = (id: string, t: AnswerType, value: any) => {
-    setAnswers((prev) => ({ ...prev, [id]: { type: t, value } }));
+  const updateCurrentValue = (value: any) => {
+    if (!current) return;
+    setSteps((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], value };
+      return next;
+    });
   };
 
-  // compute selected type for current step (default single)
-  const currentType: AnswerType | null = current ? selectedType[current.id] ?? "single" : null;
+  const addStep = () => {
+    const newId = `s${idCounter.current++}`;
+    setSteps((prev) => [...prev, { id: newId, type: "single", value: "" }]);
+    setIndex((prevIndex) => Math.min(prevIndex + 1, total));
+  };
+
+  const [openRemove, setOpenRemove] = useState(false);
+  const confirmRemove = () => {
+    if (!current) return;
+    setSteps((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length ? next : [{ id: `s${idCounter.current++}`, type: "single", value: "" }];
+    });
+    setIndex((prevIndex) => Math.max(0, Math.min(prevIndex, total - 2)));
+    setOpenRemove(false);
+  };
 
   const content = useMemo(() => {
-    if (!current || !currentType) return null;
-    const common = { step: current } as const;
-    // Make sure answer slot exists
-    // Note: this runs during render; it's safe because setState is batched but to avoid render loops,
-    // we gate by checking existing first.
-    const existing = answers[current.id];
-    if (!existing || existing.type !== currentType) {
-      // initialize synchronously via effect-like guard
-      setAnswers((prev) => ({ ...prev, [current.id]: { type: currentType, value: defaultFor(currentType) } }));
-    }
-
-    switch (currentType) {
+    if (!current) return <div className="text-sm text-gray-500">No steps yet.</div>;
+    switch (current.type) {
       case "single":
         return (
-          <SingleLineAnswer
-            {...common}
-            value={(answers[current.id]?.value as string) ?? ""}
-            onChange={(v) => updateValue(current.id, "single", v)}
-          />
+          <SingleLineAnswer step={current} value={(current.value as string) ?? ""} onChange={updateCurrentValue} />
         );
       case "multi":
         return (
-          <MultiLineAnswer
-            {...common}
-            value={(answers[current.id]?.value as string) ?? ""}
-            onChange={(v) => updateValue(current.id, "multi", v)}
-          />
+          <MultiLineAnswer step={current} value={(current.value as string) ?? ""} onChange={updateCurrentValue} />
         );
       case "graph":
         return (
           <GraphAnswerComp
-            {...common}
-            value={(answers[current.id]?.value as GraphValue) ?? defaultGraph}
-            onChange={(v) => updateValue(current.id, "graph", v)}
+            step={current}
+            value={(current.value as GraphValue) ?? defaultGraph}
+            onChange={updateCurrentValue}
           />
         );
       default:
         return null;
     }
-  }, [current, currentType, answers]);
+  }, [current]);
 
   const canPrev = index > 0;
-  const canNext = index < total - 1;
+  const canNext = index < Math.max(0, total - 1);
 
   const goPrev = () => {
     if (canPrev) setIndex(index - 1);
   };
   const goNext = () => {
     if (canNext) setIndex(index + 1);
-    else onSubmit(answers);
+    else onSubmit(steps);
   };
 
   return (
-    <div className={cn("bg-white rounded-xl shadow ring-1 ring-black/10 p-4 sm:p-6", className)}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-sm font-semibold text-gray-700">{current?.label ?? "Answer"}</div>
-        <div className="text-xs text-gray-500">Step {Math.min(index + 1, total)} of {total}</div>
-      </div>
-
-      {/* Type selector */}
-      {current && (
-        <div className="mb-3 flex items-center gap-3 text-sm">
-          <span className="text-gray-600">Answer type:</span>
-          <label className="inline-flex items-center gap-1 cursor-pointer">
-            <input
-              type="radio"
-              name={`atype-${current.id}`}
-              value="single"
-              checked={currentType === "single"}
-              onChange={() => setTypeForStep(current.id, "single")}
-            />
-            <span>Single</span>
-          </label>
-          <label className="inline-flex items-center gap-1 cursor-pointer">
-            <input
-              type="radio"
-              name={`atype-${current.id}`}
-              value="multi"
-              checked={currentType === "multi"}
-              onChange={() => setTypeForStep(current.id, "multi")}
-            />
-            <span>MultiLine</span>
-          </label>
-          <label className="inline-flex items-center gap-1 cursor-pointer">
-            <input
-              type="radio"
-              name={`atype-${current.id}`}
-              value="graph"
-              checked={currentType === "graph"}
-              onChange={() => setTypeForStep(current.id, "graph")}
-            />
-            <span>Graph</span>
-          </label>
+    <Card className={cn("rounded-2xl border bg-card shadow-sm", className)}>
+  <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+        <CardTitle className="text-base">{current?.label ?? "Answer"}</CardTitle>
+        <div className="flex items-center gap-2">
+          <div className="text-xs text-muted-foreground">
+            Step <span className="text-primary font-medium">{total ? index + 1 : 0}</span> of {total}
+          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={addStep}
+                  aria-label="Add a new step"
+                  className="text-muted-foreground hover:text-primary transition-colors rounded-xl"
+                >
+                  <PlusCircle />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Add a new step</TooltipContent>
+            </Tooltip>
+            <Dialog open={openRemove} onOpenChange={setOpenRemove}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={!current}
+                      aria-label="Remove current step"
+                      className="text-muted-foreground hover:text-primary transition-colors rounded-xl"
+                    >
+                      <MinusCircle />
+                    </Button>
+                  </DialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Remove current step</TooltipContent>
+              </Tooltip>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Remove this step?</DialogTitle>
+                  <DialogDescription>
+                    This action will delete the current step and its answer. You can’t undo this.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setOpenRemove(false)}>Cancel</Button>
+                  <Button variant="destructive" onClick={confirmRemove}>Remove</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </TooltipProvider>
         </div>
-      )}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Answer type selection */}
+        {current && (
+          <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Toggle
+                pressed={current.type === "single"}
+                onPressedChange={(on) => on && setTypeForCurrent("single")}
+                aria-label="Single line"
+              >
+                <TypeIcon className="mr-2" /> Single
+              </Toggle>
+              <Toggle
+                pressed={current.type === "multi"}
+                onPressedChange={(on) => on && setTypeForCurrent("multi")}
+                aria-label="Multi line"
+              >
+                <AlignLeft className="mr-2" /> MultiLine
+              </Toggle>
+              <Toggle
+                pressed={current.type === "graph"}
+                onPressedChange={(on) => on && setTypeForCurrent("graph")}
+                aria-label="Graph"
+              >
+                <ActivitySquare className="mr-2" /> Graph
+              </Toggle>
+            </div>
+          </div>
+        )}
 
-      {content}
+        {/* Input area */}
+  <div className="rounded-md bg-muted p-3">
+          {content}
+        </div>
 
-      <div className="mt-4 flex items-center justify-between">
-        <button
-          type="button"
-          className="px-4 py-2 rounded-lg ring-1 ring-black/10 disabled:opacity-50"
-          onClick={goPrev}
-          disabled={!canPrev}
-        >
-          Prev
-        </button>
-        <button
-          type="button"
-          className="px-4 py-2 rounded-lg bg-indigo-600 text-white"
-          onClick={goNext}
-        >
-          {canNext ? "Next" : "Submit"}
-        </button>
-      </div>
-    </div>
+        {/* Step indicators */}
+  <div className="flex items-center justify-center gap-2 pt-2 px-2 overflow-x-auto max-w-full">
+          {steps.map((_, i) => (
+            <button
+              key={i}
+              aria-label={`Go to step ${i + 1}`}
+              onClick={() => setIndex(i)}
+              className={cn(
+                "h-2.5 w-2.5 rounded-full transition-colors",
+                i === index ? "bg-primary" : "bg-muted"
+              )}
+            />)
+          )}
+        </div>
+
+        {/* Navigation buttons below the indicator */}
+  <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={goPrev}
+            disabled={!canPrev}
+            aria-label="Go to previous step"
+            className="rounded-xl hover:bg-accent hover:text-accent-foreground"
+          >
+            <ChevronLeft />
+            <span className="sr-only">Previous</span>
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => onSubmit(steps)}
+            className="rounded-xl"
+            aria-label="Check answers"
+          >
+            Check
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={goNext}
+            aria-label={canNext ? "Go to next step" : "Submit answers"}
+            className="rounded-xl hover:bg-accent hover:text-accent-foreground"
+          >
+            <ChevronRight />
+            <span className="sr-only">{canNext ? "Next" : "Submit"}</span>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
