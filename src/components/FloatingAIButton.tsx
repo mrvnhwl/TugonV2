@@ -150,7 +150,7 @@ const handleVoiceInput = () => {
   "start": "/",
   "landing": "/",
 
-  "dashboard": "/dashboard",
+  "dashboard": "/studentDashboard",
   "student dashboard": "/studentDashboard",
   "student": "/studentDashboard",
   "user dashboard": "/studentDashboard",

@@ -1,3 +1,4 @@
+// This file has been removed as part of the cleanup process.
 import Latex from "react-latex-next";
 import { useAuth } from "../../hooks/useAuth";
 import { DndContext, closestCenter } from "@dnd-kit/core";
