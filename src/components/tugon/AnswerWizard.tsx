@@ -2,22 +2,21 @@ import { useMemo, useState } from "react";
 import { cn } from "../cn";
 import GraphAnswerComp, { GraphValue } from "./answers/GraphAnswer";
 
-// Types per spec
-export type AnswerType = "single" | "multi" | "mcq" | "graph";
+// Allowed answer types (MCQ removed by spec change)
+export type AnswerType = "single" | "multi" | "graph";
 
 export type Step = {
   id: string;
-  type: AnswerType;
   label: string;
   placeholder?: string;
-  options?: string[];
-  multiple?: boolean;
   rows?: number;
 };
 
+type AnswerValue = { type: AnswerType; value: any };
+
 type AnswerWizardProps = {
   steps: Step[];
-  onSubmit: (answers: Record<string, any>) => void;
+  onSubmit: (answers: Record<string, AnswerValue>) => void;
   className?: string;
 };
 
@@ -58,109 +57,78 @@ function MultiLineAnswer({ value, onChange, step }: ChildProps<string>) {
   );
 }
 
-function MultiChoiceAnswer({ value, onChange, step }: ChildProps<string | string[]>) {
-  const multiple = !!step.multiple;
-  const options = step.options ?? [];
-
-  const toggle = (opt: string) => {
-    if (!multiple) return onChange(opt);
-    const arr = Array.isArray(value) ? value : [];
-    if (arr.includes(opt)) onChange(arr.filter((v) => v !== opt));
-    else onChange([...arr, opt]);
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="text-sm font-medium text-gray-700">{step.label}</div>
-      <div className="space-y-2">
-        {options.map((opt) => (
-          <label key={opt} className="flex items-center gap-2 cursor-pointer">
-            <input
-              type={multiple ? "checkbox" : "radio"}
-              name={step.id}
-              value={opt}
-              className="h-4 w-4"
-              checked={multiple ? Array.isArray(value) && value.includes(opt) : value === opt}
-              onChange={() => toggle(opt)}
-            />
-            <span className="text-sm text-gray-800">{opt}</span>
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
+// MCQ removed
 
 
 export default function AnswerWizard({ steps, onSubmit, className }: AnswerWizardProps) {
-  // answers keyed by step.id
-  const [answers, setAnswers] = useState<Record<string, any>>({});
+  // answers keyed by step.id: { type, value }
+  const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [index, setIndex] = useState(0);
+  // per-step selected type
+  const [selectedType, setSelectedType] = useState<Record<string, AnswerType>>({});
 
   const total = steps.length;
   const current = steps[index];
 
-  const update = (id: string, value: any) => setAnswers((prev) => ({ ...prev, [id]: value }));
+  const defaultGraph: GraphValue = { xLimit: null, yLimit: null, points: [] };
+  const defaultFor = (t: AnswerType) => (t === "graph" ? defaultGraph : "");
 
-  const valueFor = (s: Step) => {
-    switch (s.type) {
-      case "single":
-      case "multi":
-        return (answers[s.id] ?? "") as string;
-      case "mcq": {
-        const def = s.multiple ? [] : "";
-        return answers[s.id] ?? def;
-      }
-      case "graph":
-        return (answers[s.id] ?? { xLimit: null, yLimit: null, points: [] }) as GraphValue;
-      default:
-        return answers[s.id];
-    }
+  // (init handled inline when rendering)
+
+  const setTypeForStep = (id: string, t: AnswerType) => {
+    setSelectedType((prev) => ({ ...prev, [id]: t }));
+    // reset value to default on type change
+    setAnswers((prev) => ({ ...prev, [id]: { type: t, value: defaultFor(t) } }));
   };
 
+  const updateValue = (id: string, t: AnswerType, value: any) => {
+    setAnswers((prev) => ({ ...prev, [id]: { type: t, value } }));
+  };
+
+  // compute selected type for current step (default single)
+  const currentType: AnswerType | null = current ? selectedType[current.id] ?? "single" : null;
+
   const content = useMemo(() => {
-    if (!current) return null;
+    if (!current || !currentType) return null;
     const common = { step: current } as const;
-    switch (current.type) {
+    // Make sure answer slot exists
+    // Note: this runs during render; it's safe because setState is batched but to avoid render loops,
+    // we gate by checking existing first.
+    const existing = answers[current.id];
+    if (!existing || existing.type !== currentType) {
+      // initialize synchronously via effect-like guard
+      setAnswers((prev) => ({ ...prev, [current.id]: { type: currentType, value: defaultFor(currentType) } }));
+    }
+
+    switch (currentType) {
       case "single":
         return (
           <SingleLineAnswer
             {...common}
-            value={valueFor(current) as string}
-            onChange={(v) => update(current.id, v)}
+            value={(answers[current.id]?.value as string) ?? ""}
+            onChange={(v) => updateValue(current.id, "single", v)}
           />
         );
       case "multi":
         return (
           <MultiLineAnswer
             {...common}
-            value={valueFor(current) as string}
-            onChange={(v) => update(current.id, v)}
+            value={(answers[current.id]?.value as string) ?? ""}
+            onChange={(v) => updateValue(current.id, "multi", v)}
           />
         );
-      case "mcq":
+      case "graph":
         return (
-          <MultiChoiceAnswer
+          <GraphAnswerComp
             {...common}
-            value={valueFor(current) as any}
-            onChange={(v) => update(current.id, v)}
+            value={(answers[current.id]?.value as GraphValue) ?? defaultGraph}
+            onChange={(v) => updateValue(current.id, "graph", v)}
           />
         );
-    case "graph": {
-        const val = valueFor(current) as GraphValue;
-        return (
-      <GraphAnswerComp
-            {...common}
-            step={current}
-            value={val}
-            onChange={(v) => update(current.id, v)}
-          />
-        );
-      }
       default:
         return null;
     }
-  }, [current, answers]);
+  }, [current, currentType, answers]);
 
   const canPrev = index > 0;
   const canNext = index < total - 1;
@@ -179,7 +147,46 @@ export default function AnswerWizard({ steps, onSubmit, className }: AnswerWizar
         <div className="text-sm font-semibold text-gray-700">{current?.label ?? "Answer"}</div>
         <div className="text-xs text-gray-500">Step {Math.min(index + 1, total)} of {total}</div>
       </div>
+
+      {/* Type selector */}
+      {current && (
+        <div className="mb-3 flex items-center gap-3 text-sm">
+          <span className="text-gray-600">Answer type:</span>
+          <label className="inline-flex items-center gap-1 cursor-pointer">
+            <input
+              type="radio"
+              name={`atype-${current.id}`}
+              value="single"
+              checked={currentType === "single"}
+              onChange={() => setTypeForStep(current.id, "single")}
+            />
+            <span>Single</span>
+          </label>
+          <label className="inline-flex items-center gap-1 cursor-pointer">
+            <input
+              type="radio"
+              name={`atype-${current.id}`}
+              value="multi"
+              checked={currentType === "multi"}
+              onChange={() => setTypeForStep(current.id, "multi")}
+            />
+            <span>MultiLine</span>
+          </label>
+          <label className="inline-flex items-center gap-1 cursor-pointer">
+            <input
+              type="radio"
+              name={`atype-${current.id}`}
+              value="graph"
+              checked={currentType === "graph"}
+              onChange={() => setTypeForStep(current.id, "graph")}
+            />
+            <span>Graph</span>
+          </label>
+        </div>
+      )}
+
       {content}
+
       <div className="mt-4 flex items-center justify-between">
         <button
           type="button"

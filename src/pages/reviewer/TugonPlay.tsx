@@ -9,10 +9,9 @@ import AnswerWizard, { Step } from "../../components/tugon/AnswerWizard";
 export default function TugonPlay() {
   const navigate = useNavigate();
   const steps: Step[] = [
-    { id: "s1", type: "single", label: "Short answer", placeholder: "Enter a single-line answer" },
-    { id: "m1", type: "multi", label: "Explain your steps", placeholder: "Explain in detail", rows: 4 },
-    { id: "g1", type: "graph", label: "Graph your function" },
-    { id: "c1", type: "mcq", label: "Choose the best form", options: ["A", "B", "C", "D"], multiple: false },
+    { id: "s1", label: "Short answer", placeholder: "Enter a single-line answer" },
+    { id: "m1", label: "Explain your steps", placeholder: "Explain in detail", rows: 4 },
+    { id: "g1", label: "Graph your function" },
   ];
   // coin indicator placeholder
   const [coins] = useState<number>(0);
