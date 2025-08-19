@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Timer, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
+import { toast } from 'sonner';
 
 interface Question {
   id: string;
@@ -20,15 +21,19 @@ interface Answer {
 function Quiz() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+
   const [quiz, setQuiz] = useState<any>(null);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [answers, setAnswers] = useState<Answer[]>([]);
-  const [timeLeft, setTimeLeft] = useState<number>(30); // Fixed 30 seconds
+  const [timeLeft, setTimeLeft] = useState<number>(30);
   const [score, setScore] = useState<number>(0);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [questionIndex, setQuestionIndex] = useState<number>(0);
   const [questions, setQuestions] = useState<Question[]>([]);
+
+  const returnTo = location.state?.returnTo || '/challenge'; // 🔑 fallback to challenge page
 
   useEffect(() => {
     if (!user) {
@@ -40,7 +45,7 @@ function Quiz() {
 
   useEffect(() => {
     if (currentQuestion) {
-      setTimeLeft(30); // Reset timer every time question changes
+      setTimeLeft(30);
       loadAnswers(currentQuestion.id);
       setIsAnswered(false);
     }
@@ -74,7 +79,6 @@ function Quiz() {
           .select('*')
           .eq('quiz_id', id)
           .order('created_at');
-          
 
         if (questionsData && questionsData.length > 0) {
           setQuestions(questionsData);
@@ -92,9 +96,7 @@ function Quiz() {
       .select('*')
       .eq('question_id', questionId);
 
-    if (answersData) {
-      setAnswers(answersData);
-    }
+    if (answersData) setAnswers(answersData);
   };
 
   const handleTimeout = () => {
@@ -103,8 +105,8 @@ function Quiz() {
 
   const handleAnswer = (answer: Answer) => {
     if (isAnswered) return;
-
     setIsAnswered(true);
+
     if (answer.is_correct) {
       const timeBonus = Math.floor((timeLeft / 30) * currentQuestion!.points);
       setScore((prev) => prev + timeBonus);
@@ -134,7 +136,8 @@ function Quiz() {
       score: score,
     });
 
-    navigate('/dashboard');
+    toast.success('Challenge Completed!');
+    navigate(returnTo); // 🔑 return back to Challenge page
   };
 
   if (!quiz || !currentQuestion) {
@@ -174,13 +177,12 @@ function Quiz() {
               >
                 <div className="flex items-center">
                   <span className="flex-grow">{answer.answer}</span>
-                  {isAnswered && (
-                    answer.is_correct ? (
+                  {isAnswered &&
+                    (answer.is_correct ? (
                       <CheckCircle className="h-5 w-5 text-green-500" />
                     ) : (
                       <XCircle className="h-5 w-5 text-red-500" />
-                    )
-                  )}
+                    ))}
                 </div>
               </button>
             ))}
