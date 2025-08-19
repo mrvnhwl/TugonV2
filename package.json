@@ -6,9 +6,8 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "start": "start",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@dnd-kit/sortable": "^10.0.0",
