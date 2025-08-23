@@ -8,9 +8,7 @@ export type PredefinedAnswer = {
 
 // Example set for testing
 export const predefinedAnswers: PredefinedAnswer[] = [
-  { type: "single",    answer: "x+1" },
-  { type: "multiLine", answer: "step1->step2" },
+  { type: "graph",    answer: "(1.2,2.4)" },
+  { type: "multiLine", answer: "123" },
   { type: "graph",     answer: "graphData" },
-  { type: "single",    answer: "y-2" },
-  { type: "multiLine", answer: "another-solution" },
 ];

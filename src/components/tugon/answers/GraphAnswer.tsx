@@ -10,9 +10,11 @@ type Props = {
   step: StepLike;
   value?: GraphValue;
   onChange: (v: GraphValue) => void;
+  hideControls?: boolean;
+  onPointsCommit?: (points: GraphPoint[]) => void; // notify parent after drag ends or point add
 };
 
-export default function CartesianPlane({ step, value, onChange }: Props) {
+export default function CartesianPlane({ step, value, onChange, hideControls, onPointsCommit }: Props) {
   // Inputs for limits
   const [xLimitInput, setXLimitInput] = useState<string>("10");
   const [yLimitInput, setYLimitInput] = useState<string>("10");
@@ -21,21 +23,22 @@ export default function CartesianPlane({ step, value, onChange }: Props) {
   const [xLimit, setXLimit] = useState<number | null>(value?.xLimit ?? null);
   const [yLimit, setYLimit] = useState<number | null>(value?.yLimit ?? null);
   const [points, setPoints] = useState<GraphPoint[]>(value?.points ?? []);
+  const [zoom, setZoom] = useState<number>(1); // 1x zoom by default
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
-  // Responsive canvas
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Responsive square area
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState<number>(600); // square canvas size in CSS px
+  const [size, setSize] = useState<number>(600); // square plane size in CSS px
 
   const hasPlane = useMemo(() => xLimit !== null && yLimit !== null, [xLimit, yLimit]);
 
   const scale = useMemo(() => {
     if (!hasPlane) return { sx: 1, sy: 1 };
     return {
-      sx: size / (2 * (xLimit as number)),
-      sy: size / (2 * (yLimit as number)),
+      sx: (size / (2 * (xLimit as number))) * zoom,
+      sy: (size / (2 * (yLimit as number))) * zoom,
     };
-  }, [hasPlane, xLimit, yLimit, size]);
+  }, [hasPlane, xLimit, yLimit, size, zoom]);
 
   // Sync from parent value
   useEffect(() => {
@@ -73,183 +76,249 @@ export default function CartesianPlane({ step, value, onChange }: Props) {
     setPoints([]);
     onChange({ xLimit: xl, yLimit: yl, points: [] });
   };
-
-  const drawPlane = (ctx: CanvasRenderingContext2D) => {
-    const dpr = window.devicePixelRatio || 1;
-    const canvas = ctx.canvas;
-    // Resize backing store
-    if (canvas.width !== size * dpr || canvas.height !== size * dpr) {
-      canvas.width = size * dpr;
-      canvas.height = size * dpr;
-    }
-    // Match CSS size
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    // Clear
-    ctx.clearRect(0, 0, size, size);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, size, size);
-
-    if (!hasPlane) return;
-
-    const cx = size / 2;
-    const cy = size / 2;
-    const { sx, sy } = scale;
-
-    // Axes
-    ctx.strokeStyle = "#9ca3af"; // gray-400
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cx, 0);
-    ctx.lineTo(cx, size);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, cy);
-    ctx.lineTo(size, cy);
-    ctx.stroke();
-
-    // Grid lines (integer steps)
-    ctx.strokeStyle = "#e5e7eb"; // gray-200
-    ctx.lineWidth = 1;
-    for (let i = -((xLimit as number)); i <= (xLimit as number); i++) {
-      if (i === 0) continue;
-      const x = cx + i * sx;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, size);
-      ctx.stroke();
-    }
-    for (let j = -((yLimit as number)); j <= (yLimit as number); j++) {
-      if (j === 0) continue;
-      const y = cy - j * sy;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(size, y);
-      ctx.stroke();
-    }
-
-    // Ticks and labels
-    ctx.fillStyle = "#374151"; // gray-700
-    ctx.strokeStyle = "#6b7280"; // gray-500
-    ctx.font = "12px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    for (let i = -((xLimit as number)); i <= (xLimit as number); i++) {
-      const x = cx + i * sx;
-      ctx.beginPath();
-      ctx.moveTo(x, cy - 5);
-      ctx.lineTo(x, cy + 5);
-      ctx.stroke();
-      if (i !== 0) ctx.fillText(String(i), x, cy + 8);
-    }
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    for (let j = -((yLimit as number)); j <= (yLimit as number); j++) {
-      const y = cy - j * sy;
-      ctx.beginPath();
-      ctx.moveTo(cx - 5, y);
-      ctx.lineTo(cx + 5, y);
-      ctx.stroke();
-      if (j !== 0) ctx.fillText(String(j), cx - 8, y);
-    }
+  // Helpers to convert between plane coords and pixels
+  const cx = size / 2;
+  const cy = size / 2;
+  const toPx = (p: GraphPoint) => ({ x: cx + p.x * (scale.sx || 1), y: cy - p.y * (scale.sy || 1) });
+  const fromPx = (px: number, py: number): GraphPoint => {
+    const x = (px - cx) / (scale.sx || 1);
+    const y = (cy - py) / (scale.sy || 1);
+    // Snap to nearest 0.1
+    const q = (v: number) => Math.round(v * 10) / 10;
+    return { x: q(x), y: q(y) };
   };
 
-  const drawPoints = (ctx: CanvasRenderingContext2D) => {
+  // Click to add a point
+  const onSvgClick: React.MouseEventHandler<SVGSVGElement> = (e) => {
     if (!hasPlane) return;
-    const cx = size / 2;
-    const cy = size / 2;
-    const { sx, sy } = scale;
-    if (points.length > 1) {
-      ctx.strokeStyle = "#3b82f6"; // blue-500
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(cx + points[0].x * sx, cy - points[0].y * sy);
-      for (let k = 1; k < points.length; k++) {
-        ctx.lineTo(cx + points[k].x * sx, cy - points[k].y * sy);
-      }
-      ctx.stroke();
-    }
-    ctx.fillStyle = "#ef4444"; // red-500
-    for (const p of points) {
-      ctx.beginPath();
-      ctx.arc(cx + p.x * sx, cy - p.y * sy, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  };
-
-  // Redraw on changes
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    drawPlane(ctx);
-    drawPoints(ctx);
-  }, [hasPlane, xLimit, yLimit, size, scale, points]);
-
-  const onCanvasClick: React.MouseEventHandler<HTMLCanvasElement> = (e) => {
-    if (!hasPlane) return;
-    const rect = (e.currentTarget as HTMLCanvasElement).getBoundingClientRect();
-    const cssX = e.clientX - rect.left;
-    const cssY = e.clientY - rect.top;
-    const cx = size / 2;
-    const cy = size / 2;
-    const { sx, sy } = scale;
-    const x = (cssX - cx) / sx;
-    const y = (cy - cssY) / sy;
-    const rx = Math.round(x * 100) / 100;
-    const ry = Math.round(y * 100) / 100;
+    // Avoid adding when dragging
+    if ((e.target as HTMLElement).getAttribute("data-draggable") === "true") return;
+    const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+    const pt = fromPx(e.clientX - rect.left, e.clientY - rect.top);
     setPoints((prev) => {
-      const next = [...prev, { x: rx, y: ry }];
+      const next = [...prev, pt];
       onChange({ xLimit, yLimit, points: next });
       return next;
     });
   };
 
+  // Drag handlers
+  const onCircleMouseDown = (idx: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setDragIndex(idx);
+  };
+  const onSvgMouseMove: React.MouseEventHandler<SVGSVGElement> = (e) => {
+    if (dragIndex === null || !hasPlane) return;
+    e.preventDefault();
+    const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+    const pt = fromPx(e.clientX - rect.left, e.clientY - rect.top);
+    // Optional: clamp to limits
+    const clamp = (v: number, lim: number | null) => {
+      if (lim == null) return v;
+      return Math.max(-lim, Math.min(lim, v));
+    };
+    // Snap to 0.1 and clamp
+    const q = (v: number) => Math.round(v * 10) / 10;
+    const nx = q(clamp(pt.x, xLimit));
+    const ny = q(clamp(pt.y, yLimit));
+    setPoints((prev) => {
+      const next = [...prev];
+      next[dragIndex] = { x: nx, y: ny };
+      onChange({ xLimit, yLimit, points: next });
+      return next;
+    });
+  };
+  const onSvgMouseUp: React.MouseEventHandler<SVGSVGElement> = () => {
+    if (dragIndex !== null) setDragIndex(null);
+  // commit points back to parent (sync to textarea upstream)
+  onPointsCommit?.(points);
+  };
+
+  // Zoom with wheel (Ctrl/Cmd + wheel to avoid accidental zooms)
+  const onWheel: React.WheelEventHandler<SVGSVGElement> = (e) => {
+    if (!hasPlane) return;
+    if (!(e.ctrlKey || e.metaKey)) return; // require modifier
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom((z) => Math.max(0.5, Math.min(4, z * factor)));
+  };
+
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="block text-xs text-gray-600">xLimit (1-20)</label>
-          <input
-            type="number"
-            className="w-28 rounded-md border border-gray-300 px-2 py-1"
-            min={1}
-            max={20}
-            value={xLimitInput}
-            onChange={(e) => setXLimitInput(e.target.value)}
-          />
+      {!hideControls && (
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs text-gray-600">xLimit (1-20)</label>
+            <input
+              type="number"
+              className="w-28 rounded-md border border-gray-300 px-2 py-1"
+              min={1}
+              max={20}
+              value={xLimitInput}
+              onChange={(e) => setXLimitInput(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600">yLimit (1-20)</label>
+            <input
+              type="number"
+              className="w-28 rounded-md border border-gray-300 px-2 py-1"
+              min={1}
+              max={20}
+              value={yLimitInput}
+              onChange={(e) => setYLimitInput(e.target.value)}
+            />
+          </div>
+          <button type="button" className="px-3 py-1.5 rounded-md bg-indigo-600 text-white" onClick={generatePlane}>
+            Generate Plane
+          </button>
         </div>
-        <div>
-          <label className="block text-xs text-gray-600">yLimit (1-20)</label>
-          <input
-            type="number"
-            className="w-28 rounded-md border border-gray-300 px-2 py-1"
-            min={1}
-            max={20}
-            value={yLimitInput}
-            onChange={(e) => setYLimitInput(e.target.value)}
-          />
-        </div>
-        <button type="button" className="px-3 py-1.5 rounded-md bg-indigo-600 text-white" onClick={generatePlane}>
-          Generate Plane
-        </button>
-      </div>
+      )}
 
-      {/* Canvas */}
+      {/* SVG Plane */}
       <div className="rounded-lg ring-1 ring-black/10 bg-white p-3">
         <div className="text-sm font-medium text-gray-700 mb-2">{step.label || "Cartesian Plane"}</div>
         <div ref={containerRef} className="w-full">
-          <canvas
-            ref={canvasRef}
+          <svg
             width={size}
             height={size}
-            onClick={onCanvasClick}
-            style={{ width: size, height: size, cursor: hasPlane ? "crosshair" : "not-allowed" }}
-          />
+            onClick={onSvgClick}
+            onMouseMove={onSvgMouseMove}
+            onMouseUp={onSvgMouseUp}
+            onWheel={onWheel}
+            style={{ width: size, height: size, cursor: hasPlane ? (dragIndex !== null ? "grabbing" : "crosshair") : "not-allowed" }}
+          >
+            {/* Background */}
+            <rect x={0} y={0} width={size} height={size} fill="#ffffff" />
+            {hasPlane && (
+              <g>
+                {/* Minor grid lines at 0.1 increments when zoomed enough */}
+                {(() => {
+                  const elems: JSX.Element[] = [];
+                  const pxPerTenthX = (scale.sx || 1) * 0.1;
+                  const pxPerTenthY = (scale.sy || 1) * 0.1;
+                  const showMinorX = pxPerTenthX >= 8;
+                  const showMinorY = pxPerTenthY >= 8;
+                  if (showMinorX) {
+                    const iMin = Math.ceil(-(xLimit as number) * 10);
+                    const iMax = Math.floor((xLimit as number) * 10);
+                    for (let i = iMin; i <= iMax; i++) {
+                      if (i % 10 === 0) continue; // skip whole numbers
+                      const x = cx + (i * (scale.sx || 1)) / 10;
+                      elems.push(
+                        <line key={`vm-${i}`} x1={x} y1={0} x2={x} y2={size} stroke="#e5e7eb" strokeWidth={1} strokeDasharray="2 3" opacity={0.7} />
+                      );
+                    }
+                  }
+                  if (showMinorY) {
+                    const jMin = Math.ceil(-(yLimit as number) * 10);
+                    const jMax = Math.floor((yLimit as number) * 10);
+                    for (let j = jMin; j <= jMax; j++) {
+                      if (j % 10 === 0) continue; // skip whole numbers
+                      const y = cy - (j * (scale.sy || 1)) / 10;
+                      elems.push(
+                        <line key={`hm-${j}`} x1={0} y1={y} x2={size} y2={y} stroke="#e5e7eb" strokeWidth={1} strokeDasharray="2 3" opacity={0.7} />
+                      );
+                    }
+                  }
+                  return <g>{elems}</g>;
+                })()}
+
+                {/* Major grid lines at integers */}
+                <g stroke="#d1d5db" strokeWidth={1.5}>
+                  {Array.from({ length: (xLimit as number) * 2 + 1 }, (_, i) => i - (xLimit as number)).map((i) => {
+                    if (i === 0) return null;
+                    const x = cx + i * (scale.sx || 1);
+                    return <line key={`vx-${i}`} x1={x} y1={0} x2={x} y2={size} />;
+                  })}
+                  {Array.from({ length: (yLimit as number) * 2 + 1 }, (_, j) => j - (yLimit as number)).map((j) => {
+                    if (j === 0) return null;
+                    const y = cy - j * (scale.sy || 1);
+                    return <line key={`hy-${j}`} x1={0} y1={y} x2={size} y2={y} />;
+                  })}
+                </g>
+                {/* Axes */}
+                <g stroke="#9ca3af" strokeWidth={1}>
+                  <line x1={cx} y1={0} x2={cx} y2={size} />
+                  <line x1={0} y1={cy} x2={size} y2={cy} />
+                </g>
+                {/* Ticks and labels with decimals when zoomed */}
+                {(() => {
+                  const elems: JSX.Element[] = [];
+                  const pxPerTenthX = (scale.sx || 1) * 0.1;
+                  const pxPerTenthY = (scale.sy || 1) * 0.1;
+                  const labelStepX = pxPerTenthX >= 40 ? 0.1 : pxPerTenthX >= 12 ? 0.5 : 1;
+                  const labelStepY = pxPerTenthY >= 40 ? 0.1 : pxPerTenthY >= 12 ? 0.5 : 1;
+                  const fmt = (v: number) => (Math.abs(v % 1) < 1e-9 ? String(Math.round(v)) : v.toFixed(1));
+                  // X labels
+                  for (let vx = -xLimit!; vx <= xLimit! + 1e-9; vx += labelStepX) {
+                    const x = cx + vx * (scale.sx || 1);
+                    elems.push(
+                      <g key={`tx-${vx.toFixed(1)}`} stroke="#6b7280" strokeWidth={1}>
+                        <line x1={x} y1={cy - 5} x2={x} y2={cy + 5} />
+                        {Math.abs(vx) > 1e-9 && (
+                          <text x={x} y={cy + 14} textAnchor="middle" fontSize={12} fill="#374151">{fmt(Number(vx.toFixed(1)))}</text>
+                        )}
+                      </g>
+                    );
+                  }
+                  // Y labels
+                  for (let vy = -yLimit!; vy <= yLimit! + 1e-9; vy += labelStepY) {
+                    const y = cy - vy * (scale.sy || 1);
+                    elems.push(
+                      <g key={`ty-${vy.toFixed(1)}`} stroke="#6b7280" strokeWidth={1}>
+                        <line x1={cx - 5} y1={y} x2={cx + 5} y2={y} />
+                        {Math.abs(vy) > 1e-9 && (
+                          <text x={cx - 8} y={y} textAnchor="end" dominantBaseline="middle" fontSize={12} fill="#374151">{fmt(Number(vy.toFixed(1)))}</text>
+                        )}
+                      </g>
+                    );
+                  }
+                  return <g>{elems}</g>;
+                })()}
+                {/* Polyline through points */}
+                {points.length > 1 && (
+                  <polyline
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    points={points.map((p) => {
+                      const px = toPx(p);
+                      return `${px.x},${px.y}`;
+                    }).join(" ")}
+                  />
+                )}
+                {/* Draggable points */}
+                {points.map((p, i) => {
+                  const px = toPx(p);
+                  return (
+                    <circle
+                      key={`p-${i}`}
+                      cx={px.x}
+                      cy={px.y}
+                      r={6}
+                      fill={dragIndex === i ? "red" : "blue"}
+                      data-draggable="true"
+                      onMouseDown={onCircleMouseDown(i)}
+                    />
+                  );
+                })}
+                {/* Tooltip for active point */}
+                {dragIndex !== null && points[dragIndex] && (() => {
+                  const p = points[dragIndex];
+                  const px = toPx(p);
+                  const label = `(${p.x.toFixed(1)}, ${p.y.toFixed(1)})`;
+                  return (
+                    <g key="drag-label">
+                      <rect x={px.x + 8} y={px.y - 22} width={label.length * 7.2} height={18} rx={4} fill="#111827" opacity={0.85} />
+                      <text x={px.x + 12} y={px.y - 9} fontSize={12} fill="#ffffff">{label}</text>
+                    </g>
+                  );
+                })()}
+              </g>
+            )}
+          </svg>
         </div>
         {!hasPlane && (
           <div className="text-xs text-gray-500 mt-2">Enter limits and click "Generate Plane" to start.</div>
@@ -257,7 +326,7 @@ export default function CartesianPlane({ step, value, onChange }: Props) {
       </div>
 
       {/* Points list */}
-      {hasPlane && (
+  {hasPlane && (
         <div>
           <div className="text-sm font-medium text-gray-700 mb-2">Clicked Points</div>
           {points.length === 0 ? (

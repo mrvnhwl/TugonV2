@@ -1,5 +1,5 @@
 import type { SVGProps } from "react";
-import { predefinedAnswers } from "@/components/data/answers";
+import { predefinedAnswers } from "./data/answers";
 import logo from "./assets/images/brain.png"; // Tugon logo currently in the project
 
 // Simple inline icons (no extra dependency)
@@ -28,18 +28,18 @@ type NavbarProps = { coins?: number; onCoinClick?: () => void; centerActiveIndex
 
 export default function TugonSenseNavbar({ coins = 2, onCoinClick, centerActiveIndex = 0 }: NavbarProps) {
   const stepsCount = predefinedAnswers.length;
-  console.log("steps", stepsCount);
+  if ((import.meta as any)?.env?.DEV) console.log("steps", stepsCount);
   return (
     <div className="w-full bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-sm">
       <div className="relative mx-auto max-w-7xl px-4 md:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Centered progress bar overlay */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="w-[min(70%,28rem)] px-4">
+          <div className="w-full max-w-3xl px-16">
             <div className="flex items-center gap-2">
               {Array.from({ length: Math.max(0, stepsCount) }).map((_, i) => (
                 <span
                   key={i}
-                  className={`h-2 rounded-md flex-1 ${i === centerActiveIndex ? "bg-blue-500" : "bg-gray-300"}`}
+                  className={`h-2 rounded-full flex-1 transition-colors ${i === centerActiveIndex ? "bg-blue-500" : "bg-gray-300"}`}
                 />
               ))}
             </div>

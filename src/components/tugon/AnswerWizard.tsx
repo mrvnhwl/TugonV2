@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import type { PredefinedAnswer } from "@/components/data/answers";
+import { useEffect, useMemo, useState } from "react";
+import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers";
 import { cn } from "../cn";
 import GraphAnswerComp, { GraphValue } from "./answers/GraphAnswer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,9 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
-import { ActivitySquare, AlignLeft, ChevronLeft, ChevronRight, MinusCircle, PlusCircle, Type as TypeIcon } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ActivitySquare, AlignLeft, ChevronLeft, ChevronRight, Type as TypeIcon, CheckCircle } from "lucide-react";
 
 // Allowed answer types
 export type AnswerType = "single" | "multi" | "graph";
@@ -20,8 +18,11 @@ export type Step = {
   label?: string;
   placeholder?: string;
   rows?: number;
-  type?: AnswerType;
-  value?: string | GraphValue;
+  type?: AnswerType; // answer format selector
+  // Unified value across all formats. For graph, this is the (x,y) text; for others, plain text.
+  answerValue?: string;
+  // Optional graph state used only when type === 'graph'
+  value?: GraphValue;
 };
 
 // Internal state shape that the wizard manages
@@ -31,86 +32,71 @@ export type WizardStep = {
   placeholder?: string;
   rows?: number;
   type: AnswerType;
-  value: string | GraphValue;
+  // unified answer content regardless of format
+  answerValue: string;
+  // graph internal state when applicable
+  value: GraphValue;
 };
 
 type AnswerWizardProps = {
   steps?: Step[]; // treated as initial/hydration
-  predefinedAnswers?: PredefinedAnswer[];
   onSubmit: (steps: WizardStep[], result?: { correct: boolean[]; allCorrect: boolean }) => void;
   className?: string;
+  onIndexChange?: (index: number) => void;
 };
 
 // Child components (accept { value, onChange, step })
-type ChildProps<T = any> = {
-  value: T;
-  onChange: (v: T) => void;
-  step: WizardStep | Step;
-};
-
-function SingleLineAnswer({ value, onChange, step }: ChildProps<string>) {
-  return (
-    <div className="space-y-2">
-      {step?.label && (
-        <div className="text-sm font-medium text-foreground">{step.label}</div>
-      )}
-      <Input
-        type="text"
-        placeholder={(step as any)?.placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
-  );
-}
-
-function MultiLineAnswer({ value, onChange, step }: ChildProps<string>) {
-  return (
-    <div className="space-y-2">
-      {step?.label && (
-        <div className="text-sm font-medium text-foreground">{step.label}</div>
-      )}
-      <Textarea
-        rows={(step as any)?.rows ?? 3}
-        placeholder={(step as any)?.placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
-  );
-}
+// (removed old format-specific input components in favor of one unified input)
 
 const defaultGraph: GraphValue = { xLimit: null, yLimit: null, points: [] };
-const defaultFor = (t: AnswerType): string | GraphValue => (t === "graph" ? defaultGraph : "");
 
-export default function AnswerWizard({ steps: initialSteps = [], predefinedAnswers, onSubmit, className }: AnswerWizardProps) {
-  // Initialize steps from props or start with one default step
-  const [steps, setSteps] = useState<WizardStep[]>(
-    () => (initialSteps.length ? initialSteps : [{ id: "s1" }]).map((s, i) => ({
-      id: s.id ?? `s${i + 1}`,
-      label: s.label,
-      placeholder: s.placeholder,
-      rows: s.rows,
-      type: s.type ?? "single",
-      value: s.value ?? defaultFor(s.type ?? "single"),
-    }))
-  );
+// (reverted) No tolerance-based comparing here; graph answers are compared as text from the textarea
+
+export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, className, onIndexChange }: AnswerWizardProps) {
+  // Fixed steps derived strictly from predefinedAnswers in data/answers.ts
+  const fixedSteps: WizardStep[] = (predefinedAnswersData || []).map((a, i) => {
+    const t: AnswerType = a.type === "multiLine" ? "multi" : (a.type as any);
+    return {
+      id: `s${i + 1}`,
+      type: t,
+      answerValue: "",
+      value: defaultGraph,
+    } as WizardStep;
+  });
+  if (import.meta.env?.DEV) console.log("Total steps:", fixedSteps.length);
+
+  const [steps, setSteps] = useState<WizardStep[]>(fixedSteps);
   const [index, setIndex] = useState(0);
-  const idCounter = useRef(steps.length + 1);
+  const [correctness, setCorrectness] = useState<Array<boolean | null>>(
+    Array.from({ length: fixedSteps.length }, () => null)
+  );
+  // unified input lives in steps[i].answerValue, so no separate graphTexts needed
 
   const total = steps.length;
   const current = steps[index];
+  // Graph modal state (Tailwind-only modal)
+  const [graphOpen, setGraphOpen] = useState(false);
+  const [graphInputs, setGraphInputs] = useState<{ x: string; y: string }>({ x: "10", y: "10" });
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (graphOpen) {
+      document.body.classList.add("overflow-hidden");
+    } else {
+      document.body.classList.remove("overflow-hidden");
+    }
+    return () => document.body.classList.remove("overflow-hidden");
+  }, [graphOpen]);
+
+  // Notify parent when the active index changes
+  useEffect(() => {
+    onIndexChange?.(index);
+  }, [index, onIndexChange]);
 
   // Compute the debuggable "storedAnswers" payload
   const computeStoredAnswers = (arr: WizardStep[]): { type: AnswerType; answer: string }[] =>
     arr.map((s) => {
-      if (s.type === "graph") {
-        const g = s.value as GraphValue;
-        const pts = (g.points || []).map((p) => `(${p.x},${p.y})`).join(";");
-        return { type: s.type, answer: `points:${pts}` };
-      }
-      const str = (s.value as string) ?? "";
-      // strip spaces/newlines for consistency in logs
+      const str = s.answerValue ?? "";
       return { type: s.type, answer: str.replace(/[\s\n\r]+/g, "") };
     });
 
@@ -118,60 +104,131 @@ export default function AnswerWizard({ steps: initialSteps = [], predefinedAnswe
     if (!current) return;
     setSteps((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], type: t, value: defaultFor(t) };
+      // Do not reset answerValue when switching formats; keep graph value as-is when switching back
+      const existing = next[index];
+      next[index] = {
+        ...existing,
+        type: t,
+        value: (existing.value as GraphValue) ?? defaultGraph,
+      } as WizardStep;
       return next;
     });
   };
 
-  const updateCurrentValue = (value: any) => {
+  const updateCurrentGraphValue = (value: GraphValue) => {
     if (!current) return;
     setSteps((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], value };
+      next[index] = { ...next[index], value } as WizardStep;
       return next;
     });
   };
 
-  const addStep = () => {
-    const newId = `s${idCounter.current++}`;
-    setSteps((prev) => [...prev, { id: newId, type: "single", value: "" }]);
-    setIndex((prevIndex) => Math.min(prevIndex + 1, total));
-  };
-
-  const [openRemove, setOpenRemove] = useState(false);
-  const confirmRemove = () => {
-    if (!current) return;
-    setSteps((prev) => {
-      const next = prev.filter((_, i) => i !== index);
-      return next.length ? next : [{ id: `s${idCounter.current++}`, type: "single", value: "" }];
-    });
-    setIndex((prevIndex) => Math.max(0, Math.min(prevIndex, total - 2)));
-    setOpenRemove(false);
-  };
+  // Dynamic add/remove disabled: steps are fixed by predefinedAnswers
 
   const content = useMemo(() => {
     if (!current) return <div className="text-sm text-gray-500">No steps yet.</div>;
-    switch (current.type) {
-      case "single":
-        return (
-          <SingleLineAnswer step={current} value={(current.value as string) ?? ""} onChange={updateCurrentValue} />
-        );
-      case "multi":
-        return (
-          <MultiLineAnswer step={current} value={(current.value as string) ?? ""} onChange={updateCurrentValue} />
-        );
-      case "graph":
-        return (
-          <GraphAnswerComp
-            step={current}
-            value={(current.value as GraphValue) ?? defaultGraph}
-            onChange={updateCurrentValue}
-          />
-        );
-      default:
-        return null;
-    }
-  }, [current]);
+    // Only show format-specific helpers here (e.g., graph plane trigger). The unified input is rendered below the step indicator.
+    if (current.type !== "graph") return null;
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs text-gray-600">xLimit (1-20)</label>
+            <Input
+              type="number"
+              min={1}
+              max={20}
+              className="w-28"
+              value={graphInputs.x}
+              onChange={(e) => setGraphInputs((s) => ({ ...s, x: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600">yLimit (1-20)</label>
+            <Input
+              type="number"
+              min={1}
+              max={20}
+              className="w-28"
+              value={graphInputs.y}
+              onChange={(e) => setGraphInputs((s) => ({ ...s, y: e.target.value }))}
+            />
+          </div>
+          <Button
+            type="button"
+            onClick={() => {
+              const clamp = (v: number) => Math.max(1, Math.min(20, Math.floor(v)));
+              const xl = clamp(Number(graphInputs.x) || 0);
+              const yl = clamp(Number(graphInputs.y) || 0);
+              // seed the step's graph value so modal canvas draws with these limits
+              setSteps((prev) => {
+                const next = [...prev];
+                next[index] = { ...next[index], value: { xLimit: xl, yLimit: yl, points: [] } as GraphValue } as WizardStep;
+                return next;
+              });
+              setGraphOpen(true);
+            }}
+          >
+            Generate Plane
+          </Button>
+        </div>
+
+        {/* Lightweight modal (lazy render) */}
+        {graphOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setGraphOpen(false)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-lg p-6 relative max-w-lg w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button type="button" className="absolute top-2 right-2" onClick={() => setGraphOpen(false)}>
+                X
+              </button>
+              <div className="text-base font-semibold mb-3">Cartesian Plane</div>
+              <div className="max-h-[70vh] overflow-auto">
+                <GraphAnswerComp
+                  step={current}
+                  value={(current.value as GraphValue) ?? defaultGraph}
+                  onChange={updateCurrentGraphValue}
+                  hideControls
+                  onPointsCommit={(pts) => {
+                    const formatted = (pts || []).map((p) => `(${p.x}, ${p.y})`).join("\n");
+                    setSteps((prev) => {
+                      const next = [...prev];
+                      next[index] = { ...next[index], answerValue: formatted } as WizardStep;
+                      return next;
+                    });
+                  }}
+                />
+              </div>
+              {/* Submit to transfer points into unified input and close */}
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const g = (current.value as GraphValue) ?? defaultGraph;
+                    const pts = Array.isArray(g.points) ? g.points : [];
+                    const formatted = pts.map((p) => `(${p.x}, ${p.y})`).join("\n");
+                    setSteps((prev) => {
+                      const next = [...prev];
+                      next[index] = { ...next[index], answerValue: formatted } as WizardStep;
+                      return next;
+                    });
+                    setGraphOpen(false);
+                  }}
+                >
+                  Submit
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }, [current, index, graphOpen, graphInputs]);
 
   const canPrev = index > 0;
   const canNext = index < Math.max(0, total - 1);
@@ -184,106 +241,47 @@ export default function AnswerWizard({ steps: initialSteps = [], predefinedAnswe
     else handleSubmit();
   };
 
-  const sanitize = (t: AnswerType, v: string | GraphValue): string => {
-    if (t === "graph") {
-      // naive serialization for comparison; you may replace with a robust serializer later
-      const g = v as GraphValue;
-      const pts = (g.points || [])
-        .map((p) => `(${p.x},${p.y})`)
-        .join(";");
-      return `points:${pts}`;
-    }
-    // strip spaces & newlines for text inputs
-    const s = (v as string) ?? "";
-    return s.replace(/[\s\n\r]+/g, "");
-  };
+  // Helper for text types
+  const sanitizeText = (v: string) => (v ?? "").replace(/[\s\n\r]+/g, "").toLowerCase();
 
   const handleSubmit = () => {
-    if (!predefinedAnswers || predefinedAnswers.length === 0) {
+    // Evaluate all steps each time: mark correct inputs across the wizard
+    if (!predefinedAnswersData || predefinedAnswersData.length === 0) {
       const storedAnswers = computeStoredAnswers(steps);
       if (import.meta.env.DEV) console.log("Final collected answers:", storedAnswers);
       onSubmit(steps);
       return;
     }
-    const storedAnswers = computeStoredAnswers(steps);
-    if (import.meta.env.DEV) console.log("Final collected answers:", storedAnswers);
-    const len = Math.min(predefinedAnswers.length, steps.length);
-    const correctness: boolean[] = [];
+    const len = Math.min(predefinedAnswersData.length, steps.length);
+    const nextCorrectness: Array<boolean | null> = [...correctness];
+    const correctnessArr: boolean[] = [];
     for (let i = 0; i < len; i++) {
-      const user = steps[i];
-      const expected = predefinedAnswers[i];
-      // map multiLine to our internal 'multi'
-      const expectedType = expected.type === "multiLine" ? "multi" : expected.type;
-      const typeMatches = user.type === expectedType;
-      const userSan = sanitize(user.type, user.value);
-      const expSan = expected.answer.replace(/[\s\n\r]+/g, "");
-      const answerMatches = userSan === expSan;
-      correctness.push(typeMatches && answerMatches);
+      const u = steps[i];
+      const e = predefinedAnswersData[i];
+      // Compare as text for all types; always read from unified answerValue
+      const userText = u.answerValue ?? "";
+      const uSan = sanitizeText(userText);
+      const eSan = e.answer.replace(/[\s\n\r]+/g, "").toLowerCase();
+      const isCorrect = uSan === eSan;
+      correctnessArr.push(isCorrect);
+      if (import.meta.env.DEV) {
+        console.log("User input:", uSan, "Expected:", eSan, "Match:", isCorrect, "(step", i + 1, ")");
+      }
+      // Mark correct or incorrect; correct ones will lock via UI, incorrect stay editable
+      nextCorrectness[i] = isCorrect ? true : false;
     }
-    const allCorrect = correctness.length > 0 && correctness.every(Boolean);
-    onSubmit(steps, { correct: correctness, allCorrect });
+    setCorrectness(nextCorrectness);
+    const allCorrect = correctnessArr.length > 0 && correctnessArr.every(Boolean);
+    onSubmit(steps, { correct: correctnessArr, allCorrect });
   };
 
   return (
     <Card className={cn("rounded-2xl border bg-card shadow-sm", className)}>
   <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
         <CardTitle className="text-base">{current?.label ?? "Answer"}</CardTitle>
-        <div className="flex items-center gap-2">
-          <div className="text-xs text-muted-foreground">
-            Step <span className="text-primary font-medium">{total ? index + 1 : 0}</span> of {total}
-          </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={addStep}
-                  aria-label="Add a new step"
-                  className="text-muted-foreground hover:text-primary transition-colors rounded-xl"
-                >
-                  <PlusCircle />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Add a new step</TooltipContent>
-            </Tooltip>
-            <Dialog open={openRemove} onOpenChange={setOpenRemove}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={!current}
-                      aria-label="Remove current step"
-                      className="text-muted-foreground hover:text-primary transition-colors rounded-xl"
-                    >
-                      <MinusCircle />
-                    </Button>
-                  </DialogTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Remove current step</TooltipContent>
-              </Tooltip>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Remove this step?</DialogTitle>
-                  <DialogDescription>
-                    This action will delete the current step and its answer. You can’t undo this.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setOpenRemove(false)}>Cancel</Button>
-                  <Button variant="destructive" onClick={confirmRemove}>Remove</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </TooltipProvider>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Answer type selection */}
-        {current && (
-          <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {/* Answer type toggles moved to header right side */}
+          {current && (
             <div className="flex items-center gap-2 flex-wrap">
               <Toggle
                 pressed={current.type === "single"}
@@ -307,16 +305,22 @@ export default function AnswerWizard({ steps: initialSteps = [], predefinedAnswe
                 <ActivitySquare className="mr-2" /> Graph
               </Toggle>
             </div>
+          )}
+          <div className="flex items-center gap-2 whitespace-nowrap" aria-live="polite">
+            <span className="text-[13px] md:text-sm text-muted-foreground">Step</span>
+            <span className="text-primary font-bold text-base md:text-lg leading-none">{total ? index + 1 : 0}</span>
+            <span className="text-[13px] md:text-sm text-muted-foreground">of {total}</span>
           </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Format-specific helpers (e.g., Graph controls + modal) */}
+        {content && (
+          <div className="rounded-md bg-muted p-3">{content}</div>
         )}
 
-        {/* Input area */}
-  <div className="rounded-md bg-muted p-3">
-          {content}
-        </div>
-
         {/* Step indicators */}
-  <div className="flex items-center justify-center gap-2 pt-2 px-2 overflow-x-auto max-w-full">
+        <div className="flex items-center justify-center gap-2 pt-2 px-2 overflow-x-auto max-w-full">
           {steps.map((_, i) => (
             <button
               key={i}
@@ -326,12 +330,55 @@ export default function AnswerWizard({ steps: initialSteps = [], predefinedAnswe
                 "h-2.5 w-2.5 rounded-full transition-colors",
                 i === index ? "bg-primary" : "bg-muted"
               )}
-            />)
-          )}
+            />
+          ))}
         </div>
 
+        {/* Unified input box below the step indicator */}
+        {current && (
+          <div className="space-y-2">
+      {current.type === "single" ? (
+              <Input
+                type="text"
+                placeholder={current.placeholder}
+                value={current.answerValue ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSteps((prev) => {
+                    const next = [...prev];
+                    next[index] = { ...next[index], answerValue: v } as WizardStep;
+                    return next;
+                  });
+                }}
+        disabled={correctness[index] === true}
+              />
+            ) : (
+              <Textarea
+                rows={current.rows ?? 3}
+                placeholder={current.placeholder || (current.type === "graph" ? "Your points will appear here..." : undefined)}
+                value={current.answerValue ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSteps((prev) => {
+                    const next = [...prev];
+                    next[index] = { ...next[index], answerValue: v } as WizardStep;
+                    return next;
+                  });
+                }}
+        disabled={correctness[index] === true && current.type !== "graph"}
+              />
+            )}
+            {correctness[index] === true && (
+              <div className="flex items-center gap-2 text-green-600 text-sm">
+                <CheckCircle className="h-4 w-4" />
+                Correct!
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Navigation buttons below the indicator */}
-  <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
+        <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
           <Button
             variant="outline"
             onClick={goPrev}
