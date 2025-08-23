@@ -12,7 +12,7 @@ export default function TugonSense() {
     <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10">
-        <TugonSenseNavbar />
+        <TugonSenseNavbar centerActiveIndex={activeIndex} />
       </div>
 
       {/* Main */}

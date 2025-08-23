@@ -1,22 +1,9 @@
 import type { SVGProps } from "react";
+import { predefinedAnswers } from "@/components/data/answers";
 import logo from "./assets/images/brain.png"; // Tugon logo currently in the project
 
 // Simple inline icons (no extra dependency)
-const HomeIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-    <path d="M3 10.5 12 3l9 7.5" />
-    <path d="M5 9.5v10a1.5 1.5 0 0 0 1.5 1.5H10v-6h4v6h3.5A1.5 1.5 0 0 0 19 19.5v-10" />
-  </svg>
-);
-
-const TopicsIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-    <rect x="3" y="4.5" width="8.5" height="6.5" rx="1.2" />
-    <rect x="12.5" y="4.5" width="8.5" height="6.5" rx="1.2" />
-    <rect x="3" y="13" width="8.5" height="6.5" rx="1.2" />
-    <rect x="12.5" y="13" width="8.5" height="6.5" rx="1.2" />
-  </svg>
-);
+// Center nav icons removed (nav hidden under overlay)
 
 const MenuIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
@@ -37,29 +24,35 @@ const CoinIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-type NavbarProps = { coins?: number; onCoinClick?: () => void };
+type NavbarProps = { coins?: number; onCoinClick?: () => void; centerActiveIndex?: number };
 
-export default function TugonSenseNavbar({ coins = 2, onCoinClick }: NavbarProps) {
+export default function TugonSenseNavbar({ coins = 2, onCoinClick, centerActiveIndex = 0 }: NavbarProps) {
+  const stepsCount = predefinedAnswers.length;
+  console.log("steps", stepsCount);
   return (
     <div className="w-full bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-sm">
-      <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div className="relative mx-auto max-w-7xl px-4 md:px-6 lg:px-8 h-16 flex items-center justify-between">
+        {/* Centered progress bar overlay */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="w-[min(70%,28rem)] px-4">
+            <div className="flex items-center gap-2">
+              {Array.from({ length: Math.max(0, stepsCount) }).map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-2 rounded-md flex-1 ${i === centerActiveIndex ? "bg-blue-500" : "bg-gray-300"}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
         {/* Left: Brand */}
         <div className="flex items-center gap-3 min-w-0">
           <img src={logo} alt="Tugon" className="h-7 w-7 object-contain" />
           <span className="text-xl font-semibold tracking-tight">Tugon</span>
         </div>
 
-        {/* Center: Nav */}
-        <nav className="hidden sm:flex items-center gap-6 text-[15px] font-medium text-gray-800">
-          <a href="#" className="inline-flex items-center gap-2 hover:text-gray-900">
-            <HomeIcon className="h-4 w-4" />
-            Home
-          </a>
-          <a href="#" className="inline-flex items-center gap-2 hover:text-gray-900">
-            <TopicsIcon className="h-4 w-4" />
-            Topics
-          </a>
-        </nav>
+  {/* Center nav hidden to avoid duplicating content under the progress overlay */}
+  <nav className="hidden" aria-hidden="true" />
 
         {/* Right: Coin indicator (clickable) */}
         <div className="flex items-center gap-3">

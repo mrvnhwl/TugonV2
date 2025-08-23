@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import type { PredefinedAnswer } from "@/components/data/answers";
 import { cn } from "../cn";
 import GraphAnswerComp, { GraphValue } from "./answers/GraphAnswer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +36,8 @@ export type WizardStep = {
 
 type AnswerWizardProps = {
   steps?: Step[]; // treated as initial/hydration
-  onSubmit: (steps: WizardStep[]) => void;
+  predefinedAnswers?: PredefinedAnswer[];
+  onSubmit: (steps: WizardStep[], result?: { correct: boolean[]; allCorrect: boolean }) => void;
   className?: string;
 };
 
@@ -81,7 +83,7 @@ function MultiLineAnswer({ value, onChange, step }: ChildProps<string>) {
 const defaultGraph: GraphValue = { xLimit: null, yLimit: null, points: [] };
 const defaultFor = (t: AnswerType): string | GraphValue => (t === "graph" ? defaultGraph : "");
 
-export default function AnswerWizard({ steps: initialSteps = [], onSubmit, className }: AnswerWizardProps) {
+export default function AnswerWizard({ steps: initialSteps = [], predefinedAnswers, onSubmit, className }: AnswerWizardProps) {
   // Initialize steps from props or start with one default step
   const [steps, setSteps] = useState<WizardStep[]>(
     () => (initialSteps.length ? initialSteps : [{ id: "s1" }]).map((s, i) => ({
@@ -98,6 +100,19 @@ export default function AnswerWizard({ steps: initialSteps = [], onSubmit, class
 
   const total = steps.length;
   const current = steps[index];
+
+  // Compute the debuggable "storedAnswers" payload
+  const computeStoredAnswers = (arr: WizardStep[]): { type: AnswerType; answer: string }[] =>
+    arr.map((s) => {
+      if (s.type === "graph") {
+        const g = s.value as GraphValue;
+        const pts = (g.points || []).map((p) => `(${p.x},${p.y})`).join(";");
+        return { type: s.type, answer: `points:${pts}` };
+      }
+      const str = (s.value as string) ?? "";
+      // strip spaces/newlines for consistency in logs
+      return { type: s.type, answer: str.replace(/[\s\n\r]+/g, "") };
+    });
 
   const setTypeForCurrent = (t: AnswerType) => {
     if (!current) return;
@@ -166,7 +181,47 @@ export default function AnswerWizard({ steps: initialSteps = [], onSubmit, class
   };
   const goNext = () => {
     if (canNext) setIndex(index + 1);
-    else onSubmit(steps);
+    else handleSubmit();
+  };
+
+  const sanitize = (t: AnswerType, v: string | GraphValue): string => {
+    if (t === "graph") {
+      // naive serialization for comparison; you may replace with a robust serializer later
+      const g = v as GraphValue;
+      const pts = (g.points || [])
+        .map((p) => `(${p.x},${p.y})`)
+        .join(";");
+      return `points:${pts}`;
+    }
+    // strip spaces & newlines for text inputs
+    const s = (v as string) ?? "";
+    return s.replace(/[\s\n\r]+/g, "");
+  };
+
+  const handleSubmit = () => {
+    if (!predefinedAnswers || predefinedAnswers.length === 0) {
+      const storedAnswers = computeStoredAnswers(steps);
+      if (import.meta.env.DEV) console.log("Final collected answers:", storedAnswers);
+      onSubmit(steps);
+      return;
+    }
+    const storedAnswers = computeStoredAnswers(steps);
+    if (import.meta.env.DEV) console.log("Final collected answers:", storedAnswers);
+    const len = Math.min(predefinedAnswers.length, steps.length);
+    const correctness: boolean[] = [];
+    for (let i = 0; i < len; i++) {
+      const user = steps[i];
+      const expected = predefinedAnswers[i];
+      // map multiLine to our internal 'multi'
+      const expectedType = expected.type === "multiLine" ? "multi" : expected.type;
+      const typeMatches = user.type === expectedType;
+      const userSan = sanitize(user.type, user.value);
+      const expSan = expected.answer.replace(/[\s\n\r]+/g, "");
+      const answerMatches = userSan === expSan;
+      correctness.push(typeMatches && answerMatches);
+    }
+    const allCorrect = correctness.length > 0 && correctness.every(Boolean);
+    onSubmit(steps, { correct: correctness, allCorrect });
   };
 
   return (
@@ -289,7 +344,7 @@ export default function AnswerWizard({ steps: initialSteps = [], onSubmit, class
           </Button>
           <Button
             variant="default"
-            onClick={() => onSubmit(steps)}
+            onClick={handleSubmit}
             className="rounded-xl"
             aria-label="Check answers"
           >
