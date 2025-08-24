@@ -26,7 +26,7 @@ export const defaultTopics: Topic[] = [
     id: 2,
     name: "Evaluating Functions",
     questions: [
-      { id: 1, text: "g(x)=x+5. Find g(7)." },
+      { id: 1, text: "g(x)=x+5. Find g(7)."  },
       { id: 2, text: "p(x)=x^2+4. Find p(6)" },
       { id: 3, text: "f(x)=2x^2−3x+1. Find f(−2)" },
     ],

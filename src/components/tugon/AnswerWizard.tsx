@@ -46,6 +46,8 @@ type AnswerWizardProps = {
   onIndexChange?: (index: number) => void;
   // If provided, these expected answers will be used for step shapes and validation
   expectedAnswers?: PredefinedAnswer[];
+  // Notify parent when the current step's unified answerValue changes
+  onAnswerChange?: (index: number, value: string) => void;
 };
 
 // Child components (accept { value, onChange, step })
@@ -55,14 +57,15 @@ const defaultGraph: GraphValue = { xLimit: null, yLimit: null, points: [] };
 
 // (reverted) No tolerance-based comparing here; graph answers are compared as text from the textarea
 
-export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, className, onIndexChange, expectedAnswers }: AnswerWizardProps) {
+export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, className, onIndexChange, expectedAnswers, onAnswerChange }: AnswerWizardProps) {
   // Source answers: prefer per-question answers if provided; otherwise fall back to global sample
   const answersSource: PredefinedAnswer[] = expectedAnswers && expectedAnswers.length > 0
     ? expectedAnswers
     : (predefinedAnswersData || []);
   // Fixed steps derived strictly from the selected answers source
-  const fixedSteps: WizardStep[] = (answersSource || []).map((a, i) => {
-    const t: AnswerType = a.type === "multiLine" ? "multi" : (a.type as any);
+  const fixedSteps: WizardStep[] = (answersSource || []).map((_, i) => {
+    // Default to single-line format for all steps initially
+    const t: AnswerType = "single";
     return {
       id: `s${i + 1}`,
       type: t,
@@ -146,11 +149,16 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
       // Fallback: if no expected is defined, consider non-empty as valid
       return a.length > 0;
     }
-    // Graph specific minimum validity: at least one plotted point or a valid (x,y) text
+    // Graph-specific minimum validity:
+    // Only enforce coordinate/points requirement when the expected answer looks like coordinates.
     if (step.type === "graph") {
-      const hasPlotted = Array.isArray(step.value?.points) && step.value.points.length > 0;
-      const hasCoordText = /\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)/.test(a);
-      if (!hasPlotted && !hasCoordText) return false;
+      const coordRe = /\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)/;
+      const expectedLooksLikeCoords = coordRe.test(expected);
+      if (expectedLooksLikeCoords) {
+        const hasPlotted = Array.isArray(step.value?.points) && step.value.points.length > 0;
+        const hasCoordText = coordRe.test(a);
+        if (!hasPlotted && !hasCoordText) return false;
+      }
     }
     return sanitizeText(a) === sanitizeText(expected);
   };
@@ -230,6 +238,7 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
                       next[index] = { ...next[index], answerValue: formatted } as WizardStep;
                       return next;
                     });
+                    onAnswerChange?.(index, formatted);
                   }}
                 />
               </div>
@@ -246,6 +255,7 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
                       next[index] = { ...next[index], answerValue: formatted } as WizardStep;
                       return next;
                     });
+                    onAnswerChange?.(index, formatted);
                     setGraphOpen(false);
                   }}
                 >
@@ -384,6 +394,7 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
                           next[index] = { ...next[index], answerValue: v } as WizardStep;
                           return next;
                         });
+                        onAnswerChange?.(index, v);
                       }}
                       disabled={correctness[index] === true}
                       className={inputClasses}
@@ -400,6 +411,7 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
                           next[index] = { ...next[index], answerValue: v } as WizardStep;
                           return next;
                         });
+                        onAnswerChange?.(index, v);
                       }}
                       disabled={correctness[index] === true && current.type !== "graph"}
                       className={inputClasses}
