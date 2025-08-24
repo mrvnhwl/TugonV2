@@ -126,6 +126,28 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
 
   // Dynamic add/remove disabled: steps are fixed by predefinedAnswers
 
+  // Sanitizer shared by validation and submission
+  const sanitizeText = (v: string) => (v ?? "").replace(/[\s\n\r]+/g, "").toLowerCase();
+
+  // Unified validation function per requirements
+  const validateAnswer = (step: WizardStep | undefined, answer: string | undefined, stepIndex: number): boolean => {
+    if (!step) return false;
+    const a = (answer ?? "").trim();
+    if (!a) return false;
+    const expected = predefinedAnswersData?.[stepIndex]?.answer;
+    if (!expected) {
+      // Fallback: if no expected is defined, consider non-empty as valid
+      return a.length > 0;
+    }
+    // Graph specific minimum validity: at least one plotted point or a valid (x,y) text
+    if (step.type === "graph") {
+      const hasPlotted = Array.isArray(step.value?.points) && step.value.points.length > 0;
+      const hasCoordText = /\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)/.test(a);
+      if (!hasPlotted && !hasCoordText) return false;
+    }
+    return sanitizeText(a) === sanitizeText(expected);
+  };
+
   const content = useMemo(() => {
     if (!current) return <div className="text-sm text-gray-500">No steps yet.</div>;
     // Only show format-specific helpers here (e.g., graph plane trigger). The unified input is rendered below the step indicator.
@@ -232,6 +254,7 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
 
   const canPrev = index > 0;
   const canNext = index < Math.max(0, total - 1);
+  const canProceed = validateAnswer(current, current?.answerValue, index);
 
   const goPrev = () => {
     if (canPrev) setIndex(index - 1);
@@ -240,9 +263,6 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
     if (canNext) setIndex(index + 1);
     else handleSubmit();
   };
-
-  // Helper for text types
-  const sanitizeText = (v: string) => (v ?? "").replace(/[\s\n\r]+/g, "").toLowerCase();
 
   const handleSubmit = () => {
     // Evaluate all steps each time: mark correct inputs across the wizard
@@ -257,15 +277,11 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
     const correctnessArr: boolean[] = [];
     for (let i = 0; i < len; i++) {
       const u = steps[i];
-      const e = predefinedAnswersData[i];
-      // Compare as text for all types; always read from unified answerValue
-      const userText = u.answerValue ?? "";
-      const uSan = sanitizeText(userText);
-      const eSan = e.answer.replace(/[\s\n\r]+/g, "").toLowerCase();
-      const isCorrect = uSan === eSan;
+      // Use unified validator for all steps
+      const isCorrect = validateAnswer(u, u.answerValue, i);
       correctnessArr.push(isCorrect);
       if (import.meta.env.DEV) {
-        console.log("User input:", uSan, "Expected:", eSan, "Match:", isCorrect, "(step", i + 1, ")");
+        console.log("Validated step", i + 1, "=>", isCorrect);
       }
       // Mark correct or incorrect; correct ones will lock via UI, incorrect stay editable
       nextCorrectness[i] = isCorrect ? true : false;
@@ -337,36 +353,58 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
         {/* Unified input box below the step indicator */}
         {current && (
           <div className="space-y-2">
-      {current.type === "single" ? (
-              <Input
-                type="text"
-                placeholder={current.placeholder}
-                value={current.answerValue ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSteps((prev) => {
-                    const next = [...prev];
-                    next[index] = { ...next[index], answerValue: v } as WizardStep;
-                    return next;
-                  });
-                }}
-        disabled={correctness[index] === true}
-              />
-            ) : (
-              <Textarea
-                rows={current.rows ?? 3}
-                placeholder={current.placeholder || (current.type === "graph" ? "Your points will appear here..." : undefined)}
-                value={current.answerValue ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSteps((prev) => {
-                    const next = [...prev];
-                    next[index] = { ...next[index], answerValue: v } as WizardStep;
-                    return next;
-                  });
-                }}
-        disabled={correctness[index] === true && current.type !== "graph"}
-              />
+            {(() => {
+              // compute dynamic classes for input based on validation/correctness
+              const answer = current.answerValue ?? "";
+              const isValid = validateAnswer(current, answer, index);
+              const nonEmpty = answer.trim().length > 0;
+              const isCorrect = correctness[index] === true;
+              const isWrong = nonEmpty && !isValid && !isCorrect;
+              const okClass = "border-green-500 bg-green-50 focus-visible:ring-green-500/40";
+              const wrongClass = "border-red-500 bg-red-50 focus-visible:ring-red-500/40";
+              const inputClasses = isCorrect ? okClass : isWrong ? wrongClass : undefined;
+              return (
+                <>
+                  {current.type === "single" ? (
+                    <Input
+                      type="text"
+                      placeholder={current.placeholder}
+                      value={answer}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSteps((prev) => {
+                          const next = [...prev];
+                          next[index] = { ...next[index], answerValue: v } as WizardStep;
+                          return next;
+                        });
+                      }}
+                      disabled={correctness[index] === true}
+                      className={inputClasses}
+                    />
+                  ) : (
+                    <Textarea
+                      rows={current.rows ?? 3}
+                      placeholder={current.placeholder || (current.type === "graph" ? "Your points will appear here..." : undefined)}
+                      value={answer}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSteps((prev) => {
+                          const next = [...prev];
+                          next[index] = { ...next[index], answerValue: v } as WizardStep;
+                          return next;
+                        });
+                      }}
+                      disabled={correctness[index] === true && current.type !== "graph"}
+                      className={inputClasses}
+                    />
+                  )}
+                </>
+              );
+            })()}
+            {!canProceed && (
+              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
+                Answer required before continuing.
+              </div>
             )}
             {correctness[index] === true && (
               <div className="flex items-center gap-2 text-green-600 text-sm">
@@ -382,7 +420,7 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
           <Button
             variant="outline"
             onClick={goPrev}
-            disabled={!canPrev}
+            disabled={false}
             aria-label="Go to previous step"
             className="rounded-xl hover:bg-accent hover:text-accent-foreground"
           >
@@ -401,6 +439,7 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
             variant="secondary"
             onClick={goNext}
             aria-label={canNext ? "Go to next step" : "Submit answers"}
+            disabled={!canProceed}
             className="rounded-xl hover:bg-accent hover:text-accent-foreground"
           >
             <ChevronRight />
