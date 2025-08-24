@@ -20,6 +20,8 @@ export default function TugonPlay() {
   const [coins] = useState<number>(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [currentAnswer, setCurrentAnswer] = useState("");
+  const [inputLockedUntil, setInputLockedUntil] = useState<number>(0);
+  const [spamSignal, setSpamSignal] = useState<number>(0);
   const topicId = Number(searchParams.get("topic"));
   const qId = Number(searchParams.get("q"));
   const topic = defaultTopics.find((t) => t.id === topicId);
@@ -97,6 +99,8 @@ export default function TugonPlay() {
                   // Only track current step's answer for validation bubble
                   if (i === activeIndex) setCurrentAnswer(v);
                 }}
+                inputDisabled={Date.now() < inputLockedUntil}
+                onSpamDetected={() => setSpamSignal(Date.now())}
               />
             </div>
             <div className="flex h-full flex-col items-stretch justify-between gap-4">
@@ -107,6 +111,13 @@ export default function TugonPlay() {
                   expectedAnswer={expectedAnswers?.[activeIndex]?.answer ?? ""}
                   type={expectedAnswers?.[activeIndex]?.type ?? "single"}
                   stepIndex={activeIndex}
+                  onRequestInputLock={(ms) => {
+                    const until = Date.now() + (typeof ms === "number" ? ms : 10000);
+                    setInputLockedUntil(until);
+                    // Unlock after the specified duration
+                    window.setTimeout(() => setInputLockedUntil(0), until - Date.now());
+                  }}
+                  spamSignal={spamSignal}
                 />
               </div>
               {/* Character below */}

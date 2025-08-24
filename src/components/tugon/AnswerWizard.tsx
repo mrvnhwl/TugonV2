@@ -6,7 +6,8 @@ import GraphAnswerComp, { GraphValue } from "./answers/GraphAnswer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+// removed direct Textarea usage; wrapped by AnswerInput
+import AnswerInput from "./AnswerInput";
 import { Toggle } from "@/components/ui/toggle";
 import { ActivitySquare, AlignLeft, ChevronLeft, ChevronRight, Type as TypeIcon, CheckCircle } from "lucide-react";
 
@@ -48,6 +49,9 @@ type AnswerWizardProps = {
   expectedAnswers?: PredefinedAnswer[];
   // Notify parent when the current step's unified answerValue changes
   onAnswerChange?: (index: number, value: string) => void;
+  inputDisabled?: boolean;
+  onSpamDetected?: () => void;
+  onValidationResult?: (type: "correct" | "wrong" | "aiHint" | "spam") => void;
 };
 
 // Child components (accept { value, onChange, step })
@@ -57,7 +61,7 @@ const defaultGraph: GraphValue = { xLimit: null, yLimit: null, points: [] };
 
 // (reverted) No tolerance-based comparing here; graph answers are compared as text from the textarea
 
-export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, className, onIndexChange, expectedAnswers, onAnswerChange }: AnswerWizardProps) {
+export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, className, onIndexChange, expectedAnswers, onAnswerChange, inputDisabled, onSpamDetected, onValidationResult }: AnswerWizardProps) {
   // Source answers: prefer per-question answers if provided; otherwise fall back to global sample
   const answersSource: PredefinedAnswer[] = expectedAnswers && expectedAnswers.length > 0
     ? expectedAnswers
@@ -273,6 +277,32 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
   const canNext = index < Math.max(0, total - 1);
   const canProceed = validateAnswer(current, current?.answerValue, index);
 
+  // Centralized progression + feedback router
+  const nextStep = () => {
+    if (index < total - 1) {
+      setIndex(index + 1);
+    } else {
+      // Finalize: compute results summary and submit
+      const len = Math.min(answersSource.length, steps.length);
+      const correctnessArr: boolean[] = [];
+      for (let i = 0; i < len; i++) {
+        const u = steps[i];
+        correctnessArr.push(validateAnswer(u, u.answerValue, i));
+      }
+      const allCorrect = correctnessArr.length > 0 && correctnessArr.every(Boolean);
+      onSubmit(steps, { correct: correctnessArr, allCorrect });
+    }
+  };
+
+  const handleValidationResult = (result: "correct" | "wrong" | "aiHint" | "spam") => {
+    onValidationResult?.(result);
+    if (result === "correct") {
+      nextStep();
+    } else {
+      // stay on step; optionally we could focus the input
+    }
+  };
+
   const goPrev = () => {
     if (canPrev) setIndex(index - 1);
   };
@@ -282,30 +312,19 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
   };
 
   const handleSubmit = () => {
-    // Evaluate all steps each time: mark correct inputs across the wizard
-  if (!answersSource || answersSource.length === 0) {
+    // Default: if no expected answers, submit all
+    if (!answersSource || answersSource.length === 0) {
       const storedAnswers = computeStoredAnswers(steps);
       if (import.meta.env.DEV) console.log("Final collected answers:", storedAnswers);
       onSubmit(steps);
       return;
     }
-  const len = Math.min(answersSource.length, steps.length);
+    // Validate only the current step and route via centralized handler
+    const isCorrect = validateAnswer(current, current?.answerValue, index);
     const nextCorrectness: Array<boolean | null> = [...correctness];
-    const correctnessArr: boolean[] = [];
-    for (let i = 0; i < len; i++) {
-      const u = steps[i];
-      // Use unified validator for all steps
-      const isCorrect = validateAnswer(u, u.answerValue, i);
-      correctnessArr.push(isCorrect);
-      if (import.meta.env.DEV) {
-        console.log("Validated step", i + 1, "=>", isCorrect);
-      }
-      // Mark correct or incorrect; correct ones will lock via UI, incorrect stay editable
-      nextCorrectness[i] = isCorrect ? true : false;
-    }
+    nextCorrectness[index] = isCorrect ? true : false;
     setCorrectness(nextCorrectness);
-    const allCorrect = correctnessArr.length > 0 && correctnessArr.every(Boolean);
-    onSubmit(steps, { correct: correctnessArr, allCorrect });
+    handleValidationResult(isCorrect ? "correct" : "wrong");
   };
 
   return (
@@ -318,21 +337,21 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
             <div className="flex items-center gap-2 flex-wrap">
               <Toggle
                 pressed={current.type === "single"}
-                onPressedChange={(on) => on && setTypeForCurrent("single")}
+                onPressedChange={(on: boolean) => on && setTypeForCurrent("single")}
                 aria-label="Single line"
               >
                 <TypeIcon className="mr-2" /> Single
               </Toggle>
               <Toggle
                 pressed={current.type === "multi"}
-                onPressedChange={(on) => on && setTypeForCurrent("multi")}
+                onPressedChange={(on: boolean) => on && setTypeForCurrent("multi")}
                 aria-label="Multi line"
               >
                 <AlignLeft className="mr-2" /> MultiLine
               </Toggle>
               <Toggle
                 pressed={current.type === "graph"}
-                onPressedChange={(on) => on && setTypeForCurrent("graph")}
+                onPressedChange={(on: boolean) => on && setTypeForCurrent("graph")}
                 aria-label="Graph"
               >
                 <ActivitySquare className="mr-2" /> Graph
@@ -381,43 +400,26 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
               const wrongClass = "border-red-500 bg-red-50 focus-visible:ring-red-500/40";
               const inputClasses = isCorrect ? okClass : isWrong ? wrongClass : undefined;
               return (
-                <>
-                  {current.type === "single" ? (
-                    <Input
-                      type="text"
-                      placeholder={current.placeholder}
-                      value={answer}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setSteps((prev) => {
-                          const next = [...prev];
-                          next[index] = { ...next[index], answerValue: v } as WizardStep;
-                          return next;
-                        });
-                        onAnswerChange?.(index, v);
-                      }}
-                      disabled={correctness[index] === true}
-                      className={inputClasses}
-                    />
-                  ) : (
-                    <Textarea
-                      rows={current.rows ?? 3}
-                      placeholder={current.placeholder || (current.type === "graph" ? "Your points will appear here..." : undefined)}
-                      value={answer}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setSteps((prev) => {
-                          const next = [...prev];
-                          next[index] = { ...next[index], answerValue: v } as WizardStep;
-                          return next;
-                        });
-                        onAnswerChange?.(index, v);
-                      }}
-                      disabled={correctness[index] === true && current.type !== "graph"}
-                      className={inputClasses}
-                    />
-                  )}
-                </>
+                <AnswerInput
+                  key={`ai-${index}`}
+                  value={answer}
+                  onChange={(v) => {
+                    setSteps((prev) => {
+                      const next = [...prev];
+                      next[index] = { ...next[index], answerValue: v } as WizardStep;
+                      return next;
+                    });
+                    onAnswerChange?.(index, v);
+                  }}
+                  placeholder={current.placeholder || (current.type === "graph" ? "Your points will appear here..." : undefined)}
+                  multiline={current.type !== "single"}
+                  disabled={Boolean(inputDisabled || (correctness[index] === true && current.type !== "graph"))}
+                  className={inputClasses}
+                  onSpamDetected={() => {
+                    onSpamDetected?.();
+                    handleValidationResult("spam");
+                  }}
+                />
               );
             })()}
             {!canProceed && (
