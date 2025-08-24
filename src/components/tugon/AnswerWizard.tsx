@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers";
+import type { PredefinedAnswer } from "@/components/data/answers";
 import { cn } from "../cn";
 import GraphAnswerComp, { GraphValue } from "./answers/GraphAnswer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +44,8 @@ type AnswerWizardProps = {
   onSubmit: (steps: WizardStep[], result?: { correct: boolean[]; allCorrect: boolean }) => void;
   className?: string;
   onIndexChange?: (index: number) => void;
+  // If provided, these expected answers will be used for step shapes and validation
+  expectedAnswers?: PredefinedAnswer[];
 };
 
 // Child components (accept { value, onChange, step })
@@ -52,9 +55,13 @@ const defaultGraph: GraphValue = { xLimit: null, yLimit: null, points: [] };
 
 // (reverted) No tolerance-based comparing here; graph answers are compared as text from the textarea
 
-export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, className, onIndexChange }: AnswerWizardProps) {
-  // Fixed steps derived strictly from predefinedAnswers in data/answers.ts
-  const fixedSteps: WizardStep[] = (predefinedAnswersData || []).map((a, i) => {
+export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, className, onIndexChange, expectedAnswers }: AnswerWizardProps) {
+  // Source answers: prefer per-question answers if provided; otherwise fall back to global sample
+  const answersSource: PredefinedAnswer[] = expectedAnswers && expectedAnswers.length > 0
+    ? expectedAnswers
+    : (predefinedAnswersData || []);
+  // Fixed steps derived strictly from the selected answers source
+  const fixedSteps: WizardStep[] = (answersSource || []).map((a, i) => {
     const t: AnswerType = a.type === "multiLine" ? "multi" : (a.type as any);
     return {
       id: `s${i + 1}`,
@@ -134,7 +141,7 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
     if (!step) return false;
     const a = (answer ?? "").trim();
     if (!a) return false;
-    const expected = predefinedAnswersData?.[stepIndex]?.answer;
+    const expected = answersSource?.[stepIndex]?.answer;
     if (!expected) {
       // Fallback: if no expected is defined, consider non-empty as valid
       return a.length > 0;
@@ -266,13 +273,13 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
 
   const handleSubmit = () => {
     // Evaluate all steps each time: mark correct inputs across the wizard
-    if (!predefinedAnswersData || predefinedAnswersData.length === 0) {
+  if (!answersSource || answersSource.length === 0) {
       const storedAnswers = computeStoredAnswers(steps);
       if (import.meta.env.DEV) console.log("Final collected answers:", storedAnswers);
       onSubmit(steps);
       return;
     }
-    const len = Math.min(predefinedAnswersData.length, steps.length);
+  const len = Math.min(answersSource.length, steps.length);
     const nextCorrectness: Array<boolean | null> = [...correctness];
     const correctnessArr: boolean[] = [];
     for (let i = 0; i < len; i++) {

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import QuestionBox from "../../components/tugon/QuestionBox";
 import { defaultTopics } from "../../components/data/question";
+import { questionAnswersByStage } from "../../components/data/answers";
 import TugonSenseNavbar from "../../components/TugonSenseNavbar";
 import AnswerWizard, { Step, WizardStep } from "../../components/tugon/AnswerWizard";
 import HintBubble from "../../components/tugon/HintBubble";
@@ -23,6 +24,9 @@ export default function TugonPlay() {
   const qId = Number(searchParams.get("q"));
   const topic = defaultTopics.find((t) => t.id === topicId);
   const question = topic?.questions.find((q) => q.id === qId);
+  // Compute 1-based global stage across topics (3 questions per topic)
+  const stageIndex = topicId && qId ? (topicId - 1) * 3 + qId : undefined;
+  const expectedAnswers = stageIndex ? questionAnswersByStage[stageIndex as keyof typeof questionAnswersByStage] : undefined;
   const sampleQuestion =
     question?.text ?? defaultTopics[0]?.questions[0]?.text ?? "Placeholder: A sample question";
   const handleSubmit = (finalSteps: WizardStep[]) => {
@@ -45,7 +49,12 @@ export default function TugonPlay() {
           {/* middle row */}
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 items-start">
             <div className="md:col-span-2">
-              <AnswerWizard steps={steps} onSubmit={handleSubmit} onIndexChange={setActiveIndex} />
+              <AnswerWizard
+                steps={steps}
+                onSubmit={handleSubmit}
+                onIndexChange={setActiveIndex}
+                expectedAnswers={expectedAnswers}
+              />
             </div>
             <div className="flex h-full flex-col items-stretch justify-between gap-4">
               {/* Hint bubble */}
