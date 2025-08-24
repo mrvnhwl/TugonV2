@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import QuestionBox, { defaultTopics } from "../../components/tugon/QuestionBox";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import QuestionBox from "../../components/tugon/QuestionBox";
+import { defaultTopics } from "../../components/data/question";
 import TugonSenseNavbar from "../../components/TugonSenseNavbar";
 import AnswerWizard, { Step, WizardStep } from "../../components/tugon/AnswerWizard";
 import HintBubble from "../../components/tugon/HintBubble";
+import { MessageType } from "../../components/data/message";
 import Character from "../../components/tugon/Character";
 
 export default function TugonPlay() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const steps: Step[] = [
     { id: "s1", label: "Short answer", placeholder: "Enter a single-line answer" },
     { id: "m1", label: "Explain your steps", placeholder: "Explain in detail", rows: 4 },
@@ -16,7 +19,12 @@ export default function TugonPlay() {
   // coin indicator placeholder
   const [coins] = useState<number>(0);
   const [activeIndex, setActiveIndex] = useState(0);
-  const sampleQuestion = defaultTopics[0]?.questions[0]?.text ?? "Placeholder: A sample question";
+  const topicId = Number(searchParams.get("topic"));
+  const qId = Number(searchParams.get("q"));
+  const topic = defaultTopics.find((t) => t.id === topicId);
+  const question = topic?.questions.find((q) => q.id === qId);
+  const sampleQuestion =
+    question?.text ?? defaultTopics[0]?.questions[0]?.text ?? "Placeholder: A sample question";
   const handleSubmit = (finalSteps: WizardStep[]) => {
     console.log("Wizard steps:", finalSteps);
     alert("Submitted! Check console for steps.");
@@ -30,7 +38,7 @@ export default function TugonPlay() {
 
         <div className="mt-6 rounded-2xl bg-gray-200 p-6 sm:p-8 md:p-10">
           {/* question */}
-          <QuestionBox title="Sample Question">
+          <QuestionBox title={topic?.name ?? "Question"}>
             <p className="text-base text-foreground">{sampleQuestion}</p>
           </QuestionBox>
 
@@ -42,12 +50,9 @@ export default function TugonPlay() {
             <div className="flex h-full flex-col items-stretch justify-between gap-4">
               {/* Hint bubble */}
               <div className="flex-1 flex items-center justify-center">
-                <HintBubble>
-                  <div className="text-2xl leading-tight">
-                    DIRECTION
-                    <br />/ HINT
-                  </div>
-                </HintBubble>
+                <HintBubble
+                  message={{ type: MessageType.DIRECTION, question: "DIRECTION / HINT" }}
+                />
               </div>
               {/* Character below */}
               <div className="flex items-center justify-center">

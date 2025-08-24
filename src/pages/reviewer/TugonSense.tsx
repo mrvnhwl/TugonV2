@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import TugonSenseNavbar from "../../components/TugonSenseNavbar";
 import CourseCard from "../../components/CourseCard";
 import ProgressMap from "../../components/ProgressMap";
 import { courses } from "../../data/courses";
 
 export default function TugonSense() {
+  const navigate = useNavigate();
   const [activeIndex, setActiveIndex] = useState(0);
   const activeCourse = courses[Math.min(Math.max(activeIndex, 0), courses.length - 1)];
 
@@ -35,6 +37,9 @@ export default function TugonSense() {
                 courses={courses}
                 onActiveChange={() => {/* kept for backward compatibility; index drives state */}}
                 onActiveIndexChange={setActiveIndex}
+                onStartStage={(topicId, questionId) => {
+                  navigate(`/tugon-play?topic=${topicId}&q=${questionId}`);
+                }}
               />
             </aside>
           </div>

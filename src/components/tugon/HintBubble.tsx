@@ -1,15 +1,27 @@
-import { PropsWithChildren } from "react";
+import { MessageType, type HintMessage, predefinedMessages } from "../data/message";
 
-type HintBubbleProps = PropsWithChildren<{
-  className?: string;
-}>;
+export default function HintBubble({ message }: { message: HintMessage }) {
+  const getMessage = () => {
+    switch (message.type) {
+      case MessageType.DIRECTION:
+        return message.text
+          ? `${message.question} – ${message.text}`
+          : message.question;
 
-export default function HintBubble({ children, className }: HintBubbleProps) {
+      case MessageType.PREDEFINED:
+        return message.text || predefinedMessages[message.status];
+
+      case MessageType.AI:
+        return message.text;
+
+      default:
+        return "";
+    }
+  };
+
   return (
-    <div className={`relative inline-block ${className ?? ""}`}>
-      <div className="inline-flex items-center justify-center rounded-2xl bg-white ring-1 ring-black/10 shadow-sm p-3 text-gray-900 font-bold text-lg text-center">
-        {children}
-      </div>
+    <div className="p-3 rounded-2xl bg-blue-100 shadow-md max-w-sm text-center">
+      <p className="text-gray-800 font-medium">{getMessage()}</p>
     </div>
   );
 }

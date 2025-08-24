@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Character from "./Character";
 import HintBubble from "./HintBubble";
+import { MessageType } from "../data/message";
 import { PropsWithChildren, ReactNode } from "react";
 
 type DockProps = PropsWithChildren<{
@@ -44,11 +45,12 @@ export default function TugonAssistantDock({
               transition={{ type: "spring", stiffness: 220, damping: 24, mass: 0.6 }}
               className="relative max-w-[min(90vw,28rem)] pointer-events-auto"
             >
-              <HintBubble>
-                <div className="whitespace-pre-wrap break-words text-center">
-                  {bubble}
-                </div>
-              </HintBubble>
+              <HintBubble
+                message={{
+                  type: MessageType.AI,
+                  text: typeof bubble === "string" ? bubble : "",
+                }}
+              />
               {/* Pointer towards character */}
               <div className="absolute -bottom-2 right-10" aria-hidden>
                 {/* outer (ring) */}
