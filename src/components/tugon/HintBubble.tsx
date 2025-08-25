@@ -155,10 +155,10 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
         // replace bubble text via messages.aiHint pathway by temporarily overriding
         // We'll store the hint in a ref: but to minimize changes, we can directly render it by swapping status to aiHint and monkey-patching text below
         // Simpler: set a local state with dynamic text
-        setAiText(hint || messages.aiHint);
+  setAiText(hint || messages.aiHintFallback);
   } catch (e) {
         if (!mounted) return;
-        setAiText(messages.aiHint);
+  setAiText(messages.aiHintFallback);
       } finally {
         if (mounted) {
           setInputDisabled(false);
@@ -184,7 +184,7 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
       : status === "wrong"  
       ? predefinedMessages.wrong
       : status === "aiHint"
-      ? (isLoadingHint ? "Loading hint…" : (aiText || messages.aiHint))
+  ? (isLoadingHint ? "Loading hint…" : (aiText || messages.aiHintFallback))
       : status === "spam"
       ? messages.spam
       : generalMessages.warning;

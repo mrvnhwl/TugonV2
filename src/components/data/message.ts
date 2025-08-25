@@ -1,5 +1,4 @@
 // Message types and data definitions for hinting; no React/UI code here.
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export enum MessageType {
   DIRECTION = "direction",
@@ -42,38 +41,35 @@ export const generalMessages = {
 export const messages = {
   correct: predefinedMessages.correct,
   wrong: predefinedMessages.wrong,
-  aiHint: "In works for AI Generated Hints",
   spam: "Stop spamming",
+  aiHint: "In works for AI Generated Hints",
+  aiHintFallback: "In works for AI Generated Hints",
 } as const;
 
-// Gemini client setup for Vite (browser): expects VITE_GEMINI_API_KEY
-let model: ReturnType<GoogleGenerativeAI["getGenerativeModel"]> | null = null;
-try {
-  const apiKey = (import.meta as any)?.env?.VITE_GEMINI_API_KEY as string | undefined;
-  if (apiKey) {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-  }
-} catch (e) {
-  console.warn("Gemini client not initialized:", e);
-}
+// Serverless API path
+// - In production: same-origin a"/api/gemini-hint" on Vercel
+// - In dev: prefer Vite proxy (same-origin). If proxy not active, fallback to localhost:3000
+const API_PATH = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_BASE
+      ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, "")}/api/gemini-hint`
+      : "/api/gemini-hint")
+  : "/api/gemini-hint";
 
 export async function getAIHint(userInput: string, stepContext?: string): Promise<string> {
-  if (!userInput || !model) return messages.aiHint;
+  if (!userInput || !userInput.trim()) return messages.aiHintFallback;
   try {
-    const prompt = `
-You are a helpful math tutor.
-The student is solving a problem step-by-step.
-Current input: "${userInput}"
-Step context: "${stepContext || "General Math"}"
-Give only a hint, not the solution.
-Be encouraging but concise.
-`;
-    const result = await model.generateContent(prompt);
-    const text = result?.response?.text?.() ?? result?.response?.text?.call?.(result?.response);
-    return (typeof text === "string" && text.trim().length > 0) ? text : "Here’s a hint!";
-  } catch (error) {
-    console.error("AI Hint Error:", error);
-    return messages.aiHint; // fallback
+    const res = await fetch(API_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: userInput, stepContext }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as { hint?: string };
+    const hint = typeof data?.hint === "string" ? data.hint : "";
+    return hint && hint.trim().length > 0 ? hint : messages.aiHintFallback;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("getAIHint error:", err);
+    return messages.aiHintFallback;
   }
 }

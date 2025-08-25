@@ -10,8 +10,8 @@ import fs from "fs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load the .env file
-dotenv.config({ path: path.resolve(__dirname, ".env") }); // Load backend-specific .env file
+// Load the .env file (project root)
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 const app = express();
 
@@ -22,20 +22,14 @@ if (!apiKey) {
   throw new Error("GOOGLE_GENAI_API_KEY is not set.");
 }
 
-app.use(cors({ origin: "http://localhost:5173" })); // Allow requests from the frontend
+// Allow frontend during local dev
+app.use(cors({ origin: ["http://localhost:5173", "http://127.0.0.1:5173"], credentials: false }));
 app.use(express.json());
 
 app.post("/api/gemini-hint", async (req, res) => {
   const { question, userAnswer, correctAnswer } = req.body;
 
-  const prompt = `
-    Question: ${question}
-    User's answer: ${userAnswer}
-    Correct answer: ${correctAnswer}
-    
-    Can you provide a helpful hint that guides the user toward the correct answer without giving it away directly? 
-    Keep your response under 100 words and focus on addressing misconceptions in their answer.
-  `;
+  const prompt = `Question: ${question}\nUser's answer: ${userAnswer}\nCorrect answer: ${correctAnswer}\nGive a helpful hint only (no full solution). Be concise.`;
 
   try {
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
