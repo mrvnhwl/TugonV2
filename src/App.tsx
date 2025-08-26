@@ -19,7 +19,9 @@ import Operation from './pages/tugonsense/operations';
 import Evaluation from './pages/tugonsense/evaluation';
 import Radio from './components/Radio';
 import FloatingAIButton from './components/FloatingAIButton';
+
 import TugonPlay from './pages/reviewer/TugonPlay';
+import HostGame from './pages/HostGame';
 
 // Importing TugonSense challenges pages
 import EvaluationDifficultySelector from './pages/tugonsense/Evaluation/evaluationdifficulty';
