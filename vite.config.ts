@@ -7,6 +7,14 @@ export default defineConfig({
   css: {
     postcss: './postcss.config.js',
   },
+  server: {
+     proxy: {
+      "/api": {
+        target: "http://localhost:3001", // vercel dev (dev:all) serves functions here
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

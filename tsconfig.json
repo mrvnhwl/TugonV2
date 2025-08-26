@@ -16,7 +16,10 @@
     "strict": true,
     "skipLibCheck": true, 
     "esModuleInterop": true,
+  "module": "ESNext",
+  "moduleResolution": "bundler",
+  "resolveJsonModule": true,
     "target": "ES6",
-    "lib": ["dom", "es6"] 
+    "lib": ["dom", "es6"],
   }
 }

@@ -13,12 +13,13 @@ import StudentDashboard from './pages/studentDashboard'; // Student Dashboard
 import Challenge from './pages/Challenge';
 import Leaderboards from './pages/LeaderBoards';
 import Game from './pages/Game';
-import TugonSense from './pages/TugonSense';
+import TugonSense from './pages/reviewer/TugonSense';
 
 import Operation from './pages/tugonsense/operations';
 import Evaluation from './pages/tugonsense/evaluation';
 import Radio from './components/Radio';
 import FloatingAIButton from './components/FloatingAIButton';
+import TugonPlay from './pages/reviewer/TugonPlay';
 
 // Importing TugonSense challenges pages
 import EvaluationDifficultySelector from './pages/tugonsense/Evaluation/evaluationdifficulty';
@@ -102,8 +103,11 @@ function AppContent() {
             <Route path="/studentDashboard" element={<StudentDashboard />} /> {/* Student Dashboard */}
             <Route path="/challenge" element={<Challenge />} />
             <Route path="/tugonsense" element={<TugonSense />} />
+            <Route path="/tugon-play" element={<TugonPlay />} />
+            <Route path="/host" element={<HostGame />} />
             <Route path="/leaderboards" element={<Leaderboards />} />
-            <Route path="/game/:id" element={<Game />} /> 
+            <Route path="/game/:id" element={<Game />} />
+
             <Route path="/operations" element={<Operation />} />
             <Route path="/evaluation" element={<Evaluation />} />
 
