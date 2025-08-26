@@ -4,20 +4,20 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react()],
-  css: {
-    postcss: './postcss.config.js',
+  build: {
+    outDir: "dist"
   },
   server: {
-     proxy: {
+    proxy: {
       "/api": {
-        target: "http://localhost:3001", // vercel dev (dev:all) serves functions here
-        changeOrigin: true,
-      },
-    },
+        target: "http://localhost:3001",
+        changeOrigin: true
+      }
+    }
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
+      "@": path.resolve(__dirname, "./src")
+    }
+  }
 })
