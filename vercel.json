@@ -1,11 +1,3 @@
 {
-  "framework": null,
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "@vercel/node@3.0.27"
-    },
-    "api/**/*.mjs": {
-      "runtime": "@vercel/node@3.0.27"
-    }
-  }
+  "framework": null
 }
