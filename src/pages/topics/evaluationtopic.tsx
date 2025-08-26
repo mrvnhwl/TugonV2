@@ -1,8 +1,94 @@
-import React from "react";
+import React, { useState } from "react";
 import Footer from "../../components/Footer";
 import BackButton from "../../components/BackButton";
 
 function Evaluationtopic() {
+  // Quiz state
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+
+  const quizQuestions = [
+    {
+      question: "What does it mean to evaluate a function?",
+      options: [
+        "Find its domain",
+        "Find its output for a given input",
+        "Draw its graph",
+        "Factorize it",
+      ],
+      answer: 1,
+    },
+    {
+      question: "If f(x) = x² + 3x - 4, what is f(2)?",
+      options: ["4", "6", "10", "2"],
+      answer: 1,
+    },
+    {
+      question: "If g(t) = 5 / (t - 1), what is g(1)?",
+      options: ["5", "0", "undefined", "1"],
+      answer: 2,
+    },
+    {
+      question: "What is h(-3) if h(x) = -x when x < 0?",
+      options: ["-3", "3", "0", "undefined"],
+      answer: 1,
+    },
+    {
+      question: "For h(x) = x² when 0 ≤ x ≤ 2, what is h(1)?",
+      options: ["0", "1", "2", "4"],
+      answer: 1,
+    },
+    {
+      question: "If area(l, w) = l × w, what is area(5, 3)?",
+      options: ["8", "15", "10", "0"],
+      answer: 1,
+    },
+    {
+      question: "Which of the following can cause a function to be undefined?",
+      options: [
+        "Negative input",
+        "Division by zero",
+        "Square root of 4",
+        "Multiplying by zero",
+      ],
+      answer: 1,
+    },
+    {
+      question: "Evaluate f(0) if f(x) = x² + 3x - 4",
+      options: ["0", "-4", "4", "3"],
+      answer: 1,
+    },
+    {
+      question: "If g(t) = 5 / (t - 1), what is g(3)?",
+      options: ["2.5", "5", "1.5", "-2.5"],
+      answer: 0,
+    },
+    {
+      question: "For h(x) = 2x + 1 when x > 2, what is h(4)?",
+      options: ["6", "8", "9", "10"],
+      answer: 2,
+    },
+  ];
+
+  const handleAnswer = (index: number) => {
+    if (quizQuestions[currentQuestion].answer === index) {
+      setScore(score + 1);
+    }
+    if (currentQuestion + 1 < quizQuestions.length) {
+      setCurrentQuestion(currentQuestion + 1);
+    } else {
+      setFinished(true);
+    }
+  };
+
+  const restartQuiz = () => {
+    setCurrentQuestion(0);
+    setScore(0);
+    setFinished(false);
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <main className="flex-grow max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -43,9 +129,9 @@ function Evaluationtopic() {
   return x * x + 3 * x - 4;
 }
 
-f(2);   // 2² + 3×2 - 4 = 4 + 6 - 4 = 6
-f(-1);  // (-1)² + 3×(-1) - 4 = 1 - 3 - 4 = -6
-f(0);   // 0² + 3×0 - 4 = -4`}
+f(2);   // 6
+f(-1);  // -6
+f(0);   // -4`}
             </pre>
           </div>
 
@@ -59,9 +145,9 @@ f(0);   // 0² + 3×0 - 4 = -4`}
   return 5 / (t - 1);
 }
 
-g(3); // 5 / (3 - 1) = 5 / 2 = 2.5
-g(1); // undefined because denominator is 0
-g(0); // 5 / (0 - 1) = -5`}
+g(3); // 2.5
+g(1); // undefined
+g(0); // -5`}
             </pre>
           </div>
 
@@ -76,9 +162,9 @@ g(0); // 5 / (0 - 1) = -5`}
   return 2 * x + 1;
 }
 
-h(-3);  // -(-3) = 3
-h(1);   // 1 * 1 = 1
-h(4);   // 2 * 4 + 1 = 9`}
+h(-3);  // 3
+h(1);   // 1
+h(4);   // 9`}
             </pre>
           </div>
 
@@ -91,8 +177,8 @@ h(4);   // 2 * 4 + 1 = 9`}
   return length * width;
 }
 
-area(5, 3);  // 5 × 3 = 15
-area(10, 0); // 10 × 0 = 0`}
+area(5, 3);  // 15
+area(10, 0); // 0`}
             </pre>
           </div>
         </div>
@@ -133,6 +219,80 @@ area(10, 0); // 10 × 0 = 0`}
             className="rounded border border-gray-300"
           ></iframe>
         </div>
+
+        {/* Take Quiz Button */}
+        <div className="text-center mt-8">
+          <button
+            onClick={() => setShowQuiz(true)}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition"
+          >
+            Take Quiz
+          </button>
+        </div>
+
+        {/* Quiz Modal */}
+        {showQuiz && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
+              {!finished ? (
+                <>
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz: Exponential Functions
+                  </h2>
+                  <p className="mb-4 text-gray-800">
+                    {quizQuestions[currentQuestion].question}
+                  </p>
+
+                  <div className="space-y-2">
+                    {quizQuestions[currentQuestion].options.map((option, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleAnswer(index)}
+                        className="w-full text-left px-4 py-2 border rounded hover:bg-indigo-100 transition"
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-sm text-gray-500 mt-4 text-center">
+                    Question {currentQuestion + 1} of {quizQuestions.length}
+                  </p>
+
+                  <button
+                    onClick={() => setShowQuiz(false)}
+                    className="mt-6 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                  >
+                    Exit Quiz
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz Finished!
+                  </h2>
+                  <p className="mb-4 text-center text-gray-800">
+                    You scored {score} out of {quizQuestions.length}.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={restartQuiz}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+                    >
+                      Retake Quiz
+                    </button>
+                    <button
+                      onClick={() => setShowQuiz(false)}
+                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       <Footer />

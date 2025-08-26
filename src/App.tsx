@@ -10,8 +10,8 @@ import CreateQuiz from './pages/CreateQuiz';
 import Login from './pages/Login';
 import TeacherDashboard from './pages/teacherDashboard'; // Teacher Dashboard
 import StudentDashboard from './pages/studentDashboard'; // Student Dashboard
-import JoinGame from './pages/JoinGame';
-import HostGame from './pages/HostGame';
+import Challenge from './pages/Challenge';
+import Leaderboards from './pages/LeaderBoards';
 import Game from './pages/Game';
 import TugonSense from './pages/reviewer/TugonSense';
 
@@ -101,11 +101,13 @@ function AppContent() {
             <Route path="/login" element={<Login />} />
             <Route path="/teacherDashboard" element={<TeacherDashboard />} /> {/* Teacher Dashboard */}
             <Route path="/studentDashboard" element={<StudentDashboard />} /> {/* Student Dashboard */}
-            <Route path="/join" element={<JoinGame />} />
+            <Route path="/challenge" element={<Challenge />} />
             <Route path="/tugonsense" element={<TugonSense />} />
             <Route path="/tugon-play" element={<TugonPlay />} />
             <Route path="/host" element={<HostGame />} />
+            <Route path="/leaderboards" element={<Leaderboards />} />
             <Route path="/game/:id" element={<Game />} />
+
             <Route path="/operations" element={<Operation />} />
             <Route path="/evaluation" element={<Evaluation />} />
 

@@ -11,6 +11,67 @@ function Compositiontopic() {
   const compositionFG = (x: number) => functionF(functionG(x)); // f(g(x))
   const compositionGF = (x: number) => functionG(functionF(x)); // g(f(x))
 
+  // Quiz State
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+
+  const quizQuestions = [
+    {
+      question: "What does composition of functions mean?",
+      options: [
+        "Adding two functions together",
+        "Applying one function to the result of another",
+        "Multiplying two functions",
+        "Subtracting two functions",
+      ],
+      answer: 1,
+    },
+    {
+      question: "If f(x) = 2x and g(x) = x + 3, what is f(g(2))?",
+      options: ["4", "8", "10", "12"],
+      answer: 2, // 2(2+3) = 10
+    },
+    {
+      question: "Which statement is true about composition?",
+      options: [
+        "f(g(x)) is always the same as g(f(x))",
+        "f(g(x)) and g(f(x)) are usually different",
+        "Composition only works for linear functions",
+        "Composition means adding outputs",
+      ],
+      answer: 1,
+    },
+    {
+      question: "If g(x) = x + 2, what is f(g(x)) when f(x) = 3x - 4?",
+      options: ["3x - 2", "3x + 2", "3x + 6", "3x - 6"],
+      answer: 1, // f(g(x)) = 3(x+2) - 4 = 3x+2
+    },
+    {
+      question: "If f(x) = 3x - 4, g(x) = x + 2, what is g(f(x))?",
+      options: ["3x - 2", "3x + 2", "x - 2", "x + 6"],
+      answer: 0, // g(f(x)) = (3x-4)+2 = 3x-2
+    },
+  ];
+
+  const handleAnswer = (index: number) => {
+    if (quizQuestions[currentQuestion].answer === index) {
+      setScore(score + 1);
+    }
+    if (currentQuestion + 1 < quizQuestions.length) {
+      setCurrentQuestion(currentQuestion + 1);
+    } else {
+      setFinished(true);
+    }
+  };
+
+  const restartQuiz = () => {
+    setCurrentQuestion(0);
+    setScore(0);
+    setFinished(false);
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <main className="flex-grow max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -136,6 +197,80 @@ function Compositiontopic() {
             className="rounded border border-gray-300"
           ></iframe>
         </div>
+
+        {/* Take Quiz Button */}
+        <div className="text-center mt-8">
+          <button
+            onClick={() => setShowQuiz(true)}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition"
+          >
+            Take Quiz
+          </button>
+        </div>
+
+        {/* Quiz Modal */}
+        {showQuiz && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
+              {!finished ? (
+                <>
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz: Composition of Functions
+                  </h2>
+                  <p className="mb-4 text-gray-800">
+                    {quizQuestions[currentQuestion].question}
+                  </p>
+
+                  <div className="space-y-2">
+                    {quizQuestions[currentQuestion].options.map((option, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleAnswer(index)}
+                        className="w-full text-left px-4 py-2 border rounded hover:bg-indigo-100 transition"
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-sm text-gray-500 mt-4 text-center">
+                    Question {currentQuestion + 1} of {quizQuestions.length}
+                  </p>
+
+                  <button
+                    onClick={() => setShowQuiz(false)}
+                    className="mt-6 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                  >
+                    Exit Quiz
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz Finished!
+                  </h2>
+                  <p className="mb-4 text-center text-gray-800">
+                    You scored {score} out of {quizQuestions.length}.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={restartQuiz}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+                    >
+                      Retake Quiz
+                    </button>
+                    <button
+                      onClick={() => setShowQuiz(false)}
+                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       <Footer />

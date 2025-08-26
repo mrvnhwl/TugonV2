@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Footer from "../../components/Footer";
 import BackButton from "../../components/BackButton";
-import { Link } from "react-router-dom";
 import {
   ComposedChart,
   Line,
@@ -85,6 +84,87 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
     };
   }, [equation]);
 
+  // Quiz state
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+
+  const quizQuestions = [
+    {
+      question: "What is the independent variable in a function?",
+      options: ["Output", "Input", "Graph", "Equation"],
+      answer: 1,
+    },
+    {
+      question: "Which function is quadratic?",
+      options: ["f(x) = 2x + 3", "f(x) = x² - 4", "f(x) = 1/x", "f(x) = 5"],
+      answer: 1,
+    },
+    {
+      question: "What test determines if a graph is a function?",
+      options: [
+        "Horizontal line test",
+        "Slope test",
+        "Vertical line test",
+        "Domain test",
+      ],
+      answer: 2,
+    },
+    {
+      question: "What is the domain of f(x) = 1/x?",
+      options: ["All real numbers", "x ≠ 0", "x > 0", "x < 0"],
+      answer: 1,
+    },
+    {
+      question: "Which is the range of f(x) = x²?",
+      options: ["All real numbers", "y ≥ 0", "y ≤ 0", "y ≠ 0"],
+      answer: 1,
+    },
+    {
+      question: "f(x) = 2x + 1 is what type of function?",
+      options: ["Linear", "Quadratic", "Rational", "Constant"],
+      answer: 0,
+    },
+    {
+      question: "What is f(2) for f(x) = 3x² - 4?",
+      options: ["8", "12", "6", "5"],
+      answer: 1,
+    },
+    {
+      question: "What happens if the denominator of a rational function is 0?",
+      options: ["Value is 0", "Undefined", "Infinity", "Negative"],
+      answer: 1,
+    },
+    {
+      question: "Which of these is NOT a function?",
+      options: ["y = x + 1", "y² = x", "y = 2x", "y = x³"],
+      answer: 1,
+    },
+    {
+      question: "What is the dependent variable in f(x)?",
+      options: ["x", "f(x)", "Equation", "Graph"],
+      answer: 1,
+    },
+  ];
+
+  const handleAnswer = (index: number) => {
+    if (quizQuestions[currentQuestion].answer === index) {
+      setScore(score + 1);
+    }
+    if (currentQuestion + 1 < quizQuestions.length) {
+      setCurrentQuestion(currentQuestion + 1);
+    } else {
+      setFinished(true);
+    }
+  };
+
+  const restartQuiz = () => {
+    setCurrentQuestion(0);
+    setScore(0);
+    setFinished(false);
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <main className="flex-grow max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -158,22 +238,20 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
         </div>
 
         {/* Embedded Video */}
-        {/* Embedded Video */}
-<div className="mt-6">
-  <h3 className="text-lg font-semibold mb-2">Watch: Understanding Domain and Range</h3>
-  <iframe
-    width="100%"
-    height="500"
-    src="https://www.youtube.com/embed/KirGQOwjBVI?si=DH84IXre2QzIDWee"
-    title="Domain and Range Video"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    referrerPolicy="strict-origin-when-cross-origin"
-    allowFullScreen
-    className="rounded border border-gray-300"
-  ></iframe>
-</div>
-
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold mb-2">Watch: Understanding Domain and Range</h3>
+          <iframe
+            width="100%"
+            height="500"
+            src="https://www.youtube.com/embed/KirGQOwjBVI?si=DH84IXre2QzIDWee"
+            title="Domain and Range Video"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+            className="rounded border border-gray-300"
+          ></iframe>
+        </div>
 
         {/* Examples */}
         <h2 className="text-xl font-semibold text-gray-800">Examples</h2>
@@ -280,7 +358,79 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
           )}
         </div>
 
-        
+        {/* Take Quiz Button */}
+        <div className="text-center mt-8">
+          <button
+            onClick={() => setShowQuiz(true)}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition"
+          >
+            Take Quiz
+          </button>
+        </div>
+
+{/* Quiz Modal */}
+        {showQuiz && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
+              {!finished ? (
+                <>
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz: Exponential Functions
+                  </h2>
+                  <p className="mb-4 text-gray-800">
+                    {quizQuestions[currentQuestion].question}
+                  </p>
+
+                  <div className="space-y-2">
+                    {quizQuestions[currentQuestion].options.map((option, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleAnswer(index)}
+                        className="w-full text-left px-4 py-2 border rounded hover:bg-indigo-100 transition"
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-sm text-gray-500 mt-4 text-center">
+                    Question {currentQuestion + 1} of {quizQuestions.length}
+                  </p>
+
+                  <button
+                    onClick={() => setShowQuiz(false)}
+                    className="mt-6 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                  >
+                    Exit Quiz
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz Finished!
+                  </h2>
+                  <p className="mb-4 text-center text-gray-800">
+                    You scored {score} out of {quizQuestions.length}.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={restartQuiz}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+                    >
+                      Retake Quiz
+                    </button>
+                    <button
+                      onClick={() => setShowQuiz(false)}
+                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </main>
       <Footer />
     </div>

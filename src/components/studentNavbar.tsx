@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Brain, Users, Play } from 'lucide-react';
+import { Brain, Trophy, Sword } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 function StudentNavbar() {
@@ -49,22 +49,22 @@ function StudentNavbar() {
                   TugonSense
                 </Link>
 
-                {/* Host Game */}
+                {/* Challenge */}
                 <Link
-                  to="/host"
+                  to="/challenge"
                   className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center"
                 >
-                  <Play className="h-4 w-4 mr-1" />
-                  Host Game
+                  <Sword className="h-4 w-4 mr-1" />
+                  Challenge
                 </Link>
 
-                {/* Join Game */}
+                {/* Leaderboards */}
                 <Link
-                  to="/join"
+                  to="/leaderboards"
                   className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center"
                 >
-                  <Users className="h-4 w-4 mr-1" />
-                  Join Game
+                  <Trophy className="h-4 w-4 mr-1" />
+                  Leaderboards
                 </Link>
 
                 {/* Sign Out Button */}
