@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'framer-motion';
-import { Lock, UserPlus, LogIn, User } from 'lucide-react';
+import { Lock, UserPlus, LogIn, User, ArrowLeft } from 'lucide-react';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -24,7 +24,7 @@ function Login() {
       }
       // Always set as teacher and route to teacher dashboard
       localStorage.setItem("userType", "teacher");
-      navigate('/teacherDashboard');
+      navigate('/studentHome');
     } catch (err: any) {
       setError(err.message);
     }
@@ -38,6 +38,16 @@ function Login() {
         transition={{ duration: 0.6 }}
         className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl"
       >
+        {/* Back Button */}
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 mb-4"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span>Back</span>
+        </button>
+
         <div className="text-center">
           <motion.div
             initial={{ rotate: -15 }}

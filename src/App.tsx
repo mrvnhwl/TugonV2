@@ -62,18 +62,21 @@ function AppContent() {
     '/eEvaluationPhase4',
   ];
 
-  const teacherRoutes = ['/teacherDashboard', '/create-quiz', '/teacherHome']; // Routes specific to teachers
-  const studentRoutes = ['/studentDashboard', '/studentHome']; // Routes specific to students
+  const teacherRoutes = ['/teacherDashboard', '/create-quiz', '/teacherHome']; 
+  const studentRoutes = ['/studentDashboard', '/studentHome']; 
+
   const isEvaluationRoute = evaluationRoutes.includes(location.pathname);
   const isTeacherRoute = teacherRoutes.includes(location.pathname);
   const isStudentRoute = studentRoutes.includes(location.pathname);
 
+  // 👇 Hide AI button on login
+  const hideOnRoutes = ['/login', '/']; 
+  const shouldShowAIButton = !hideOnRoutes.includes(location.pathname);
+
   return (
     <div className="min-h-screen">
       {isEvaluationRoute ? (
-        // Apply Evaluation-specific layout
         <div>
-
           <main className="min-h-screen bg-gray-50 p-4">
             <Routes>
               <Route path="/evaluationdifficulty" element={<EvaluationDifficultySelector />} />
@@ -85,9 +88,8 @@ function AppContent() {
           </main>
         </div>
       ) : (
-        // Apply global layout
         <div>
-          {/* Render the appropriate navbar */}
+          {/* ✅ Render the correct navbar */}
           {isTeacherRoute ? (
             <TeacherNavbar />
           ) : isStudentRoute ? (
@@ -95,25 +97,22 @@ function AppContent() {
           ) : null}
 
           <Routes>
-            <Route path="/" element={<UserTypeSelection />} /> {/* Default route */}
-            <Route path="/teacherHome" element={<TeacherHome />} /> {/* Teacher Home page */}
-            <Route path="/studentHome" element={<StudentHome />} /> {/* Student Home page */}
+            <Route path="/" element={<UserTypeSelection />} /> 
+            <Route path="/teacherHome" element={<TeacherHome />} /> 
+            <Route path="/studentHome" element={<StudentHome />} /> 
             <Route path="/quiz/:id" element={<Quiz />} />
-            <Route path="/create-quiz" element={<CreateQuiz />} /> {/* Create Quiz route */}
+            <Route path="/create-quiz" element={<CreateQuiz />} /> 
             <Route path="/login" element={<Login />} />
-            <Route path="/teacherDashboard" element={<TeacherDashboard />} /> {/* Teacher Dashboard */}
-            <Route path="/studentDashboard" element={<StudentDashboard />} /> {/* Student Dashboard */}
+            <Route path="/teacherDashboard" element={<TeacherDashboard />} /> 
+            <Route path="/studentDashboard" element={<StudentDashboard />} /> 
             <Route path="/challenge" element={<Challenge />} />
             <Route path="/tugonsense" element={<TugonSense />} />
             <Route path="/tugon-play" element={<TugonPlay />} />
             <Route path="/host" element={<HostGame />} />
             <Route path="/leaderboards" element={<Leaderboards />} />
             <Route path="/game/:id" element={<Game />} />
-
             <Route path="/operations" element={<Operation />} />
             <Route path="/evaluation" element={<Evaluation />} />
-
-            {/* TugonSense quizzes */}
             <Route path="/evaluationdifficulty" element={<EvaluationDifficultySelector />} />
             <Route path="/eEvaluationPhase1" element={<EvaluationPhase1 />} />
             <Route path="/eEvaluationPhase2" element={<EvaluationPhase2 />} />
@@ -122,7 +121,6 @@ function AppContent() {
             <Route path="/introductiontopic" element={<Introductiontopic />} />
             <Route path="/operationstopic" element={<Operationstopic />} />
             <Route path="/evaluationtopic" element={<Evaluationtopic />} />
-
             <Route path="/compositiontopic" element={<Compositiontopic />} />
             <Route path="/rationaltopic" element={<Rationaltopic />} />
             <Route path="/piecewise" element={<Piecewisetopic />} />
@@ -133,11 +131,16 @@ function AppContent() {
             <Route path="/exponentialtopic" element={<Exponentialtopic />} />
             <Route path="/logarithmictopic" element={<Logarithmictopic />} />
           </Routes>
-          <FloatingAIButton onWrongAnswer={(questionId) => console.log('Wrong answer for:', questionId)} />
+
+          {/* ✅ Only show AI button when not on login page */}
+          {shouldShowAIButton && (
+            <FloatingAIButton onWrongAnswer={(questionId) => console.log('Wrong answer for:', questionId)} />
+          )}
         </div>
       )}
     </div>
   );
 }
+
 
 export default App;

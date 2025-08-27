@@ -22,7 +22,7 @@ function UserTypeSelection() {
   const handleUserTypeSelection = (userType: string) => {
     localStorage.setItem("userType", userType);
     if (userType === "student") {
-      navigate("/studentDashboard");
+      navigate("/studentHome");
     } else if (userType === "teacher") {
       navigate("/login"); // Go to the login page for teacher
     }
