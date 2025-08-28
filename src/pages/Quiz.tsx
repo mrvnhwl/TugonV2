@@ -130,10 +130,11 @@ function Quiz() {
   };
 
   const finishQuiz = async () => {
-    await supabase.from('user_progress').upsert({
+    await supabase.from('user_progress').insert({
       user_id: user?.id,
       quiz_id: id,
       score: score,
+      user_email: user?.email,
     });
 
     toast.success('Challenge Completed!');

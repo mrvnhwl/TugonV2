@@ -221,7 +221,7 @@ function StudentDashboard() {
                 >
                   {progress.slice(0, 5).map((item) => (
                     <motion.div
-                      key={item.quiz_id}
+                      key={`${item.quiz_id}-${item.completed_at}`}
                       className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition"
                       variants={itemVariants}
                     >
