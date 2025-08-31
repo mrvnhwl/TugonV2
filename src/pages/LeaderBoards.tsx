@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Trophy, Loader2, Medal } from 'lucide-react';
 import StudentNavbar from '../components/studentNavbar';
@@ -50,7 +49,9 @@ function Leaderboards() {
     // Get only the highest score per user for this quiz
     const { data, error } = await supabase.rpc('get_highest_scores_for_quiz', { quizid: quizId });
     if (!error && data) {
-      setLeaderboard(data);
+      // Sort by score descending
+      const sorted = [...data].sort((a, b) => b.score - a.score);
+      setLeaderboard(sorted);
     } else {
       setLeaderboard([]);
     }
