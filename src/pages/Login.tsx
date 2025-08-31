@@ -24,7 +24,7 @@ function Login() {
       }
       // Always set as teacher and route to teacher dashboard
       localStorage.setItem("userType", "teacher");
-      navigate('/studentHome');
+      navigate('/teacherHome');
     } catch (err: any) {
       setError(err.message);
     }

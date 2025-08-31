@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { evaluate } from "mathjs";
 import { askTugonAI } from "../../components/FloatingAIButton";
+import { MathKeyboard } from "../../components/MathKeyboard"; // ✅ import your keyboard
 
 function Introductiontopic() {
   // For examples
@@ -83,6 +84,17 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
       cancelled = true;
     };
   }, [equation]);
+
+  // ✅ handler for keyboard insert
+  const handleInsert = (symbol: string) => {
+    if (symbol === "⌫") {
+      setEquation((prev) => prev.slice(0, -1));
+    } else if (symbol === "\n") {
+      setEquation((prev) => prev + " ");
+    } else {
+      setEquation((prev) => prev + symbol);
+    }
+  };
 
   // Quiz state
   const [showQuiz, setShowQuiz] = useState(false);
@@ -164,6 +176,9 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
     setScore(0);
     setFinished(false);
   };
+
+  // Show keyboard when input is focused
+  const [showKeyboard, setShowKeyboard] = useState(false);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -287,16 +302,24 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
           <code>x^2 - 4*x + 3</code>, <code>1/(x-2)</code>).
         </p>
 
-        {/* Function Input */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <label className="text-sm text-gray-700">Function:</label>
+        {/* Function Input + Math Keyboard */}
+        <div className="flex flex-col items-center gap-3">
           <input
             type="text"
             value={equation}
+            onFocus={() => setShowKeyboard(true)}
             onChange={(e) => setEquation(e.target.value)}
             className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-64 shadow-sm"
           />
           {error && <p className="text-red-500 text-xs">{error}</p>}
+
+          {/* ✅ Math Keyboard inserted here */}
+          {showKeyboard && (
+            <MathKeyboard
+              onInsert={handleInsert}
+              onClose={() => setShowKeyboard(false)}
+            />
+          )}
         </div>
 
         {/* X and Y Inputs */}
@@ -368,7 +391,7 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
           </button>
         </div>
 
-{/* Quiz Modal */}
+        {/* Quiz Modal */}
         {showQuiz && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
             <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">

@@ -51,23 +51,7 @@ function TeacherNavbar() {
                   Create Quiz
                 </Link>
 
-                {/* Host Game */}
-                <Link
-                  to="/host"
-                  className="hover:underline px-3 py-2 rounded-md text-sm font-medium flex items-center"
-                >
-                  <Play className="h-4 w-4 mr-1" />
-                  Host Game
-                </Link>
-
-                {/* Join Game */}
-                <Link
-                  to="/join"
-                  className="hover:underline px-3 py-2 rounded-md text-sm font-medium flex items-center"
-                >
-                  <Users className="h-4 w-4 mr-1" />
-                  Join Game
-                </Link>
+               
 
                 {/* Logout Button */}
                 <button
