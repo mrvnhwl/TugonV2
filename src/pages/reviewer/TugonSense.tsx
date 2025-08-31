@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import TugonSenseNavbar from "../../components/TugonSenseNavbar";
 import CourseCard from "../../components/CourseCard";
 import ProgressMap from "../../components/ProgressMap";
 import { courses } from "../../data/courses";
+import StudentNavbar from "@/components/studentNavbar";
 
 export default function TugonSense() {
   const navigate = useNavigate();
@@ -11,10 +11,10 @@ export default function TugonSense() {
   const activeCourse = courses[Math.min(Math.max(activeIndex, 0), courses.length - 1)];
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
+  <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10">
-        <TugonSenseNavbar centerActiveIndex={activeIndex} />
+        <StudentNavbar />
       </div>
 
       {/* Main */}
