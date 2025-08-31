@@ -1,3 +1,5 @@
+import { useRive } from '@rive-app/react-canvas';
+
 declare global {
   interface Window {
     SpeechRecognition: SpeechRecognitionConstructor | undefined;
@@ -72,6 +74,16 @@ const FloatingAIButton: React.FC<FloatingAIButtonProps> = ({ onWrongAnswer }) =>
   const [chatHistory, setChatHistory] = useState<{ sender: string; text: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  const { rive, RiveComponent } = useRive({
+  src: '/tugon.riv', // Place tugon.riv in your public folder
+  stateMachines: "State Machine 1", // Use your state machine name
+  autoplay: false,
+  });
+
+   useEffect(() => {
+    if (rive) rive.play();
+  }, [rive]);
 
   const FAQs: { [question: string]: string } = {
     "what is general mathematics": "General Mathematics is a subject that includes a wide range of foundational math topics such as algebra, functions, sequences and series, consumer math, and logic. It's designed to build problem-solving skills and prepare students for real-life mathematical applications.",
@@ -222,12 +234,12 @@ const handleVoiceInput = () => {
 };
 
 
-    const sendMessage = async () => {
+  const sendMessage = async () => {
   const trimmedInput = userInput.trim();
   if (!trimmedInput) return;
 
   const normalizedInput = trimmedInput.toLowerCase();
-
+ 
   //Define trigger phrases that imply intent to navigate
   const navigationIntentPhrases = [
     "go to",
@@ -337,21 +349,17 @@ If it's not a known page, respond with: “Hmm, I couldn’t find that page. Try
           zIndex: 1000,
         }}
       >
-        <img
-          src="src/components/assets/images/brain.png"
-          alt="Chat Icon"
-          style={{
-            width: "84px",
-            height: "64px",
-            transition: "transform 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.1)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-          }}
-        />
+       <RiveComponent
+        style={{
+          width: "60px",
+          height: "60px",
+          transition: "transform 0.2s",
+          display: "block",
+        }}
+        onMouseEnter={() => rive && rive.pause()}
+        onMouseLeave={() => rive && rive.play()}
+      
+      />
       </button>
       
       )}

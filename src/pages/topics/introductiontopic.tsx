@@ -104,59 +104,96 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
 
   const quizQuestions = [
     {
-      question: "What is the independent variable in a function?",
-      options: ["Output", "Input", "Graph", "Equation"],
-      answer: 1,
-    },
-    {
-      question: "Which function is quadratic?",
-      options: ["f(x) = 2x + 3", "f(x) = x² - 4", "f(x) = 1/x", "f(x) = 5"],
-      answer: 1,
-    },
-    {
-      question: "What test determines if a graph is a function?",
+      question: "Which of the following best describes a function",
       options: [
-        "Horizontal line test",
-        "Slope test",
-        "Vertical line test",
-        "Domain test",
-      ],
+        "A rule that assigns one output to many inputs", 
+        "A rule that assigns each input to exactly one output", 
+        "A graph with more than one y-value for the same x-value", 
+        "A set of unrelated numbers"],
+      answer: 1,
+    },
+    {
+      question: "In a function, the input is called:",
+      options: [
+        "Dependent variable", 
+        "Constant", 
+        "Independent variable", 
+        "Output"],
       answer: 2,
     },
     {
-      question: "What is the domain of f(x) = 1/x?",
-      options: ["All real numbers", "x ≠ 0", "x > 0", "x < 0"],
-      answer: 1,
-    },
-    {
-      question: "Which is the range of f(x) = x²?",
-      options: ["All real numbers", "y ≥ 0", "y ≤ 0", "y ≠ 0"],
-      answer: 1,
-    },
-    {
-      question: "f(x) = 2x + 1 is what type of function?",
-      options: ["Linear", "Quadratic", "Rational", "Constant"],
+      question: "In a function, the output is called:",
+      options: [
+        "Dependent variable", 
+        "Independent variable", 
+        "Domain", 
+        "Constant"],
       answer: 0,
     },
     {
-      question: "What is f(2) for f(x) = 3x² - 4?",
-      options: ["8", "12", "6", "5"],
+      question: "Which set of ordered pairs does represent a function?",
+      options: [
+        "{(1,2), (1,3), (2,4)}", 
+        "{(2,5), (3,6), (4,7)}", 
+        "{(1,4), (2,5), (2,6)}", 
+        "{(3,2), (3,3), (4,5)}"],
       answer: 1,
     },
     {
-      question: "What happens if the denominator of a rational function is 0?",
-      options: ["Value is 0", "Undefined", "Infinity", "Negative"],
+      question: "The set of all possible inputs of a function is called:",
+      options: [
+        "Range", 
+        "Codomain", 
+        "Domain", 
+        "Output"],
+      answer: 2,
+    },
+    {
+      question: "The set of all possible outputs of a function is called:",
+      options: [
+        "Domain",
+        "Range",
+        "Independent variable",
+        "Constant",
+      ],
       answer: 1,
+    },
+    
+    {
+      question: "Which of the following is NOT a function?",
+      options: [
+        "f(x) = x + 2", 
+        "f(x) = x²", 
+        "f(x) = ±√ x", 
+        "f(x) = 3x -1"],
+      answer: 2,
+    },
+    {
+      question: "If f(x) = 2x + 1, what is f(3)?",
+      options: [
+        "5", 
+        "6", 
+        "7", 
+        "9"],
+      answer: 2,
     },
     {
       question: "Which of these is NOT a function?",
-      options: ["y = x + 1", "y² = x", "y = 2x", "y = x³"],
+      options: [
+        "y = x + 1", 
+        "y² = x", 
+        "y = 2x", 
+        "y = x³"],
       answer: 1,
     },
     {
-      question: "What is the dependent variable in f(x)?",
-      options: ["x", "f(x)", "Equation", "Graph"],
-      answer: 1,
+      question: "Which of the following is NOT a function?",
+      options: [
+        "f(x) = x + 3", 
+        "f(x) = x²", 
+        "f(x) = √ x", 
+        "f(x) = ±x"],
+      answer: 3,
     },
   ];
 
@@ -398,7 +435,7 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
               {!finished ? (
                 <>
                   <h2 className="text-xl font-bold mb-4 text-center">
-                    Quiz: Exponential Functions
+                    Quiz: Introduction to Functions
                   </h2>
                   <p className="mb-4 text-gray-800">
                     {quizQuestions[currentQuestion].question}

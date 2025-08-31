@@ -35,38 +35,97 @@ function Logarithmictopic() {
   const quizQuestions = [
     {
       question: "What is the domain of a logarithmic function?",
-      options: ["x > 0", "All real numbers", "x ≥ 0", "x ≠ 0"],
+      options: [
+        "x > 0", 
+        "All real numbers", 
+        "x ≥ 0", 
+        "x ≠ 0"],
       answer: 0,
     },
     {
       question: "What is the range of a logarithmic function?",
-      options: ["x > 0", "y ≥ 0", "All real numbers", "y > 0"],
+      options: [
+        "x > 0", 
+        "y ≥ 0", 
+        "All real numbers", 
+        "y > 0"],
       answer: 2,
     },
     {
-      question: "log₂(8) = ?",
-      options: ["2", "3", "4", "8"],
-      answer: 1,
+      question: "Which of the following is a logarithmic function?",
+      options: [
+        "f(x) = 2^x", 
+        "f(x) = √x", 
+        "f(x) = x^2", 
+        "f(x) = log₂​(x)"],
+      answer: 3,
     },
     {
-      question: "The logarithmic function is the inverse of what function?",
+      question: "The logarithmic function is the inverse of which function?",
       options: [
-        "Quadratic",
-        "Exponential",
-        "Linear",
-        "Rational"
+        "Quadratic function",
+        "Exponential function",
+        "Linear function",
+        "Rational function"
       ],
       answer: 1,
     },
     {
-      question: "Which statement is true about y = logₐ(x)?",
+      question: "Which of the following is equivalent to log₁₀(1000)?",
       options: [
-        "It is undefined for x ≤ 0",
-        "It passes through (0,0)",
-        "Its domain is all real numbers",
-        "It is decreasing when a > 1"
+        "1",
+        "2",
+        "3",
+        "10"
       ],
+      answer: 2,
+    },
+    {
+      question: "What is the domain of f(x) = log(x)?",
+      options: [
+        "x > 0", 
+        "All real numbers", 
+        "x ≥ 0", 
+        "x ≠ 0"],
       answer: 0,
+    },
+    {
+      question: "Simply: log₅(25)?",
+      options: [
+        "1/2", 
+        "1", 
+        "3", 
+        "2"],
+      answer: 3,
+    },
+    {
+      question: "log₂(8) = ?",
+      options: [
+        "2", 
+        "3", 
+        "4", 
+        "8"],
+      answer: 1,
+    },
+    {
+      question: "If log₇(x) = 2, then x = ?",
+      options: [
+        "7",
+        "14",
+        "49",
+        "9"
+      ],
+      answer: 2,
+    },
+    {
+      question: "If log₂(16) = x, then x = ?",
+      options: [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      answer: 2,
     },
   ];
 
@@ -206,7 +265,7 @@ function Logarithmictopic() {
                       <button
                         key={index}
                         onClick={() => handleAnswer(index)}
-                        className="w-full text-left px-4 py-2 border rounded hover:bg-yellow-100 transition"
+                        className="w-full text-left px-4 py-2 border rounded hover:bg-indigo-100 transition"
                       >
                         {option}
                       </button>
@@ -235,7 +294,7 @@ function Logarithmictopic() {
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <button
                       onClick={restartQuiz}
-                      className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition"
+                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
                     >
                       Retake Quiz
                     </button>
