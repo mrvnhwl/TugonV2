@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import Footer from "../components/Footer";
 import { motion } from "framer-motion";
+import Papa from "papaparse"; // Add this at the top if not already installed: npm install papaparse
 
 interface Quiz {
   id: string;
@@ -86,6 +87,67 @@ function StudentDashboard() {
       setLoading(false);
     }
   };
+
+  // Handler for CSV import
+  const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Ask for confirmation before proceeding
+    const confirmed = window.confirm(
+      "Are you sure you want to create accounts for all students in this CSV file? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data as {
+          student_number: string;
+          full_name: string;
+          email: string;
+          password: string;
+          grade_level: string;
+          section: string;
+          contact_number: string;
+        }[];
+
+
+        for (const row of rows) {
+          if (!row.email || !row.password) {
+            console.error("Skipping invalid row:", row);
+            continue;
+          }
+
+          // Check password length (Supabase default = 6 chars)
+          if (row.password.trim().length < 6) {
+            console.error("Password too short:", row.email);
+            continue;
+          }
+          
+          try {
+            const { data, error } = await supabase.auth.signUp({
+              email: row.email.trim(),
+              password: row.password.trim(),
+            });
+
+            if (error) throw error;
+
+            console.log(`✅ Created user: ${row.email}`);
+          } catch (err: any) {
+            console.error(`❌ Failed to create user ${row.email}:`, err.message);
+            alert(`Error creating user for ${row.email}: ${err.message}`);
+          }
+        }
+        alert("CSV import completed!");
+      },
+      error: (error) => {
+        alert("Error parsing CSV: " + error.message);
+      },
+    });
+  };
+
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -321,8 +383,28 @@ function StudentDashboard() {
                   </motion.div>
                 ))}
               </motion.div>
+              {/* CSV Import Button */}
+              <div className="mt-8">
+                <label
+                  htmlFor="csv-upload"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Import Students via CSV
+                </label>
+                <input
+                  id="csv-upload"
+                  type="file"
+                  accept=".csv"
+                  className="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-indigo-50 file:text-indigo-700
+                    hover:file:bg-indigo-100"
+                  onChange={handleCSVImport}
+                />
+              </div>
             </motion.div>
-            
           </div>
         </div>
       </main>
