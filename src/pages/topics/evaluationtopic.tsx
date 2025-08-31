@@ -22,53 +22,85 @@ function Evaluationtopic() {
     },
     {
       question: "If f(x) = x² + 3x - 4, what is f(2)?",
-      options: ["4", "6", "10", "2"],
+      options: [
+        "4", 
+        "6", 
+        "10", 
+        "2"],
       answer: 1,
     },
     {
-      question: "If g(t) = 5 / (t - 1), what is g(1)?",
-      options: ["5", "0", "undefined", "1"],
+      question: "If f(x) = 3x + 2, what is f(4)?",
+      options: [
+        "10", 
+        "12", 
+        "14", 
+        "16"],
       answer: 2,
     },
     {
-      question: "What is h(-3) if h(x) = -x when x < 0?",
-      options: ["-3", "3", "0", "undefined"],
-      answer: 1,
-    },
-    {
-      question: "For h(x) = x² when 0 ≤ x ≤ 2, what is h(1)?",
-      options: ["0", "1", "2", "4"],
-      answer: 1,
-    },
-    {
-      question: "If area(l, w) = l × w, what is area(5, 3)?",
-      options: ["8", "15", "10", "0"],
-      answer: 1,
-    },
-    {
-      question: "Which of the following can cause a function to be undefined?",
+      question: "If f(x) = x² - 5x + 6, what is f(2)?",
       options: [
-        "Negative input",
-        "Division by zero",
-        "Square root of 4",
-        "Multiplying by zero",
+        "0", 
+        "2", 
+        "4", 
+        "6"],
+      answer: 0,
+    },
+    {
+      question: "If f(x) = 10 / x, which value of x makes the function undefined?",
+      options: [
+        "0", 
+        "1", 
+        "2", 
+        "5"],
+      answer: 0,
+    },
+    {
+      question: "If f(x) = 2x² + 3x, what is f(-2)?",
+      options: [
+        "-2", 
+        "-4", 
+        "2", 
+        "10"],
+      answer: 2,
+    },
+    {
+      question: "What is the first step when evaluating a function? ",
+      options: [
+        "Factor the function completely",
+        "Substitute the given value of x into the function",
+        "Simplify the answer first before substitution",
+        "Ignore PEMDAS",
       ],
       answer: 1,
     },
     {
-      question: "Evaluate f(0) if f(x) = x² + 3x - 4",
-      options: ["0", "-4", "4", "3"],
+      question: "Why is it important to follow PEMDAS when evaluating functions?",
+      options: [
+        "To avoid undefined values", 
+        "To ensure correct order of simplification", 
+        "To make the input equal to the output", 
+        "To eliminate fractions"],
       answer: 1,
     },
     {
-      question: "If g(t) = 5 / (t - 1), what is g(3)?",
-      options: ["2.5", "5", "1.5", "-2.5"],
-      answer: 0,
+      question: "If f(x) = 1 / x-2, what happens x = 2?",
+      options: [
+        "The output is 0", 
+        "The output is 1", 
+        "The function is undefined",
+         "The output is infinite"],
+      answer: 2,
     },
     {
-      question: "For h(x) = 2x + 1 when x > 2, what is h(4)?",
-      options: ["6", "8", "9", "10"],
-      answer: 2,
+      question: "If f(x) = |x-4|, what is f(1)?",
+      options: [
+        "3", 
+        "-3", 
+        "4", 
+        "5"],
+      answer: 0,
     },
   ];
 
@@ -96,7 +128,7 @@ function Evaluationtopic() {
 
         {/* Topic Name */}
         <h1 className="text-3xl font-bold text-gray-900 text-center">
-          Evaluation of Functions
+          Evaluating Functions
         </h1>
 
         {/* Topic Description */}

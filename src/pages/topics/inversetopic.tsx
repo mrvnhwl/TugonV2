@@ -26,19 +26,25 @@ function Inversetopic() {
       answer: 1,
     },
     {
-      question:
-        "If f(x) = 2x + 3, what is the formula for its inverse function?",
-      options: ["f⁻¹(x) = 2x - 3", "f⁻¹(x) = (x - 3) / 2", "f⁻¹(x) = x/2 + 3", "f⁻¹(x) = x² - 3"],
+      question:"Given f(x) = 2x + 3, which is the inverse function f⁻¹(x)?",
+      options: [
+        "f⁻¹(x) = 2x - 3", 
+        "f⁻¹(x) = (x - 3) / 2", 
+        "f⁻¹(x) = x/2 + 3", 
+        "f⁻¹(x) = x² - 3"],
       answer: 1,
     },
     {
-      question:
-        "The graphs of a function and its inverse are symmetric about which line?",
-      options: ["y = 0", "y = x", "x = 0", "y = -x"],
-      answer: 1,
+      question:"Find the inverse of f(x) = 2x",
+      options: [
+        "f⁻¹(x) = 2x - 3", 
+        "f⁻¹(x) = (x - 3) / 2", 
+        "f⁻¹(x) = x/2 + 3", 
+        "f⁻¹(x) = 1 / 2x"],
+      answer: 3,
     },
     {
-      question: "Which type of function always has an inverse?",
+      question: "Which type of function (on its domain) is guaranteed to have an inverse?",
       options: [
         "Many-to-one functions",
         "One-to-one functions",
@@ -49,8 +55,58 @@ function Inversetopic() {
     },
     {
       question: "If f(4) = 11 for f(x) = 2x + 3, what is f⁻¹(11)?",
-      options: ["2", "3", "4", "5"],
+      options: [
+        "2", 
+        "3",
+        "4", 
+        "5"],
       answer: 2,
+    },
+{
+      question: "Find the inverse of the linear y = 1/2x + 3?",
+      options: [
+        "f⁻¹(x) = 2x - 3", 
+        "f⁻¹(x) = 2x - 6", 
+        "f⁻¹(x) = x/2 + 3", 
+        "f⁻¹(x) = 2x + 6"
+      ],
+      answer: 1,
+    },
+    {
+      question:"Find the inverse of f(x) = x + 10?",
+      options: [
+        "f⁻¹(x) = x - 2", 
+        "f⁻¹(x) = x + 10", 
+        "f⁻¹(x) = x - 10", 
+        "f⁻¹(x) = x + 5"],
+      answer: 2,
+    },
+    {
+      question:"Find the inverse of f(x) = 6 - 1/x",
+      options: [
+        "f⁻¹(x) = -1/x-6", 
+        "f⁻¹(x) = 1/x-6", 
+        "f⁻¹(x) = -1/x+6", 
+        "f⁻¹(x) = 1/6"],
+      answer: 0,
+    },
+    {
+      question: "Find the inverse of the function f(x) = 2x+5 / 4x-1",
+      options: [
+        "f⁻¹(x) =  x+5 / 4x+2", 
+        "f⁻¹(x) =  x-5 / 4x-2", 
+        "f⁻¹(x) = x+5 / 4x-2", 
+        "f⁻¹(x) =  5 / 4x-2"],
+      answer: 2,
+    },
+    {
+      question: "Given f(x) = x^3 + 8, which is the inverse function f⁻¹(x)?",
+      options: [
+        "f⁻¹(x) = ∛(x - 8)",
+        "f⁻¹(x) = ∛(x + 8)",
+        "f⁻¹(x) = x^3 - 8",
+        "f⁻¹(x) = 1 / (x^3 + 8)"],
+      answer: 0,
     },
   ];
 

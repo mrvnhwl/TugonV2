@@ -13,26 +13,30 @@ function Asymptotestopic() {
     {
       question: "What is an asymptote?",
       options: [
-        "A line the graph crosses infinitely often",
-        "A line the graph approaches but never touches",
-        "A tangent line to a curve",
-        "The x-intercept of a function",
+        "A line the graph approaches",
+        "A line the graph must cross",
+        "A segment the graph coincides with",
+        "A point of discontinuity",
       ],
-      answer: 1,
+      answer: 0,
     },
     {
-      question: "Where do vertical asymptotes occur in rational functions?",
+      question: "For f(x) = x^2-1 / x-1, which vertical asymptotes exist?",
       options: [
-        "Where the numerator = 0",
-        "Where the denominator = 0",
-        "At infinity",
-        "At y = 0",
+        "x = 1",
+        "x = -1",
+        "x ±1",
+        "None",
       ],
-      answer: 1,
+      answer: 3,
     },
     {
       question: "What is the horizontal asymptote of f(x) = 3 / (x + 1)?",
-      options: ["y = 3", "y = 1", "y = 0", "No horizontal asymptote"],
+      options: [
+        "y = 3", 
+        "y = 1", 
+        "y = 0", 
+        "No horizontal asymptote"],
       answer: 2,
     },
     {
@@ -47,8 +51,60 @@ function Asymptotestopic() {
     },
     {
       question: "What is the oblique asymptote of f(x) = (2x² + 3)/x?",
-      options: ["y = 2", "y = 2x", "y = x²", "No oblique asymptote"],
+      options: [
+        "y = 2", 
+        "y = 2x", 
+        "y = x²", 
+        "No oblique asymptote"],
       answer: 1,
+    },
+{
+      question: "The horizontal asymptote of f(x) = 5x^2-3x+1 / x^+7x-4 is",
+      options: [
+        "y = 0",
+        "y = 1",
+        "y = 5",
+        "y = 7"
+      ],
+      answer: 2,
+    },
+    {
+      question: "The horizontal asymptote of f(x) = 2x+1 / x^2+9 is?",
+      options: [
+        "y = 0",
+        "y = 1",
+        "y = 2",
+        "y = 3"
+      ],
+      answer: 0,
+    },
+    {
+      question: "Find the oblique asymptote of f(x) = x^2+1 / x-2?",
+      options: [
+        "y = x - 2",
+        "y = x + 2",
+        "y = 0",
+        "y = 2"],
+      answer: 1,
+    },
+    {
+      question: "Which type of asymptote does f(x) = 2x^3-1 / x^2+1 have?",
+      options: [
+        "Horizontal y = 0",
+        "Oblique y = 2x",
+        "Vertical x = 1",
+        "None",
+      ],
+      answer: 1,
+    },
+    {
+      question: "Vertical asymptote of f(x) = x+1 / x^2-2x-8 are",
+      options: [
+        "x = 4 only", 
+        "x = -2 only", 
+        "x = 4 and x = -2", 
+        "x = 0"],
+      answer: 2,
     },
   ];
 
