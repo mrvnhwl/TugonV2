@@ -77,19 +77,50 @@ export default function TugonPlay() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-  <TugonSenseNavbar coins={coins} onCoinClick={() => navigate("/tugonsense")} centerActiveIndex={activeIndex} />
+      {/* Navbar with Back Button */}
+      <nav className="w-full bg-white shadow py-4 px-6 flex items-center">
+        <button
+          onClick={() => navigate(-1)}
+          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow transition-colors"
+        >
+          ← Back
+        </button>
+      </nav>
 
       <div className="mx-auto max-w-6xl p-6">
-
         <div className="mt-6 rounded-2xl bg-gray-200 p-6 sm:p-8 md:p-10">
-          {/* question */}
-          <QuestionBox title={topic?.name ?? "Question"}>
-            <p className="text-base text-foreground">{sampleQuestion}</p>
-          </QuestionBox>
+          {/* Question stays on top, centered and responsive */}
+          <div className="mx-auto w-full md:w-2/3">
+            <QuestionBox title={topic?.name ?? "Question"}>
+              <p className="text-base text-foreground">{sampleQuestion}</p>
+            </QuestionBox>
+          </div>
 
-          {/* middle row */}
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 items-start">
-            <div className="md:col-span-2">
+          {/* Middle row: HintBubble left, Character right (side-by-side on md+, stacked on mobile) */}
+          <div className="mt-8 flex flex-col md:flex-row justify-center items-center gap-6">
+            <div className="flex-1 flex justify-center w-full md:w-1/2">
+              <HintBubble
+                userInput={currentAnswer}
+                expectedAnswer={expectedAnswers?.[activeIndex]?.answer ?? ""}
+                type={expectedAnswers?.[activeIndex]?.type ?? "single"}
+                stepIndex={activeIndex}
+                onRequestInputLock={(ms) => {
+                  const until = Date.now() + (typeof ms === "number" ? ms : 10000);
+                  setInputLockedUntil(until);
+                  // Unlock after the specified duration
+                  window.setTimeout(() => setInputLockedUntil(0), until - Date.now());
+                }}
+                spamSignal={spamSignal}
+              />
+            </div>
+            <div className="flex-1 flex justify-center w-full md:w-1/2">
+              <Character />
+            </div>
+          </div>
+
+          {/* Bottom row: AnswerWizard centered below */}
+          <div className="mt-8 flex justify-center">
+            <div className="w-full md:w-2/3">
               <AnswerWizard
                 steps={steps}
                 onSubmit={handleSubmit}
@@ -103,30 +134,7 @@ export default function TugonPlay() {
                 onSpamDetected={() => setSpamSignal(Date.now())}
               />
             </div>
-            <div className="flex h-full flex-col items-stretch justify-between gap-4">
-              {/* Hint bubble */}
-              <div className="flex-1 flex items-center justify-center">
-                <HintBubble
-                  userInput={currentAnswer}
-                  expectedAnswer={expectedAnswers?.[activeIndex]?.answer ?? ""}
-                  type={expectedAnswers?.[activeIndex]?.type ?? "single"}
-                  stepIndex={activeIndex}
-                  onRequestInputLock={(ms) => {
-                    const until = Date.now() + (typeof ms === "number" ? ms : 10000);
-                    setInputLockedUntil(until);
-                    // Unlock after the specified duration
-                    window.setTimeout(() => setInputLockedUntil(0), until - Date.now());
-                  }}
-                  spamSignal={spamSignal}
-                />
-              </div>
-              {/* Character below */}
-              <div className="flex items-center justify-center">
-                <Character />
-              </div>
-            </div>
           </div>
-
         </div>
       </div>
     </div>
