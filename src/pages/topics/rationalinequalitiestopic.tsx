@@ -6,10 +6,11 @@ function RationalEquationsInequalities() {
   const [equationInput, setEquationInput] = useState(0);
   const [inequalityInput, setInequalityInput] = useState(0);
 
+  // Quiz State
   const [showQuiz, setShowQuiz] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [score, setScore] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+
   const [finished, setFinished] = useState(false);
 
   const solveEquation = (x: number) => {
@@ -22,7 +23,7 @@ function RationalEquationsInequalities() {
     return 1 / x > 1 ? "True" : "False";
   };
 
-  const questions = [
+  const quizQuestions  = [
     {
       question: "What is a rational equation?",
       options: [
@@ -31,12 +32,16 @@ function RationalEquationsInequalities() {
         "An equation involving square roots",
         "An equation with only integers",
       ],
-      answer: "An equation containing one or more rational expressions",
+      answer: 1,
     },
     {
-      question: "Which of the following can make a rational equation undefined?",
-      options: ["A zero in the numerator", "A zero in the denominator", "A negative exponent", "A fraction"],
-      answer: "A zero in the denominator",
+      question: "Which of the following is a rational equation?",
+      options: [
+        "x + 5 = 7", 
+        "2/x + 3 = 5", 
+        "x² + 4 = 0", 
+        "√x = 3"],
+      answer: 1,
     },
     {
       question: "What is the first step in solving a rational equation?",
@@ -46,22 +51,26 @@ function RationalEquationsInequalities() {
         "Factor the numerator",
         "Guess the answer",
       ],
-      answer: "Multiply both sides by the LCD",
+      answer: 0,
     },
     {
-      question: "Why must we check for extraneous solutions in rational equations?",
+      question: "What value of x makes 3/x-2 undefined?",
       options: [
-        "Because they may not satisfy the original equation",
-        "Because solutions can be negative",
-        "Because they involve fractions",
-        "Because they are approximate",
+        "x = 3",
+        "x = 2",
+        "x = -2",
+        "x = 0",
       ],
-      answer: "Because they may not satisfy the original equation",
+      answer: 1,
     },
     {
-      question: "Solve 1/x = 2. What is x?",
-      options: ["0.5", "2", "-2", "Undefined"],
-      answer: "0.5",
+      question: "Solve 2/x = 4/6",
+      options: [
+        "x = 3", 
+        "x = 2", 
+        "x = 6",
+         "x = 3/2"],
+      answer: 0,
     },
     {
       question: "What is a rational inequality?",
@@ -71,56 +80,67 @@ function RationalEquationsInequalities() {
         "An inequality with exponents",
         "An inequality involving square roots",
       ],
-      answer: "An inequality comparing rational expressions",
+      answer: 1,
     },
     {
-      question: "How do you find the critical points for rational inequalities?",
+      question: "Which of the following is a rational inequality",
       options: [
-        "By solving where numerator and denominator equal zero",
-        "By guessing values",
-        "By factoring only the numerator",
-        "By graphing without calculation",
+        "x²  + 5x > 10",
+        "x+2 / x-1 ≤ 0",
+        "2x - 7 < 3",
+        "√x  ≥ 2",
       ],
-      answer: "By solving where numerator and denominator equal zero",
+      answer: 1,
     },
     {
-      question: "When solving rational inequalities, what do you do after finding critical points?",
+      question: "Solve 1/x > 0?",
       options: [
-        "Check each interval between the critical points",
-        "Ignore negative values",
-        "Square both sides",
-        "Stop solving",
+        "x > 0",
+        "x < 0",
+        "x ≠ 0",
+        "All real numbers",
       ],
-      answer: "Check each interval between the critical points",
+      answer: 0,
     },
     {
-      question: "For 1/x > 1, which values of x satisfy the inequality?",
-      options: ["0 < x < 1", "x > 1", "x < 0", "x = 0"],
-      answer: "0 < x < 1",
-    },
-    {
-      question: "Why can x = 0 never be a solution in rational equations or inequalities?",
+      question: "The solution set of x-3 / x+1 = 0 is:?",
       options: [
-        "Because it makes the denominator undefined",
-        "Because it makes the numerator negative",
-        "Because 0 cannot be tested",
-        "Because fractions cannot involve 0",
+        "x = -1",
+        "x = 3", 
+        "x = 0", 
+        "x = 1"],
+      answer: 1,
+    },
+    {
+      question: "If 2 / x-4 = 1, what is x?",
+      options: [
+        "x = 2",
+        "x = 3", 
+        "x = 05", 
+        "x = 6"
       ],
-      answer: "Because it makes the denominator undefined",
+      answer: 3,
     },
   ];
 
-  const handleAnswer = () => {
-    if (selectedAnswer === questions[currentQuestion].answer) {
+  const handleAnswer = (index: number) => {
+    if (quizQuestions[currentQuestion].answer === index) {
       setScore(score + 1);
     }
-    if (currentQuestion + 1 < questions.length) {
+    if (currentQuestion + 1 < quizQuestions.length) {
       setCurrentQuestion(currentQuestion + 1);
-      setSelectedAnswer(null);
+
     } else {
       setFinished(true);
     }
   };
+
+  const restartQuiz = () => {
+    setCurrentQuestion(0);
+    setScore(0);
+    setFinished(false);
+  };
+
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
@@ -272,55 +292,63 @@ function RationalEquationsInequalities() {
 
         {/* Quiz Modal */}
         {showQuiz && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl relative">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
               {!finished ? (
                 <>
-                  <h2 className="text-xl font-bold mb-4">
-                    Question {currentQuestion + 1} of {questions.length}
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz: Rational Equations and Inequalities
                   </h2>
-                  <p className="mb-4">{questions[currentQuestion].question}</p>
+                  <p className="mb-4 text-gray-800">
+                    {quizQuestions[currentQuestion].question}
+                  </p>
+
                   <div className="space-y-2">
-                    {questions[currentQuestion].options.map((option, idx) => (
-                      <label key={idx} className="block">
-                        <input
-                          type="radio"
-                          name="answer"
-                          value={option}
-                          checked={selectedAnswer === option}
-                          onChange={() => setSelectedAnswer(option)}
-                          className="mr-2"
-                        />
+                    {quizQuestions[currentQuestion].options.map((option, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleAnswer(index)}
+                        className="w-full text-left px-4 py-2 border rounded hover:bg-indigo-100 transition"
+                      >
                         {option}
-                      </label>
+                      </button>
                     ))}
                   </div>
+
+                  <p className="text-sm text-gray-500 mt-4 text-center">
+                    Question {currentQuestion + 1} of {quizQuestions.length}
+                  </p>
+
                   <button
-                    onClick={handleAnswer}
-                    disabled={!selectedAnswer}
-                    className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    onClick={() => setShowQuiz(false)}
+                    className="mt-6 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
                   >
-                    {currentQuestion + 1 === questions.length ? "Finish Quiz" : "Next"}
+                    Exit Quiz
                   </button>
                 </>
               ) : (
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold mb-4">Quiz Completed!</h2>
-                  <p className="mb-4">
-                    Your score: {score} / {questions.length}
+                <>
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz Finished!
+                  </h2>
+                  <p className="mb-4 text-center text-gray-800">
+                    You scored {score} out of {quizQuestions.length}.
                   </p>
-                  <button
-                    onClick={() => {
-                      setShowQuiz(false);
-                      setCurrentQuestion(0);
-                      setScore(0);
-                      setFinished(false);
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                  >
-                    Close
-                  </button>
-                </div>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={restartQuiz}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+                    >
+                      Retake Quiz
+                    </button>
+                    <button
+                      onClick={() => setShowQuiz(false)}
+                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>

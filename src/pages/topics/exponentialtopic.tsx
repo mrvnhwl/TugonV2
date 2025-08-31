@@ -16,68 +16,94 @@ function Exponentialtopic() {
   const quizQuestions = [
     {
       question: "What is the general form of an exponential function?",
-      options: ["f(x) = ax + b", "f(x) = a^x", "f(x) = x^a", "f(x) = log(x)"],
+      options: [
+        "f(x) = ax + b", 
+        "f(x) = a^x",
+        "f(x) = x^a", 
+        "f(x) = log(x)"],
       answer: 1,
     },
     {
-      question: "For exponential functions, what must be true about the base a?",
+      question: "Which of the following is an exponential function?",
       options: [
-        "a > 0 and a ≠ 1",
-        "a < 0",
-        "a = 0",
-        "a can be any real number",
-      ],
+        "f(x) = x^2", 
+        "f(x) = 2^x",
+        "f(x) = logx", 
+        "f(x) = √x "],
       answer: 0,
     },
     {
       question: "If f(x) = 2^x, what is f(3)?",
-      options: ["6", "8", "9", "12"],
+      options: [
+        "6", 
+        "8", 
+        "9",
+        "12"],
       answer: 1,
     },
     {
-      question: "If f(x) = (1/2)^x, the function represents:",
+      question: "What is the base of the exponential function f(x) = 5^x",
       options: [
-        "Exponential growth",
-        "Exponential decay",
-        "Linear growth",
-        "Quadratic decay",
+        "5",
+        "x",
+        "f(x)",
+        "None of the above"],
+      answer: 0,
+    },
+    {
+      question: "Evaluate f(x) = 2^x when x = -2?",
+      options: [
+        "2",
+        "1/2",
+        "1/4",
+        "-4",
       ],
       answer: 1,
     },
     {
-      question: "Which of the following describes exponential growth?",
+      question: "The domain of an exponential function f(x) = a^x, where a > 0 and a ≠ 1, is:",
       options: [
-        "Increases by the same amount each step",
-        "Increases by the same factor each step",
-        "Decreases linearly",
-        "Has a constant slope",
-      ],
-      answer: 1,
-    },
-    {
-      question: "What is f(0) if f(x) = 2^x?",
-      options: ["0", "1", "2", "undefined"],
+        "x > 0", 
+        "All real numbers", 
+        "x ≥ 0", 
+        "x < 0"],
       answer: 1,
     },
     {
       question: "If f(x) = 3^x, what is f(-2)?",
-      options: ["1/9", "1/6", "9", "-9"],
+      options: [
+        "1/9", 
+        "1/6", 
+        "9", 
+        "-9"],
       answer: 0,
     },
     {
-      question: "Exponential decay occurs when:",
-      options: ["a > 1", "0 < a < 1", "a = 1", "a < 0"],
-      answer: 1,
+      question: "The range of an exponential function f(x) = a^x, where a > 0 and a ≠ 1, is: ",
+      options: [
+        "(-∞,∞)", 
+        "(0,-∞)",
+         "[0,∞)", 
+         "(0,∞)"],
+      answer: 3,
     },
     {
       question: "If f(x) = 2^x, what happens as x → ∞?",
-      options: ["f(x) → 0", "f(x) → ∞", "f(x) → -∞", "f(x) → 2"],
+      options: [
+        "f(x) → 0", 
+        "f(x) → ∞", 
+        "f(x) → -∞", 
+        "f(x) → 2"],
       answer: 1,
     },
     {
-      question: "If f(x) = 0.5^x, what happens as x → ∞?",
-      options: ["f(x) → ∞", "f(x) → 0", "f(x) → -∞", "f(x) → 1"],
-      answer: 1,
+      question: "If f(x) = e^x, then f(0) = ?",
+      options: [
+        "1", 
+        "0", 
+        "e",
+        "Undefined"],
+      answer: 0,
     },
   ];
 

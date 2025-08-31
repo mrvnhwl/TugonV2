@@ -3,95 +3,125 @@ import Footer from "../../components/Footer";
 import BackButton from "../../components/BackButton";
 
 function Piecewisetopic() {
+  // Quiz state
   const [showQuiz, setShowQuiz] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [score, setScore] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+
   const [finished, setFinished] = useState(false);
 
-  const questions = [
+  const quizQuestions = [
     {
       question: "What is a piecewise function?",
       options: [
-        "A function that uses only one formula for all inputs",
-        "A function defined by different formulas over different intervals",
-        "A function that only works for negative numbers",
-        "A function that cannot be graphed",
+        "A function that has only one rule for all inputs",
+        "A function defined by different expressions depending on the interval of the input",
+        "A graph with no domain restrictions",
+        "A relation that does not pass the vertical line test",
       ],
-      answer: "A function defined by different formulas over different intervals",
+      answer: 1,
     },
     {
-      question: "Which of the following is the piecewise definition of |x|?",
-      options: ["f(x) = x", "f(x) = -x", "f(x) = { -x if x < 0, x if x ≥ 0 }", "f(x) = x²"],
-      answer: "f(x) = { -x if x < 0, x if x ≥ 0 }",
+      question: "Which of the following best represents a piecewise function?",
+      options: [
+        "f(x) = 2x + 1", 
+        "f(x) = |x|", 
+        "f(x) = { x if x < 0, x if x ≥ 0 }", 
+        "f(x) = { x² if x < 0, 2x + 1 if x ≥ 0 }"],
+      answer: 3,
     },
     {
       question: "For f(x) = { x² if x ≤ 2, 2x+1 if x > 2 }, what is f(1)?",
-      options: ["1", "2", "3", "5"],
-      answer: "1",
-    },
-    {
-      question: "For f(x) = { x² if x ≤ 2, 2x+1 if x > 2 }, what is f(3)?",
-      options: ["5", "6", "7", "9"],
-      answer: "7",
-    },
-    {
-      question: "Which line reflects the symmetry of a function and its inverse?",
-      options: ["y = 0", "y = x", "x = 0", "y = -x"],
-      answer: "y = x",
-    },
-    {
-      question: "What symbol is typically used to indicate whether an endpoint is included in an interval?",
-      options: ["Parentheses ( )", "Brackets [ ]", "Curly braces { }", "Absolute value bars | |"],
-      answer: "Brackets [ ]",
-    },
-    {
-      question: "In graphing piecewise functions, what does an open circle represent?",
       options: [
-        "The point is included in the function",
-        "The point is not included in the function",
-        "The graph continues infinitely",
-        "The graph has no value there",
-      ],
-      answer: "The point is not included in the function",
+        "1", 
+        "2", 
+        "3", 
+        "5"],
+      answer: 0,
     },
     {
-      question: "Which of these is a piecewise definition for the floor function ⌊x⌋?",
+      question: "If f(x) = { x + 2 if x < 0, 3 if x ≥ 0 }, what is f(-5)?",
       options: [
-        "f(x) = x",
-        "f(x) = the greatest integer less than or equal to x",
-        "f(x) = x + 1",
-        "f(x) = -x",
+        "-3", 
+        "-2", 
+        "-1", 
+        "7"],
+      answer: 0,
+    },
+    {
+      question: "If g(x) = {x² if x ≤ 2, x + 4 if x > 2 }, what is g(2)?",
+      options: [
+        "8", 
+        "6", 
+        "4", 
+        "Undefined"],
+      answer: 2,
+    },
+    {
+      question: " Which of the following inputs makes h(x) = {1 / x if x > 0, 0 if x ≤ 0 undefined} ?",
+      options: [
+        "-1", 
+        "0", 
+        "1", 
+        "2"],
+      answer: 1,
+    },
+    {
+      question: "Determine the domain of p(x) = { 1/(x − 2) for x < 2;  √(x − 2) for x ≥ 2 }.",
+      options: [
+       "All real numbers", 
+       "(-∞, 2) ∪ (2, ∞)", 
+       "(-∞, 2)", 
+       "[2, ∞)"],
+      answer: 0,
+    },
+    {
+      question: "If f(x) = {-x if x < 0, x if x  ≥ 0}, which familiar function is this equivalent to?",
+      options: [
+        "Square function",
+        "Constant function",
+        "Absolute value function",
+        "Linear function with slope 2",
       ],
-      answer: "f(x) = the greatest integer less than or equal to x",
+      answer: 2,
     },
     {
-      question: "If f(x) = { -x if x < 0, x if x ≥ 0 }, what is f(-4)?",
-      options: ["-4", "0", "4", "Undefined"],
-      answer: "4",
+      question: "Which is the correct piecewise form of |x − 3|?",
+      options: [
+      "{ x − 3 for x ≥ 3;  3 − x for x < 3 }",
+      "{ 3 − x for x ≥ 3;  x − 3 for x < 3 }",
+      "{ 3 − x for all x }",
+      "{ x − 3 for all x }"],
+      answer: 0,
     },
     {
-      question: "Which of the following is important when defining piecewise functions?",
+      question: "Which conditions ensure a piecewise function is well-defined on its domain?",
       options: [
         "Intervals must not overlap",
         "Intervals must not leave gaps",
         "Both A and B",
         "Neither A nor B",
       ],
-      answer: "Both A and B",
+      answer: 3,
     },
   ];
 
-  const handleAnswer = () => {
-    if (selectedAnswer === questions[currentQuestion].answer) {
+  const handleAnswer = (index: number) => {
+    if (quizQuestions[currentQuestion].answer === index) {
       setScore(score + 1);
     }
-    if (currentQuestion + 1 < questions.length) {
+    if (currentQuestion + 1 < quizQuestions.length) {
       setCurrentQuestion(currentQuestion + 1);
-      setSelectedAnswer(null);
+
     } else {
       setFinished(true);
     }
+  };
+
+  const restartQuiz = () => {
+    setCurrentQuestion(0);
+    setScore(0);
+    setFinished(false);
   };
 
   return (
@@ -154,7 +184,7 @@ f(4);  // 4`}
             <pre className="whitespace-pre-wrap text-sm bg-gray-100 p-3 rounded border border-gray-300">
 {`h(x) = {
   -x        if x < 0
-  x^2       if 0 ≤ x ≤ 2
+  x²        if 0 ≤ x ≤ 2
   2x + 1    if x > 2
 }
 
@@ -216,51 +246,59 @@ h(4);  // 9`}
             <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl relative">
               {!finished ? (
                 <>
-                  <h2 className="text-xl font-bold mb-4">
-                    Question {currentQuestion + 1} of {questions.length}
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz: Piecewise Functions
                   </h2>
-                  <p className="mb-4">{questions[currentQuestion].question}</p>
+                  <p className="mb-4 text-gray-800">
+                    {quizQuestions[currentQuestion].question}
+                  </p>
+
                   <div className="space-y-2">
-                    {questions[currentQuestion].options.map((option, idx) => (
-                      <label key={idx} className="block">
-                        <input
-                          type="radio"
-                          name="answer"
-                          value={option}
-                          checked={selectedAnswer === option}
-                          onChange={() => setSelectedAnswer(option)}
-                          className="mr-2"
-                        />
+                    {quizQuestions[currentQuestion].options.map((option, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleAnswer(index)}
+                        className="w-full text-left px-4 py-2 border rounded hover:bg-indigo-100 transition"
+                      >
                         {option}
-                      </label>
+                      </button>
                     ))}
                   </div>
+
+                  <p className="text-sm text-gray-500 mt-4 text-center">
+                    Question {currentQuestion + 1} of {quizQuestions.length}
+                  </p>
+
                   <button
-                    onClick={handleAnswer}
-                    disabled={!selectedAnswer}
-                    className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                    onClick={() => setShowQuiz(false)}
+                    className="mt-6 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
                   >
-                    {currentQuestion + 1 === questions.length ? "Finish Quiz" : "Next"}
+                    Exit Quiz
                   </button>
                 </>
               ) : (
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold mb-4">Quiz Completed!</h2>
-                  <p className="mb-4">
-                    Your score: {score} / {questions.length}
+                <>
+                  <h2 className="text-xl font-bold mb-4 text-center">
+                    Quiz Finished!
+                  </h2>
+                  <p className="mb-4 text-center text-gray-800">
+                    You scored {score} out of {quizQuestions.length}.
                   </p>
-                  <button
-                    onClick={() => {
-                      setShowQuiz(false);
-                      setCurrentQuestion(0);
-                      setScore(0);
-                      setFinished(false);
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                  >
-                    Close
-                  </button>
-                </div>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={restartQuiz}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+                    >
+                      Retake Quiz
+                    </button>
+                    <button
+                      onClick={() => setShowQuiz(false)}
+                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>

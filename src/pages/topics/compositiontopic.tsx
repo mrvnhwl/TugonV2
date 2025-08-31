@@ -29,29 +29,86 @@ function Compositiontopic() {
       answer: 1,
     },
     {
-      question: "If f(x) = 2x and g(x) = x + 3, what is f(g(2))?",
-      options: ["4", "8", "10", "12"],
-      answer: 2, // 2(2+3) = 10
+      question: "Which statement about composition is always true?",
+      options: [
+        "f ∘ g = g ∘ f", 
+        "f ∘ g is the same as f + g", 
+        "Evaluate the inner function first in f(g(x))", 
+        "g(f(x)) means apply g then f"],
+      answer: 2, 
     },
     {
-      question: "Which statement is true about composition?",
+      question: "With f(x) = 2x + 1 and g(x) = x², and find (f ∘ g)(2). ",
       options: [
-        "f(g(x)) is always the same as g(f(x))",
-        "f(g(x)) and g(f(x)) are usually different",
-        "Composition only works for linear functions",
-        "Composition means adding outputs",
+        "7",
+        "9",
+        "5",
+        "25",
       ],
       answer: 1,
     },
     {
-      question: "If g(x) = x + 2, what is f(g(x)) when f(x) = 3x - 4?",
-      options: ["3x - 2", "3x + 2", "3x + 6", "3x - 6"],
-      answer: 1, // f(g(x)) = 3(x+2) - 4 = 3x+2
+      question: "Given f(x) = 3x − 4 and g(x) = x + 2, find f(g(x)).",
+      options: [
+        "3x + 2", 
+        "3x - 2", 
+        "3x + 6", 
+        "3x - 6"],
+      answer: 0,
     },
     {
       question: "If f(x) = 3x - 4, g(x) = x + 2, what is g(f(x))?",
-      options: ["3x - 2", "3x + 2", "x - 2", "x + 6"],
-      answer: 0, // g(f(x)) = (3x-4)+2 = 3x-2
+      options: [
+        "x + 6",
+        "3x + 2", 
+        "x - 2", 
+        "3x - 2"],
+      answer: 3, 
+    },
+    {
+      question: "For f(x) = 3x - 2 and g(x) = x + 4, simply (f ∘ g)(x)?",
+      options: [
+        "3x + 10",
+        "3x + 2", 
+        "3x - 2", 
+        "x + 4"],
+      answer: 0, 
+    },
+    {
+      question: "If f(x) = √x - 1 and g(x) = x², what is the domain of (f ∘ g)(x) = √x² - 1?",
+      options: [
+        "All real numbers",
+        "x ≤ -1", 
+        "x ≥ -1", 
+        "|x| ≥ 1"],
+      answer: 3, 
+    },
+    {
+      question: "Which f(x) = 1/x-2 and g(x) = x + 2, which expression equals (f ∘ g)(x)?",
+      options: [
+        "1/x",
+        "1/x+2", 
+        "1/x-2", 
+        "x"],
+      answer: 0, 
+    },
+    {
+      question: "If f(x) = 2x , find(f ∘ g)(x)?",
+      options: [
+        "2x²",
+        "4x", 
+        "2x - 2", 
+        "4x + 2"],
+      answer: 1, 
+    },
+    {
+      question: "Let h(x) = x(identity). Which statement is always true?",
+      options: [
+        "f ∘ h = f",
+        "h ∘ f = f", 
+        "Both A and B", 
+        "Neither A nor B"],
+      answer: 2, 
     },
   ];
 

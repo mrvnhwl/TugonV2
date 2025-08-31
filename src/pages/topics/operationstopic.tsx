@@ -11,62 +11,94 @@ function Operationstopic() {
   const quizQuestions = [
     {
       question: "If f(x) = x + 2 and g(x) = 3x, what is (f + g)(x)?",
-      options: ["4x", "x + 5", "4x + 2", "x^2 + 3x"],
+      options: [
+        "4x", 
+        "x + 5", 
+        "4x + 2", 
+        "x² + 3x"],
       answer: 2,
     },
     {
       question: "Which operation is undefined when g(x) = 0?",
-      options: ["Addition", "Subtraction", "Multiplication", "Division"],
+      options: [
+        "Addition", 
+        "Subtraction", 
+        "Multiplication", 
+        "Division"],
       answer: 3,
     },
     {
-      question: "If f(x) = x + 2 and g(x) = 3x, what is (f - g)(2)?",
-      options: ["-2", "2", "4", "10"],
+      question: "Let f(x) = x² + 3x and g(x) = 2x - 5. What is (f + g)(x) ?",
+      options: [
+        "x² + 5x - 5", 
+        "x² + x - 5", 
+        "x² + 3x - 5", 
+        "x² + 2x -5"],
       answer: 0,
     },
     {
-      question: "What is the general form of (f × g)(x)?",
-      options: ["f(x) + g(x)", "f(x) - g(x)", "f(x) × g(x)", "f(x) ÷ g(x)"],
-      answer: 2,
+      question: "Let f(x) = x² and g(x) = 4x + 1. What is (f - g)(2)?",
+      options: [
+        "-5", 
+        "5", 
+        "13", 
+        "9"],
+      answer: 0,
     },
     {
       question: "If f(x) = x + 2 and g(x) = 3x, what is (f ÷ g)(1)?",
-      options: ["1", "3", "1/3", "undefined"],
-      answer: 0,
-    },
-    {
-      question: "What must be checked before dividing functions?",
       options: [
-        "Whether f(x) = 0",
-        "Whether g(x) = 0",
-        "Whether x > 0",
-        "Whether x < 0",
-      ],
-      answer: 1,
-    },
-    {
-      question: "If f(x) = 2x and g(x) = x^2, what is (f + g)(3)?",
-      options: ["9", "15", "18", "21"],
+        "3", 
+        "1/3", 
+        "undefined", 
+        "1"],
       answer: 3,
     },
     {
-      question: "Which of the following is true about function operations?",
+      question: "Let f(x) = x - 3 and g(x) = x + 3. What is (fg)(x)?",
       options: [
-        "Addition of functions is always defined.",
-        "Division by zero is allowed.",
-        "Multiplication of functions is undefined.",
-        "You cannot subtract functions.",
+        "x² + 6x + 9",
+        "x² - 9",
+        "x² - 6x + 9",
+        "x² + 9",
       ],
-      answer: 0,
-    },
-    {
-      question: "If f(x) = x + 2 and g(x) = 3x, what is (f × g)(2)?",
-      options: ["12", "24", "18", "20"],
       answer: 1,
     },
     {
-      question: "If f(x) = x + 2 and g(x) = 3x, simplify (f + g)(x).",
-      options: ["x + 3x", "4x + 2", "x^2 + 3x", "3x + 2"],
+      question: "If f(x) = 2x and g(x) = x², what is (f - g)(8)?",
+      options: [
+        "48", 
+        "44",
+        "-48", 
+        "49"],
+      answer: 2,
+    },
+    {
+      question: "Let f(x) = x² - 1 and g(x) = x - 1. What is correct for (f/g)(x)?",
+      options: [
+        "x + 1, for all real x",
+        "x + 1, for x  ≠ 1",
+        "x - 1, for x  ≠ 1",
+        "x² - 1 / x - 1 , for all real x",
+      ],
+      answer: 1,
+    },
+    {
+      question: "If f(x) = x + 2 and g(x) = 3x, what is (f × g)(2)?",
+      options: [
+        "24", 
+        "12", 
+        "18", 
+        "20"],
+      answer: 0,
+    },
+    {
+      question: "Let f(x) = 3x - 4 and g(x) = x + 5. What is (2f-g)(x)",
+      options: [
+        "7x + 13", 
+        "5x - 13", 
+        "5x + 6", 
+        "6x - 8"],
       answer: 1,
     },
   ];
