@@ -22,6 +22,7 @@ export default function TugonPlay() {
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [inputLockedUntil, setInputLockedUntil] = useState<number>(0);
   const [spamSignal, setSpamSignal] = useState<number>(0);
+  const [showSidePanel, setShowSidePanel] = useState(false); // Control side panel visibility
   const topicId = Number(searchParams.get("topic"));
   const qId = Number(searchParams.get("q"));
   const topic = defaultTopics.find((t) => t.id === topicId);
@@ -87,55 +88,68 @@ export default function TugonPlay() {
         </button>
       </nav>
 
-      <div className="mx-auto max-w-6xl p-6">
+      <div className="mx-auto max-w-7xl p-6">
         <div className="mt-6 rounded-2xl bg-gray-200 p-6 sm:p-8 md:p-10">
-          {/* Question stays on top, centered and responsive */}
-          <div className="mx-auto w-full md:w-2/3">
-            <QuestionBox title={topic?.name ?? "Question"}>
-              <p className="text-base text-foreground">{sampleQuestion}</p>
-            </QuestionBox>
-          </div>
+          {/* Dynamic layout based on side panel visibility */}
+          <div className={`grid gap-6 ${showSidePanel ? 'grid-cols-1 lg:grid-cols-3' : 'grid-cols-1'}`}>
+            
+            {/* Left Column: Question and AnswerWizard */}
+            <div className={`space-y-6 ${showSidePanel ? 'lg:col-span-2' : 'max-w-4xl mx-auto'}`}>
+              {/* Question Box - Upper Left */}
+              <div className="w-full">
+                <QuestionBox title={topic?.name ?? "Question"}>
+                  <p className="text-base text-foreground">{sampleQuestion}</p>
+                </QuestionBox>
+              </div>
 
-          {/* Middle row: HintBubble left, Character right (side-by-side on md+, stacked on mobile) */}
-          <div className="mt-8 flex flex-col md:flex-row justify-center items-center gap-6">
-            <div className="flex-1 flex justify-center w-full md:w-1/2">
-              <HintBubble
-                userInput={currentAnswer}
-                expectedAnswer={expectedAnswers?.[activeIndex]?.answer ?? ""}
-                type={expectedAnswers?.[activeIndex]?.type ?? "single"}
-                stepIndex={activeIndex}
-                onRequestInputLock={(ms) => {
-                  const until = Date.now() + (typeof ms === "number" ? ms : 10000);
-                  setInputLockedUntil(until);
-                  // Unlock after the specified duration
-                  window.setTimeout(() => setInputLockedUntil(0), until - Date.now());
-                }}
-                spamSignal={spamSignal}
-              />
+              {/* AnswerWizard - Below Question */}
+              <div className="w-full">
+                <AnswerWizard
+                  steps={steps}
+                  onSubmit={handleSubmit}
+                  onIndexChange={setActiveIndex}
+                  expectedAnswers={expectedAnswers}
+                  onAnswerChange={(i, v) => {
+                    // Only track current step's answer for validation bubble
+                    if (i === activeIndex) setCurrentAnswer(v);
+                  }}
+                  inputDisabled={Date.now() < inputLockedUntil}
+                  onSpamDetected={() => setSpamSignal(Date.now())}
+                />
+              </div>
             </div>
-            <div className="flex-1 flex justify-center w-full md:w-1/2">
-              <Character />
-            </div>
-          </div>
-
-          {/* Bottom row: AnswerWizard centered below */}
-          <div className="mt-8 flex justify-center">
-            <div className="w-full md:w-2/3">
-              <AnswerWizard
-                steps={steps}
-                onSubmit={handleSubmit}
-                onIndexChange={setActiveIndex}
-                expectedAnswers={expectedAnswers}
-                onAnswerChange={(i, v) => {
-                  // Only track current step's answer for validation bubble
-                  if (i === activeIndex) setCurrentAnswer(v);
-                }}
-                inputDisabled={Date.now() < inputLockedUntil}
-                onSpamDetected={() => setSpamSignal(Date.now())}
-              />
-            </div>
+            
+            {/* Right Column: HintBubble Side Panel - Show when toggled */}
+            {showSidePanel && (
+              <div className="lg:col-span-1">
+                <div className="sticky top-6">
+                  <HintBubble
+                    userInput={currentAnswer}
+                    expectedAnswer={expectedAnswers?.[activeIndex]?.answer ?? ""}
+                    type={expectedAnswers?.[activeIndex]?.type ?? "single"}
+                    stepIndex={activeIndex}
+                    onRequestInputLock={(ms) => {
+                      const until = Date.now() + (typeof ms === "number" ? ms : 10000);
+                      setInputLockedUntil(until);
+                      // Unlock after the specified duration
+                      window.setTimeout(() => setInputLockedUntil(0), until - Date.now());
+                    }}
+                    spamSignal={spamSignal}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      </div>
+      
+      {/* Fixed Character in lower right corner - always visible */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <Character 
+          name="Tugon"
+          className="w-20 h-20"
+          onClick={() => setShowSidePanel(!showSidePanel)}
+        />
       </div>
     </div>
   );

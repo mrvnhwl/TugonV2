@@ -27,9 +27,13 @@ function HintBubbleMessage({ message }: { message: HintMessage }) {
         return "";
     }
   };
+  
+  const hintText = getMessage();
+  if (!hintText) return null;
+  
   return (
-    <div className="p-3 rounded-2xl bg-blue-100 shadow-md max-w-sm text-center">
-      <p className="text-gray-800 font-medium">{getMessage()}</p>
+    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-300 rounded-2xl shadow-md transition-all duration-300">
+      <p className="text-sm text-gray-800">{hintText}</p>
     </div>
   );
 }
@@ -38,6 +42,7 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
   const [status, setStatus] = useState<"idle" | "correct" | "wrong" | "aiHint" | "spam">("idle");
   const [isLoadingHint, setIsLoadingHint] = useState(false);
   const [hasWarned, setHasWarned] = useState(false);
+  const [hasShownMessage, setHasShownMessage] = useState(false); // Track if any message has been shown
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastInputRef = useRef<string>("");
   const [inputDisabled, setInputDisabled] = useState(false);
@@ -48,7 +53,9 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
     // Strict string comparison
   // eslint-disable-next-line no-console
   console.log("[HintBubble] manual check() called", { userInput, expectedAnswer });
-    setStatus(userInput === expectedAnswer ? "correct" : "wrong");
+    const isCorrect = userInput === expectedAnswer;
+    setStatus(isCorrect ? "correct" : "wrong");
+    setHasShownMessage(true); // Mark that we've shown a message
   };
 
   // Auto-check after 3s of inactivity, only once per typing session
@@ -131,6 +138,7 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
   console.log("[HintBubble] AI hint triggered by keyword");
     setInputDisabled(true);
   setStatus("aiHint");
+  setHasShownMessage(true);
   setIsLoadingHint(true);
     aiHintForValueRef.current = userInput;
 
@@ -169,14 +177,6 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
     return () => { mounted = false; };
   }, [userInput]);
 
-  const base = "p-3 rounded-2xl shadow-md max-w-sm text-center";
-  const color =
-    status === "correct"
-      ? "bg-green-100 text-green-800"
-  : status === "wrong" || status === "aiHint" || status === "spam"
-      ? "bg-red-100 text-red-800"
-      : "bg-yellow-100 text-yellow-800"; // warning/idle
-
   const [aiText, setAiText] = useState<string | null>(null);
   const textFromMessages =
     status === "correct"
@@ -196,15 +196,44 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
     // eslint-disable-next-line no-console
     console.debug("[HintBubble] spamSignal received — showing spam message", { spamSignal });
     setStatus("spam");
+    setHasShownMessage(true);
   }, [spamSignal]);
 
+  // Don't show anything on initial load or idle state unless a message has been triggered
+  if (!hasShownMessage || status === "idle") {
+    return (
+      <div className="h-full min-h-[200px] p-4 bg-white border border-gray-200 rounded-2xl shadow-sm">
+        <div className="flex items-center mb-3">
+          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
+            💡
+          </div>
+          <h3 className="font-medium text-gray-700">Tugon</h3>
+        </div>
+        <div className="text-sm text-gray-500">
+          I'm here to help when you need a hint!
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`${base} ${color}`} aria-live="polite">
-      <p className="font-medium mb-2">{textFromMessages}</p>
+    <div className="h-full min-h-[200px] p-4 bg-white border border-gray-200 rounded-2xl shadow-sm">
+      <div className="flex items-center mb-3">
+        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
+          💡
+        </div>
+        <h3 className="font-medium text-gray-700">Tugon</h3>
+      </div>
+      
+      {/* Hint message bubble */}
+      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-2xl shadow-sm">
+        <p className="text-sm text-gray-800">{textFromMessages}</p>
+      </div>
+      
       <button
         type="button"
         onClick={check}
-        className="inline-flex items-center justify-center rounded-md bg-blue-600 text-white text-sm px-3 py-1.5 hover:bg-blue-700 disabled:opacity-50"
+        className="w-full inline-flex items-center justify-center rounded-md bg-blue-600 text-white text-sm px-3 py-2 hover:bg-blue-700 disabled:opacity-50 transition-colors"
         disabled={inputDisabled}
       >
         Check Answer

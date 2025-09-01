@@ -1,29 +1,39 @@
-import Lottie from "lottie-react";
-import tugonAnim from "../assets/animations/tugoncharacterv1.json";
+import { useRive } from "@rive-app/react-canvas";
 
 type CharacterProps = {
   name?: string;
   className?: string;   // e.g., "w-32 h-32"
-  loop?: boolean;
-  autoplay?: boolean;
+  onClick?: () => void; // Make character clickable
 };
 
 export default function Character({
-  name = "Guide",
+  name = "Tugon",
   className = "w-32 h-32 mx-auto",
-  loop = true,
-  autoplay = true,
+  onClick,
 }: CharacterProps) {
+  const { RiveComponent } = useRive({
+    src: "/tugon.riv",
+    autoplay: true,
+  });
+
   return (
     <div className="flex flex-col items-center">
-      {/* Lottie character */}
-      <Lottie
-        animationData={tugonAnim}
-        loop={loop}
-        autoplay={autoplay}
-        className={className}
-        aria-label={`${name} animation`}
-      />
+      {/* Rive character */}
+      <div
+        className={`${className} ${onClick ? 'cursor-pointer hover:scale-105 transition-transform' : ''}`}
+        onClick={onClick}
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        onKeyDown={onClick ? (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        } : undefined}
+        aria-label={onClick ? `Click ${name} for help` : `${name} character`}
+      >
+        <RiveComponent />
+      </div>
     </div>
   );
 }
