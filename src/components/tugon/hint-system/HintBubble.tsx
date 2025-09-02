@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageType, type HintMessage, predefinedMessages, generalMessages, messages, getAIHint } from "../data/message";
+import { MessageType, type HintMessage, predefinedMessages, messages, getAIHint } from "../../data/message";
+
+// Constants for hint management
+const INITIAL_HINT_TEXT = "Need help getting started? Try breaking down the problem into smaller steps.";
+const IDLE_SECONDARY_TEXT = "Still stuck? Consider reviewing the question again or try a different approach.";
+const IDLE_TIMEOUT = 20000; // 20 seconds
 
 type ValidationProps = {
   userInput: string;
@@ -8,14 +13,26 @@ type ValidationProps = {
   stepIndex?: number;
   onRequestInputLock?: (ms: number) => void;
   spamSignal?: number; // when this value changes, show spam message in bubble
+  onMessageShown?: (message: string, type: "correct" | "wrong" | "aiHint" | "spam") => void; // callback when validation message is shown
+  // New props for hint state management
+  attempts?: number;
+  isCorrect?: boolean | null;
+  onAttemptsChange?: (attempts: number) => void;
+  onCorrectnessChange?: (isCorrect: boolean) => void;
 };
 
 type Props =
-  | { message: HintMessage; userInput?: never; expectedAnswer?: never; type?: never; stepIndex?: never }
+  | { message: HintMessage | string; userInput?: never; expectedAnswer?: never; type?: never; stepIndex?: never }
   | ({ message?: never } & ValidationProps);
 
-function HintBubbleMessage({ message }: { message: HintMessage }) {
+function HintBubbleMessage({ message }: { message: HintMessage | string }) {
   const getMessage = () => {
+    // Handle simple string messages
+    if (typeof message === 'string') {
+      return message;
+    }
+    
+    // Handle complex HintMessage objects
     switch (message.type) {
       case MessageType.DIRECTION:
         return message.text ? `${message.question} – ${message.text}` : message.question;
@@ -38,7 +55,7 @@ function HintBubbleMessage({ message }: { message: HintMessage }) {
   );
 }
 
-function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, spamSignal }: ValidationProps) {
+function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, spamSignal, onMessageShown, attempts = 0, isCorrect = null, onAttemptsChange, onCorrectnessChange }: ValidationProps) {
   const [status, setStatus] = useState<"idle" | "correct" | "wrong" | "aiHint" | "spam">("idle");
   const [isLoadingHint, setIsLoadingHint] = useState(false);
   const [hasWarned, setHasWarned] = useState(false);
@@ -48,14 +65,96 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
   const [inputDisabled, setInputDisabled] = useState(false);
   // Track which input value we have already shown an AI hint for, to avoid repeat triggers without edit
   const aiHintForValueRef = useRef<string | null>(null);
+  
+  // Hint state management
+  const [currentHint, setCurrentHint] = useState<string>(INITIAL_HINT_TEXT);
+  const [internalAttempts, setInternalAttempts] = useState(attempts);
+  const [internalIsCorrect, setInternalIsCorrect] = useState(isCorrect);
+  
+  // Idle timer management
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastInteractionRef = useRef<number>(Date.now());
+
+  // Reset idle timer function
+  const resetIdleTimer = () => {
+    lastInteractionRef.current = Date.now();
+    
+    // Clear existing timer
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+    }
+    
+    // Set new timer only if not already correct
+    if (!internalIsCorrect) {
+      idleTimerRef.current = setTimeout(() => {
+        // Only show nudge if still not correct
+        if (!internalIsCorrect) {
+          // Show secondary message if already showing the primary nudge
+          const nextHint = currentHint === INITIAL_HINT_TEXT ? IDLE_SECONDARY_TEXT : INITIAL_HINT_TEXT;
+          setCurrentHint(nextHint);
+          setHasShownMessage(true);
+          
+          if (onMessageShown) {
+            onMessageShown(nextHint, "aiHint");
+          }
+        }
+      }, IDLE_TIMEOUT);
+    }
+  };
+
+  // Initialize idle timer and reset on user input
+  useEffect(() => {
+    resetIdleTimer();
+    return () => {
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+      }
+    };
+  }, [userInput, internalIsCorrect]);
+
+  // Clear hint state when question changes (detected by expectedAnswer change)
+  useEffect(() => {
+    setCurrentHint(INITIAL_HINT_TEXT);
+    setInternalAttempts(0);
+    setInternalIsCorrect(null);
+    setStatus("idle");
+    setHasShownMessage(false);
+    resetIdleTimer();
+  }, [expectedAnswer]);
 
   const check = () => {
     // Strict string comparison
-  // eslint-disable-next-line no-console
-  console.log("[HintBubble] manual check() called", { userInput, expectedAnswer });
+    // eslint-disable-next-line no-console
+    console.log("[HintBubble] manual check() called", { userInput, expectedAnswer });
     const isCorrect = userInput === expectedAnswer;
-    setStatus(isCorrect ? "correct" : "wrong");
-    setHasShownMessage(true); // Mark that we've shown a message
+    const newStatus = isCorrect ? "correct" : "wrong";
+    
+    // Update internal state
+    const newAttempts = internalAttempts + 1;
+    setInternalAttempts(newAttempts);
+    setInternalIsCorrect(isCorrect);
+    setStatus(newStatus);
+    setHasShownMessage(true);
+    
+    // Update hint based on result
+    if (isCorrect) {
+      setCurrentHint("Great job! You got it right!");
+    } else {
+      setCurrentHint("Try reviewing your steps and check for calculation errors.");
+    }
+    
+    // Notify parent about changes
+    onAttemptsChange?.(newAttempts);
+    onCorrectnessChange?.(isCorrect);
+    
+    // Notify parent about the message
+    if (onMessageShown) {
+      const message = isCorrect ? "Correct answer! Well done." : "Incorrect answer. Let's try again.";
+      onMessageShown(message, newStatus);
+    }
+    
+    // Reset idle timer after validation
+    resetIdleTimer();
   };
 
   // Auto-check after 3s of inactivity, only once per typing session
@@ -142,6 +241,11 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
   setIsLoadingHint(true);
     aiHintForValueRef.current = userInput;
 
+    // Notify parent about AI hint trigger
+    if (onMessageShown) {
+      onMessageShown("AI hint triggered by keyword", "aiHint");
+    }
+
     // Ask parent to lock input for 5 seconds
     try {
   onRequestInputLock?.(5000);
@@ -184,10 +288,10 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
       : status === "wrong"  
       ? predefinedMessages.wrong
       : status === "aiHint"
-  ? (isLoadingHint ? "Loading hint…" : (aiText || messages.aiHintFallback))
+      ? (isLoadingHint ? "Loading hint…" : (aiText || messages.aiHintFallback))
       : status === "spam"
       ? messages.spam
-      : generalMessages.warning;
+      : currentHint; // Use currentHint for idle state instead of warning
 
   // React to spamSignal changes by showing spam message; do not override AI hint
   useEffect(() => {
@@ -197,43 +301,31 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
     console.debug("[HintBubble] spamSignal received — showing spam message", { spamSignal });
     setStatus("spam");
     setHasShownMessage(true);
-  }, [spamSignal]);
+    
+    // Notify parent about spam message
+    if (onMessageShown) {
+      onMessageShown("Spam detected", "spam");
+    }
+  }, [spamSignal, onMessageShown]);
 
-  // Don't show anything on initial load or idle state unless a message has been triggered
-  if (!hasShownMessage || status === "idle") {
-    return (
-      <div className="h-full min-h-[200px] p-4 bg-white border border-gray-200 rounded-2xl shadow-sm">
-        <div className="flex items-center mb-3">
-          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-            💡
-          </div>
-          <h3 className="font-medium text-gray-700">Tugon</h3>
-        </div>
-        <div className="text-sm text-gray-500">
-          I'm here to help when you need a hint!
-        </div>
-      </div>
-    );
+  // Always show the hint bubble (remove the hasShownMessage check for idle state)
+  const shouldShow = hasShownMessage || status === "idle" || currentHint === INITIAL_HINT_TEXT;
+  if (!shouldShow) {
+    return null;
   }
 
   return (
-    <div className="h-full min-h-[200px] p-4 bg-white border border-gray-200 rounded-2xl shadow-sm">
-      <div className="flex items-center mb-3">
-        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-          💡
+    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-300 rounded-2xl shadow-md transition-all duration-300 w-full">
+      <p className="text-sm text-gray-800 mb-2">{textFromMessages}</p>
+      {internalAttempts > 0 && (
+        <div className="text-xs text-gray-600 mb-2">
+          Attempts: {internalAttempts} {internalIsCorrect !== null && (internalIsCorrect ? "✓ Correct" : "✗ Try again")}
         </div>
-        <h3 className="font-medium text-gray-700">Tugon</h3>
-      </div>
-      
-      {/* Hint message bubble */}
-      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-2xl shadow-sm">
-        <p className="text-sm text-gray-800">{textFromMessages}</p>
-      </div>
-      
+      )}
       <button
         type="button"
         onClick={check}
-        className="w-full inline-flex items-center justify-center rounded-md bg-blue-600 text-white text-sm px-3 py-2 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        className="inline-flex items-center justify-center rounded-md bg-blue-600 text-white text-sm px-3 py-1.5 hover:bg-blue-700 disabled:opacity-50"
         disabled={inputDisabled}
       >
         Check Answer
@@ -246,13 +338,14 @@ export default function HintBubble(props: Props) {
   if ("message" in props && props.message) {
     return <HintBubbleMessage message={props.message} />;
   }
-  const { userInput = "", expectedAnswer = "", onRequestInputLock, spamSignal } = props as ValidationProps;
+  const { userInput = "", expectedAnswer = "", onRequestInputLock, spamSignal, onMessageShown } = props as ValidationProps;
   return (
     <HintBubbleValidation
       userInput={userInput}
       expectedAnswer={expectedAnswer}
       onRequestInputLock={onRequestInputLock}
       spamSignal={spamSignal}
+      onMessageShown={onMessageShown}
     />
   );
 }

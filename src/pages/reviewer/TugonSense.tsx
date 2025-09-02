@@ -38,7 +38,11 @@ export default function TugonSense() {
                 onActiveChange={() => {/* kept for backward compatibility; index drives state */}}
                 onActiveIndexChange={setActiveIndex}
                 onStartStage={(topicId, questionId) => {
-                  navigate(`/tugon-play?topic=${topicId}&q=${questionId}`);
+                  // Updated to use new URL structure that matches TugonPlay
+                  // Use the passed questionId as categoryId (backward compatibility)
+                  const categoryId = questionId || 1; // Use passed questionId as categoryId
+                  const specificQuestionId = 1; // Default to first question within category
+                  navigate(`/tugon-play?topic=${topicId}&category=${categoryId}&question=${specificQuestionId}`);
                 }}
               />
             </aside>

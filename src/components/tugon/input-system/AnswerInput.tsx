@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/textarea";
+import { Input } from "../../ui/input";
+import { Textarea } from "../../ui/textarea";
 
 export type AnswerInputProps = {
   value: string;

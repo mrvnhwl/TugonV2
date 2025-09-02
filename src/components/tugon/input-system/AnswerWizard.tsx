@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers";
 import type { PredefinedAnswer } from "@/components/data/answers";
-import { cn } from "../cn";
-import GraphAnswerComp, { GraphValue } from "./answers/GraphAnswer";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "../../cn";
+import CartesianPlane, { GraphValue } from "../answers-type/GraphAnswer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 // removed direct Textarea usage; wrapped by AnswerInput
 import AnswerInput from "./AnswerInput";
-import { Toggle } from "@/components/ui/toggle";
-import { ActivitySquare, AlignLeft, ChevronLeft, ChevronRight, Type as TypeIcon, CheckCircle } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 
 // Allowed answer types
 export type AnswerType = "single" | "multi" | "graph";
@@ -106,13 +104,6 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
   useEffect(() => {
     onIndexChange?.(index);
   }, [index, onIndexChange]);
-
-  // Compute the debuggable "storedAnswers" payload
-  const computeStoredAnswers = (arr: WizardStep[]): { type: AnswerType; answer: string }[] =>
-    arr.map((s) => {
-      const str = s.answerValue ?? "";
-      return { type: s.type, answer: str.replace(/[\s\n\r]+/g, "") };
-    });
 
   const setTypeForCurrent = (t: AnswerType) => {
     if (!current) return;
@@ -230,12 +221,12 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
               </button>
               <div className="text-base font-semibold mb-3">Cartesian Plane</div>
               <div className="max-h-[70vh] overflow-auto">
-                <GraphAnswerComp
+                <CartesianPlane
                   step={current}
                   value={(current.value as GraphValue) ?? defaultGraph}
                   onChange={updateCurrentGraphValue}
                   hideControls
-                  onPointsCommit={(pts) => {
+                  onPointsCommit={(pts: Array<{ x: number; y: number }>) => {
                     const formatted = (pts || []).map((p) => `(${p.x}, ${p.y})`).join("\n");
                     setSteps((prev) => {
                       const next = [...prev];
@@ -273,8 +264,6 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
     );
   }, [current, index, graphOpen, graphInputs]);
 
-  const canPrev = index > 0;
-  const canNext = index < Math.max(0, total - 1);
   const canProceed = validateAnswer(current, current?.answerValue, index);
 
   // Centralized progression + feedback router
@@ -303,103 +292,28 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
     }
   };
 
-  const goPrev = () => {
-    if (canPrev) setIndex(index - 1);
-  };
-  const goNext = () => {
-    if (canNext) setIndex(index + 1);
-    else handleSubmit();
-  };
-
-  const handleSubmit = () => {
-    // Default: if no expected answers, submit all
-    if (!answersSource || answersSource.length === 0) {
-      const storedAnswers = computeStoredAnswers(steps);
-      if (import.meta.env.DEV) console.log("Final collected answers:", storedAnswers);
-      onSubmit(steps);
-      return;
-    }
-    // Validate only the current step and route via centralized handler
-    const isCorrect = validateAnswer(current, current?.answerValue, index);
-    const nextCorrectness: Array<boolean | null> = [...correctness];
-    nextCorrectness[index] = isCorrect ? true : false;
-    setCorrectness(nextCorrectness);
-    handleValidationResult(isCorrect ? "correct" : "wrong");
-  };
-
   return (
-    <Card className={cn("rounded-2xl border bg-card shadow-sm", className)}>
-  <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-        <CardTitle className="text-base">{current?.label ?? "Answer"}</CardTitle>
-        <div className="flex items-center gap-3 flex-wrap justify-end">
-          {/* Answer type toggles moved to header right side */}
-          {current && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <Toggle
-                pressed={current.type === "single"}
-                onPressedChange={(on: boolean) => on && setTypeForCurrent("single")}
-                aria-label="Single line"
-              >
-                <TypeIcon className="mr-2" /> Single
-              </Toggle>
-              <Toggle
-                pressed={current.type === "multi"}
-                onPressedChange={(on: boolean) => on && setTypeForCurrent("multi")}
-                aria-label="Multi line"
-              >
-                <AlignLeft className="mr-2" /> MultiLine
-              </Toggle>
-              <Toggle
-                pressed={current.type === "graph"}
-                onPressedChange={(on: boolean) => on && setTypeForCurrent("graph")}
-                aria-label="Graph"
-              >
-                <ActivitySquare className="mr-2" /> Graph
-              </Toggle>
-            </div>
-          )}
-          <div className="flex items-center gap-2 whitespace-nowrap" aria-live="polite">
-            <span className="text-[13px] md:text-sm text-muted-foreground">Step</span>
-            <span className="text-primary font-bold text-base md:text-lg leading-none">{total ? index + 1 : 0}</span>
-            <span className="text-[13px] md:text-sm text-muted-foreground">of {total}</span>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Format-specific helpers (e.g., Graph controls + modal) */}
-        {content && (
-          <div className="rounded-md bg-muted p-3">{content}</div>
-        )}
+    <div className={cn("rounded-2xl border bg-card shadow-sm p-4 space-y-4", className)}>
+      {/* Format-specific helpers (e.g., Graph controls + modal) */}
+      {content && (
+        <div className="rounded-md bg-muted p-3">{content}</div>
+      )}
 
-        {/* Step indicators */}
-        <div className="flex items-center justify-center gap-2 pt-2 px-2 overflow-x-auto max-w-full">
-          {steps.map((_, i) => (
-            <button
-              key={i}
-              aria-label={`Go to step ${i + 1}`}
-              onClick={() => setIndex(i)}
-              className={cn(
-                "h-2.5 w-2.5 rounded-full transition-colors",
-                i === index ? "bg-primary" : "bg-muted"
-              )}
-            />
-          ))}
-        </div>
-
-        {/* Unified input box below the step indicator */}
-        {current && (
-          <div className="space-y-2">
-            {(() => {
-              // compute dynamic classes for input based on validation/correctness
-              const answer = current.answerValue ?? "";
-              const isValid = validateAnswer(current, answer, index);
-              const nonEmpty = answer.trim().length > 0;
-              const isCorrect = correctness[index] === true;
-              const isWrong = nonEmpty && !isValid && !isCorrect;
-              const okClass = "border-green-500 bg-green-50 focus-visible:ring-green-500/40";
-              const wrongClass = "border-red-500 bg-red-50 focus-visible:ring-red-500/40";
-              const inputClasses = isCorrect ? okClass : isWrong ? wrongClass : undefined;
-              return (
+      {/* Unified input box */}
+      {current && (
+        <div className="space-y-2">
+          {(() => {
+            // compute dynamic classes for input based on validation/correctness
+            const answer = current.answerValue ?? "";
+            const isValid = validateAnswer(current, answer, index);
+            const nonEmpty = answer.trim().length > 0;
+            const isCorrect = correctness[index] === true;
+            const isWrong = nonEmpty && !isValid && !isCorrect;
+            const okClass = "border-green-500 bg-green-50 focus-visible:ring-green-500/40";
+            const wrongClass = "border-red-500 bg-red-50 focus-visible:ring-red-500/40";
+            const inputClasses = isCorrect ? okClass : isWrong ? wrongClass : undefined;
+            return (
+              <div className="relative">
                 <AnswerInput
                   key={`ai-${index}`}
                   value={answer}
@@ -414,60 +328,41 @@ export default function AnswerWizard({ steps: _initialSteps = [], onSubmit, clas
                   placeholder={current.placeholder || (current.type === "graph" ? "Your points will appear here..." : undefined)}
                   multiline={current.type !== "single"}
                   disabled={Boolean(inputDisabled || (correctness[index] === true && current.type !== "graph"))}
-                  className={inputClasses}
+                  className={cn("pr-16", inputClasses)}
                   onSpamDetected={() => {
                     onSpamDetected?.();
                     handleValidationResult("spam");
                   }}
                 />
-              );
-            })()}
-            {!canProceed && (
-              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
-                Answer required before continuing.
+                
+                {/* Answer type dropdown button embedded in input */}
+                <div className="absolute right-2 top-2">
+                  <select
+                    value={current.type}
+                    onChange={(e) => setTypeForCurrent(e.target.value as AnswerType)}
+                    className="bg-white border border-gray-300 text-xs text-muted-foreground cursor-pointer focus:outline-none rounded px-1 py-0.5"
+                  >
+                    <option value="single">Single</option>
+                    <option value="multi">Multi</option>
+                    <option value="graph">Graph</option>
+                  </select>
+                </div>
               </div>
-            )}
-            {correctness[index] === true && (
-              <div className="flex items-center gap-2 text-green-600 text-sm">
-                <CheckCircle className="h-4 w-4" />
-                Correct!
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Navigation buttons below the indicator */}
-        <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
-          <Button
-            variant="outline"
-            onClick={goPrev}
-            disabled={false}
-            aria-label="Go to previous step"
-            className="rounded-xl hover:bg-accent hover:text-accent-foreground"
-          >
-            <ChevronLeft />
-            <span className="sr-only">Previous</span>
-          </Button>
-          <Button
-            variant="default"
-            onClick={handleSubmit}
-            className="rounded-xl"
-            aria-label="Check answers"
-          >
-            Check
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={goNext}
-            aria-label={canNext ? "Go to next step" : "Submit answers"}
-            disabled={!canProceed}
-            className="rounded-xl hover:bg-accent hover:text-accent-foreground"
-          >
-            <ChevronRight />
-            <span className="sr-only">{canNext ? "Next" : "Submit"}</span>
-          </Button>
+            );
+          })()}
+          {!canProceed && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
+              Answer required before continuing.
+            </div>
+          )}
+          {correctness[index] === true && (
+            <div className="flex items-center gap-2 text-green-600 text-sm">
+              <CheckCircle className="h-4 w-4" />
+              Correct!
+            </div>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
