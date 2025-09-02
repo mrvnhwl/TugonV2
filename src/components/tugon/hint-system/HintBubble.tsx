@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageType, type HintMessage, predefinedMessages, messages, getAIHint } from "../../data/message";
+import { Text, Small } from "../../Typography";
+import { cn } from "../../cn";
 
 // Constants for hint management
 const INITIAL_HINT_TEXT = "Need help getting started? Try breaking down the problem into smaller steps.";
@@ -11,6 +13,7 @@ type ValidationProps = {
   expectedAnswer: string;
   type?: string;
   stepIndex?: number;
+  className?: string;
   onRequestInputLock?: (ms: number) => void;
   spamSignal?: number; // when this value changes, show spam message in bubble
   onMessageShown?: (message: string, type: "correct" | "wrong" | "aiHint" | "spam") => void; // callback when validation message is shown
@@ -22,10 +25,10 @@ type ValidationProps = {
 };
 
 type Props =
-  | { message: HintMessage | string; userInput?: never; expectedAnswer?: never; type?: never; stepIndex?: never }
-  | ({ message?: never } & ValidationProps);
+  | { message: HintMessage | string; className?: string; userInput?: never; expectedAnswer?: never; type?: never; stepIndex?: never }
+  | ({ message?: never; className?: string } & ValidationProps);
 
-function HintBubbleMessage({ message }: { message: HintMessage | string }) {
+function HintBubbleMessage({ message, className = "" }: { message: HintMessage | string; className?: string }) {
   const getMessage = () => {
     // Handle simple string messages
     if (typeof message === 'string') {
@@ -49,8 +52,8 @@ function HintBubbleMessage({ message }: { message: HintMessage | string }) {
   if (!hintText) return null;
   
   return (
-    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-300 rounded-2xl shadow-md transition-all duration-300">
-      <p className="text-sm text-gray-800">{hintText}</p>
+    <div className={cn("mt-3 p-3 bg-yellow-50 border border-yellow-300 rounded-2xl shadow-md transition-all duration-300", className)}>
+      <Text className="text-gray-800">{hintText}</Text>
     </div>
   );
 }
@@ -335,8 +338,10 @@ function HintBubbleValidation({ userInput, expectedAnswer, onRequestInputLock, s
 }
 
 export default function HintBubble(props: Props) {
+  const { className = "" } = props;
+  
   if ("message" in props && props.message) {
-    return <HintBubbleMessage message={props.message} />;
+    return <HintBubbleMessage message={props.message} className={className} />;
   }
   const { userInput = "", expectedAnswer = "", onRequestInputLock, spamSignal, onMessageShown } = props as ValidationProps;
   return (
@@ -346,6 +351,7 @@ export default function HintBubble(props: Props) {
       onRequestInputLock={onRequestInputLock}
       spamSignal={spamSignal}
       onMessageShown={onMessageShown}
+      className={className}
     />
   );
 }

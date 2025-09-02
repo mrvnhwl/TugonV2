@@ -1,7 +1,7 @@
 import { PropsWithChildren, useMemo } from "react";
 import { cn } from "../../cn";
-import { Card, CardContent } from "@/components/ui/card";
 import { defaultTopics } from "../../data/question";
+import { SubHeading, Text, Small } from "../../Typography";
 
 type QuestionBoxProps = PropsWithChildren<{
   title?: string;
@@ -40,36 +40,39 @@ export default function QuestionBox({
   }, [topicId, categoryId, questionId, fallbackText]);
 
   return (
-    <Card className={cn("w-full rounded-2xl border bg-card shadow-sm", className)}>
-      <CardContent className="p-5 sm:p-6 md:p-8">
-        <div className="flex flex-col">
+    <div className={cn("w-full p-5 sm:p-6 md:p-8 mt-8 sm:mt-10 md:mt-12 mb-4 sm:mb-5 md:mb-6", className)} role="region" aria-label="Question content">
+      <div className="flex flex-col max-w-reading mx-auto">
 
-
-          {questionText && (
-            <div className={cn(
-              "mt-3 text-xl md:text-2xl font-semibold leading-relaxed text-foreground break-words text-center mx-auto",
-              title ? "mt-4" : "mt-2"
-            )}>
+        {questionText && (
+          <div className={cn(
+            "mt-6 mb-3 sm:mt-8 sm:mb-4 md:mt-10 md:mb-5 text-center mx-auto",
+            title ? "mt-6 sm:mt-8 md:mt-10" : "mb-3 sm:mb-4 md:mb-5"
+          )}>
+            <SubHeading className="font-semibold leading-relaxed text-foreground break-words text-fluid-lg sm:text-fluid-xl lg:text-2xl">
               {questionText}
-            </div>
-          )}
+            </SubHeading>
+          </div>
+        )}
 
-          {children && (
-            <div className={cn(
-              "text-base leading-relaxed text-foreground break-words text-center mx-auto",
-              (title || questionText) ? "mt-4" : "mt-2"
-            )}>
+        {children && (
+          <div className={cn(
+            "text-center mx-auto mt-6 mb-3 sm:mt-8 sm:mb-4",
+            (title || questionText) ? "mt-6 sm:mt-8" : "mt-4"
+          )}>
+            <Text className="leading-relaxed text-foreground break-words text-fluid-base sm:text-fluid-lg">
               {children}
-            </div>
-          )}
+            </Text>
+          </div>
+        )}
 
-          {!questionText && !children && (
-            <div className="mt-3 text-center text-muted-foreground italic">
+        {!questionText && !children && (
+          <div className="mt-6 mb-3 sm:mt-8 sm:mb-4 text-center">
+            <Small className="text-muted-foreground italic">
               No question selected
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            </Small>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

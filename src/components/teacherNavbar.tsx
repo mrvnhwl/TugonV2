@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Brain, Play, Users } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { Text } from './Typography';
+import { cn } from './cn';
 
-function TeacherNavbar() {
+function TeacherNavbar({ className = "" }: { className?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -13,7 +15,7 @@ function TeacherNavbar() {
   };
 
   return (
-    <nav className="bg-indigo-600 text-white shadow-lg">
+    <nav className={cn("bg-indigo-600 text-white shadow-lg", className)}>
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between h-16 items-center">
           {/* Logo Section */}

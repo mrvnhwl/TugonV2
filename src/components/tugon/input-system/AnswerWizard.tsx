@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 // removed direct Textarea usage; wrapped by AnswerInput
 import AnswerInput from "./AnswerInput";
 import { CheckCircle } from "lucide-react";
+import { Text, Small } from "../../Typography";
 
 // Allowed answer types
 export type AnswerType = "single" | "multi" | "graph";

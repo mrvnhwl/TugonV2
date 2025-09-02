@@ -7,6 +7,7 @@ import { questionAnswersByStage } from "../../components/data/answers";
 import AnswerWizard, { Step, WizardStep } from "../../components/tugon/input-system/AnswerWizard";
 import HintBubble from "../../components/tugon/hint-system/HintBubble";
 import Character from "../../components/tugon/hint-system/Character";
+import { Heading,Text, Small } from "../../components/Typography";
 
 const DEFAULT_HINT_TEXT = "Try isolating y. Start by substituting x = 2.";
 
@@ -80,14 +81,16 @@ export default function TugonPlay() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navbar - Fixed at top */}
+    <div className="min-h-screen bg-white">
+      {/* Navbar - Fixed at top with improved typography */}
       <nav className="fixed top-0 w-full z-50 px-2 sm:px-4 h-14 bg-purple-600 shadow-md">
         <div className="h-full flex items-center justify-between">
-          <div className="text-white font-semibold text-sm sm:text-base">TugonPlay</div>
+          <Heading className="text-white font-semibold text-fluid-sm sm:text-fluid-base">
+            TugonPlay
+          </Heading>
           <button
             aria-label="Exit TugonPlay"
-            className="text-white/90 hover:text-white font-semibold tracking-wide px-2 sm:px-4 py-2 text-sm sm:text-base"
+            className="text-white/90 hover:text-white font-semibold tracking-wide px-2 sm:px-4 py-2 text-fluid-sm sm:text-fluid-base transition-colors"
             onClick={() => navigate("/tugonsense")}
           >
             ✕
@@ -96,41 +99,42 @@ export default function TugonPlay() {
       </nav>
 
       {/* Stage wrapper - Mobile-first responsive (Brilliant.org style) */}
-      <main className="mx-auto pt-16 w-full h-auto px-4 
-                       md:w-[960px] md:h-[640px] 
-                       bg-white rounded-none md:rounded-2xl 
-                       shadow-none md:shadow-sm 
-                       flex flex-col relative">
+     <main className="mx-auto pt-16 w-full h-auto px-4 
+                 md:w-[640px] md:h-[640px] 
+                 bg-white rounded-none md:rounded-2xl 
         
-        {/* Content column - Shared width for all components */}
-        <section className="w-full max-w-[560px] mx-auto mt-4 sm:mt-6 md:mt-10 flex flex-col gap-4 sm:gap-6">
+                 flex flex-col relative">
+        
+        {/* Content column - Optimized for readability with max-w-reading */}
+        <section className="w-full max-w-reading mx-auto mt-4 sm:mt-6 md:mt-10 flex flex-col gap-4 sm:gap-6" role="main" aria-label="Learning content">
           
-          {/* Question Section - Centered layout like first image */}
-          <div className="flex flex-col items-center text-center space-y-3">
-            {/* CategoryQuestion - Centered above QuestionBox */}
+          {/* Question Section - Responsive typography and accessibility */}
+          <div className="flex flex-col items-center text-center sm:text-left space-y-3">
+            {/* CategoryQuestion - Enhanced with responsive alignment */}
             <CategoryQuestion 
               topicId={topicId}
               categoryId={finalCategoryId}
-              className="w-full responsive-category-text"
+              className="w-full text-left sm:text-left"
             />
             
-            {/* QuestionBox - Main question display, centered */}
+            {/* QuestionBox - Optimized for readability */}
             <QuestionBox 
               topicId={topicId}
               categoryId={finalCategoryId}
               questionId={questionId}
               title={topicName}
               fallbackText="Question not found. Please check the URL parameters."
-              className="w-full"
+              className="w-full leading-relaxed"
             />
           </div>
           
-          {/* AnswerWizard */}
+          {/* AnswerWizard - Enhanced with responsive spacing */}
           <AnswerWizard
             steps={steps}
             onSubmit={handleSubmit}
             onIndexChange={handleIndexChange}
             expectedAnswers={expectedAnswers}
+            className="w-full max-w-content mx-auto"
             onValidationResult={(type) => {
               // Handle validation results and update hint
               const correct = type === "correct";
@@ -142,18 +146,27 @@ export default function TugonPlay() {
             }}
           />
           
-          {/* HintBubble */}
-          <HintBubble message={hint} />
+          {/* HintBubble - Accessible with aria-live and responsive typography */}
+          <div aria-live="polite" aria-label="Hint messages">
+            <HintBubble 
+              message={hint} 
+              className="text-center sm:text-left leading-relaxed max-w-reading mx-auto"
+            />
+          </div>
           
         </section>
 
       </main>
 
-      {/* Character in lower right corner - responsive positioning */}
-      <div className="fixed bottom-6 right-4 sm:right-6 z-50 md:bottom-8 md:right-8">
+      {/* Character in lower right corner - Enhanced responsive positioning and accessibility */}
+      <div 
+        className="fixed bottom-6 right-4 sm:right-6 z-50 md:bottom-8 md:right-8"
+        role="complementary"
+        aria-label="Virtual assistant character"
+      >
         <Character 
           name="Tugon"
-          className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 shadow-lg hover:shadow-xl transition-shadow"
+          className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
         />
       </div>
     </div>

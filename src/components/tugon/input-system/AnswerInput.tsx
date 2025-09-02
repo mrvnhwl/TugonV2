@@ -9,17 +9,20 @@ export type AnswerInputProps = {
   multiline?: boolean;
   disabled?: boolean;
   className?: string;
-  onResetSpamFlag?: () => void; // call when moving to next step or clearing input
-  onSpamDetected?: () => void; // notify parent when a spam burst is detected
+  onResetSpamFlag?: () => void;
+  onSpamDetected?: () => void;
 };
 
-/**
- * Input wrapper that adds spam-typing detection and cooldown.
- * - Detects bursts: >= 10 chars in < 500ms.
- * - When detected: disables input for 2500ms and shows messages.spam once per session.
- * - Resets when cleared or when parent calls onResetSpamFlag.
- */
-export default function AnswerInput({ value, onChange, placeholder, multiline, disabled, className, onResetSpamFlag, onSpamDetected }: AnswerInputProps) {
+export default function AnswerInput({ 
+  value, 
+  onChange, 
+  placeholder, 
+  multiline, 
+  disabled, 
+  className, 
+  onResetSpamFlag, 
+  onSpamDetected 
+}: AnswerInputProps) {
   const [localDisabled, setLocalDisabled] = useState(false);
   const [hasSpamWarned, setHasSpamWarned] = useState(false);
 
@@ -31,7 +34,6 @@ export default function AnswerInput({ value, onChange, placeholder, multiline, d
   useEffect(() => {
     if (!value) {
       setHasSpamWarned(false);
-  // nothing
       burstCountRef.current = 0;
       burstStartRef.current = null;
     }
@@ -40,7 +42,6 @@ export default function AnswerInput({ value, onChange, placeholder, multiline, d
   useEffect(() => {
     if (!onResetSpamFlag) return;
     return () => {
-      // parent can call this via unmount/change of component
       onResetSpamFlag();
     };
   }, [onResetSpamFlag]);
@@ -66,14 +67,14 @@ export default function AnswerInput({ value, onChange, placeholder, multiline, d
     if (elapsed <= SPAM_WINDOW_MS && burstCountRef.current >= SPAM_CHARS_THRESHOLD) {
       if (!hasSpamWarned) {
         setHasSpamWarned(true);
-  // notify parent and mark warned
-  try { onSpamDetected?.(); } catch {}
+        // notify parent and mark warned
+        try { onSpamDetected?.(); } catch {}
       }
       setLocalDisabled(true);
       if (cooldownRef.current) clearTimeout(cooldownRef.current);
       cooldownRef.current = setTimeout(() => {
         setLocalDisabled(false);
-  // clear local cooldown UI only
+        // clear local cooldown UI only
         // Reset counters for next session
         burstStartRef.current = null;
         burstCountRef.current = 0;
@@ -91,16 +92,19 @@ export default function AnswerInput({ value, onChange, placeholder, multiline, d
 
   const isDisabled = !!disabled || localDisabled;
 
+  // Enhanced typography classes for bigger text input
+  const inputTypographyClasses = "text-fluid-lg sm:text-fluid-xl leading-relaxed p-4 sm:p-5";
+
   return (
     <div className="space-y-2">
-    {multiline ? (
+      {multiline ? (
         <Textarea
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}
           disabled={isDisabled}
-          rows={3}
-      className={className}
+          rows={4}
+          className={`${inputTypographyClasses} min-h-[120px] sm:min-h-[140px] ${className || ''}`}
         />
       ) : (
         <Input
@@ -108,11 +112,10 @@ export default function AnswerInput({ value, onChange, placeholder, multiline, d
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}
-      disabled={isDisabled}
-      className={className}
+          disabled={isDisabled}
+          className={`${inputTypographyClasses} h-14 sm:h-16 ${className || ''}`}
         />
       )}
-  {/* Spam message is now surfaced in HintBubble via spamSignal; we keep local state only to gate once-per-session */}
     </div>
   );
 }

@@ -25,7 +25,7 @@ export const defaultTopics: Topic[] = [
     level: [
       { 
         category_id: 1, 
-        category_question: "Determine whether the given relation is a function or not.",
+        category_question: "Is the relation a function?",
         given_question: [
           { question_id: 1, question_text: "Given the coordinates of relation {(1,2),(2,3),(3,4),(2,5)}" },
           { question_id: 2, question_text: "Given the coordinates of relation {(0,1),(1,2),(2,3),(3,4)}" },
@@ -35,7 +35,7 @@ export const defaultTopics: Topic[] = [
       },
       { 
         category_id: 2, 
-        category_question: "Classify if the given graph: Function or Not a Function.",
+        category_question: "Is the graph a function?",
         given_question: [
           { question_id: 1, question_text: "Graph showing a vertical line at x = 3" },
           { question_id: 2, question_text: "Graph showing a parabola opening upward" },
@@ -78,7 +78,7 @@ export const defaultTopics: Topic[] = [
       },
       { 
         category_id: 3, 
-        category_question: "f(x)=2x^2−3x+1. Find f(−2)",
+        category_question: "f(x)=2x^2-3x+1. Find f(-2)",
         given_question: [
           { question_id: 1, question_text: "f(x) = 2x² - 3x + 1. Find f(-2)" },
           { question_id: 2, question_text: "f(x) = 2x² - 3x + 1. Find f(1)" },
