@@ -40,6 +40,8 @@ type AnswerWizardProps = {
   expectedAnswers?: PredefinedAnswer[];
   // Notify parent when the current step's unified answerValue changes
   onAnswerChange?: (index: number, value: string) => void;
+  // New callback to expose individual lines array
+  onLinesChange?: (index: number, lines: string[]) => void;
   inputDisabled?: boolean;
   onSpamDetected?: () => void;
   onValidationResult?: (type: "correct" | "wrong" | "aiHint" | "spam") => void;
@@ -52,6 +54,7 @@ export default function AnswerWizard({
   onIndexChange, 
   expectedAnswers, 
   onAnswerChange, 
+  onLinesChange, // New prop
   inputDisabled, 
   onSpamDetected, 
   onValidationResult 
@@ -60,7 +63,7 @@ export default function AnswerWizard({
   const answersSource: PredefinedAnswer[] = expectedAnswers && expectedAnswers.length > 0
     ? expectedAnswers
     : (predefinedAnswersData || []);
-
+ 
   // Fixed steps derived strictly from the selected answers source
   const fixedSteps: WizardStep[] = (answersSource || []).map((_, i) => {
     // Default to multi-line format for all steps to allow expansion
@@ -78,6 +81,11 @@ export default function AnswerWizard({
   const [index, setIndex] = useState(0);
   const [correctness, setCorrectness] = useState<Array<boolean | null>>(
     Array.from({ length: fixedSteps.length }, () => null)
+  );
+
+  // Store all user inputs as arrays of lines for external access
+  const [userInputs, setUserInputs] = useState<string[][]>(
+    fixedSteps.map(() => [''])
   );
 
   const total = steps.length;
@@ -115,14 +123,30 @@ export default function AnswerWizard({
 
   // Handle input changes from UserInput
   const handleInputChange = (lines: string[]) => {
+    // Console log to see the current lines array
+    console.log("UserInput lines array:", lines);
+    console.log("Individual lines:", lines.map((line, index) => `Line ${index + 1}: "${line}"`));
+    
+    // Update internal steps state
     setSteps((prev) => {
+       
       const next = [...prev];
       next[index] = { ...next[index], answerValue: lines } as WizardStep;
       return next;
     });
     
+    // Update userInputs array for external access
+    setUserInputs((prev) => {
+      const next = [...prev];
+      next[index] = [...lines]; // Store copy of lines array
+      return next;
+    });
+    
     // Notify parent with string representation
     onAnswerChange?.(index, arrayToString(lines));
+    
+    // Notify parent with individual lines array
+    onLinesChange?.(index, lines);
   };
 
   // Handle submission manually if needed
@@ -134,11 +158,31 @@ export default function AnswerWizard({
       correctnessArr.push(validateAnswer(u, u.answerValue, i));
     }
     const allCorrect = correctnessArr.length > 0 && correctnessArr.every(Boolean);
+    
+    // Submit with both steps and userInputs for external access
     onSubmit(steps, { correct: correctnessArr, allCorrect });
+    
+    // Log userInputs for debugging/access
+    console.log("Final userInputs array:", userInputs);
   };
 
   const handleValidationResult = (result: "correct" | "wrong" | "aiHint" | "spam") => {
     onValidationResult?.(result);
+  };
+
+  // Get current userInput array for the active step
+  const getCurrentUserInput = (): string[] => {
+    return userInputs[index] || [''];
+  };
+
+  // Function to get userInput for any step (for external access)
+  const getUserInputForStep = (stepIndex: number): string[] => {
+    return userInputs[stepIndex] || [''];
+  };
+
+  // Function to get all userInputs (for external access)
+  const getAllUserInputs = (): string[][] => {
+    return userInputs;
   };
 
   return (
@@ -187,6 +231,8 @@ export default function AnswerWizard({
                     <span>Correct! Well done.</span>
                   </div>
                 )}
+
+                
               </div>
             );
           })()}

@@ -261,17 +261,7 @@ export default function UserInput({
         </div>
       )}
 
-      {/* Enhanced validation warnings */}
-      {lines.some((line, index) => index > 0 && !hasValidContent(line) && line.length > 0) && (
-        <div className="text-xs text-orange-600 bg-orange-50 px-3 py-2 rounded-md border border-orange-200 mt-2">
-          ⚠️ Some lines contain only whitespace. Please add meaningful content.
-        </div>
-      )}
-
-      {/* Instructions */}
-      <div className="text-xs text-gray-500 text-center mt-2">
-        💡 Press Enter to create a new line • Use ↑↓ arrows to navigate between lines
-      </div>
+  
     </div>
   );
 }
