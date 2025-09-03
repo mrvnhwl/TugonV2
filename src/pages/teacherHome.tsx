@@ -1,128 +1,418 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Brain, Trophy, Users } from "lucide-react";
+import {
+  Brain,
+  Play,
+  BarChart,
+  Users,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  Clock,
+  CheckCircle2,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import Footer from "../components/Footer";
 import Lottie from "react-lottie";
-import createAnimation from "../components/assets/animations/create.json"; // Animation for Create Quiz
-import progressAnimation from "../components/assets/animations/progress.json"; // Animation for Track Progress
-import engageAnimation from "../components/assets/animations/engage.json"; // Animation for Compete
+
+// Reuse your existing animations
+import createAnimation from "../components/assets/animations/create.json";
+import competeAnimation from "../components/assets/animations/comp.json";
+import progressAnimation from "../components/assets/animations/progress.json";
+import quizAnimation from "../components/assets/animations/quiz.json";
+
+import color from "../styles/color"; // palette
+
+type LottieAny = any;
 
 const features = [
   {
-    title: "Create Quizzes",
-    description: "Easily create interactive quizzes with multiple choice questions and time limits.",
+    title: "Create Quizzes Fast",
+    description:
+      "Build question sets with timers, scoring rules, and automatic answer keys.",
     icon: Brain,
-    animation: createAnimation, // Add animation for Create Quizzes
+    animation: createAnimation,
+    link: "/teacherDashboard",
   },
   {
-    title: "Track Progress",
-    description: "Monitor student performance and progress with detailed analytics.",
+    title: "Run Live Sessions",
+    description:
+      "Host real-time quizzes with countdowns, locks, and instant feedback.",
+    icon: Play,
+    animation: quizAnimation,
+    link: "/teacherDashboard",
+  },
+  {
+    title: "Progress & Insights",
+    description:
+      "See class trends, item analysis, and exportable grade reports in seconds.",
+    icon: BarChart,
+    animation: progressAnimation,
+    link: "/teacherDashboard",
+  },
+  {
+    title: "Boost Engagement",
+    description:
+      "Leaderboards and teams that motivate—without sacrificing learning goals.",
     icon: Users,
-    animation: progressAnimation, // Add animation for Track Progress
-  },
-  {
-    title: "Engage Students",
-    description: "Make learning fun with real-time competitions and leaderboards.",
-    icon: Trophy,
-    animation: engageAnimation, // Add animation for Engage Students
+    animation: competeAnimation,
+    link: "/teacherDashboard",
   },
 ];
 
+const quickLinks = [
+  "Create a Quiz",
+  "Question Bank",
+  "Start Live Quiz",
+  "Class Reports",
+  "Export Grades",
+  "Invite Students",
+  "Manage Sections",
+  "Attendance",
+];
+
 function TeacherHome() {
-  const lottieOptions = (animationData: { v: string; fr: number; ip: number; op: number; w: number; h: number; nm: string; ddd: number; assets: ({ id: string; layers: { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; shapes: { ty: string; it: ({ ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; s?: undefined; e?: undefined; o?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; e?: undefined; m?: undefined; })[]; c?: undefined; o?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; it?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; it?: undefined; c?: undefined; bm?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; }[]; } | { id: string; layers: ({ ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; td: number; ao: number; shapes: { ty: string; it: ({ ty: string; d: number; s: { a: number; k: number[]; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; c?: undefined; o?: undefined; bm?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; d?: undefined; s?: undefined; p?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; p?: undefined; r?: undefined; c?: undefined; bm?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; c?: undefined; bm?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; tt?: undefined; } | { ddd: number; refId: string; w: number; h: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; tt: number; td?: undefined; shapes?: undefined; })[]; } | { id: string; layers: ({ ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; shapes: { ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; ks?: undefined; r?: undefined; bm?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; d?: undefined; ks?: undefined; w?: undefined; lc?: undefined; lj?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; bm?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; parent?: undefined; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; shapes?: undefined; parent?: undefined; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; shapes?: undefined; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; shapes?: undefined; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; refId: string; w: number; h: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; shapes?: undefined; })[]; } | { id: string; layers: ({ ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; shapes: { ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; ks?: undefined; r?: undefined; bm?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; d?: undefined; ks?: undefined; w?: undefined; lc?: undefined; lj?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; bm?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; shapes: { ty: string; it: ({ ty: string; d: number; s: { a: number; k: number[]; ix: number; }; p: { a: number; k: number[]; ix: number; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; s?: undefined; p?: undefined; r?: undefined; bm?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; d?: undefined; s?: undefined; p?: undefined; w?: undefined; lc?: undefined; lj?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; p?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; bm?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; })[]; } | { id: string; layers: { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; shapes: { ty: string; it: ({ ty: string; d: number; s: { a: number; k: number[]; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; c?: undefined; o?: undefined; bm?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; d?: undefined; s?: undefined; p?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; p?: undefined; r?: undefined; c?: undefined; bm?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; c?: undefined; bm?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; }[]; } | { id: string; layers: ({ ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; td: number; ao: number; shapes: { ty: string; it: ({ ty: string; d: number; s: { a: number; k: number[]; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; s?: undefined; p?: undefined; r?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; p?: undefined; r?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; tt?: undefined; } | { ddd: number; refId: string; w: number; h: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; tt: number; td?: undefined; shapes?: undefined; })[]; } | { id: string; layers: ({ ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; shapes: { ty: string; it: ({ ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; ks?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; e?: undefined; m?: undefined; })[]; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; p?: undefined; a?: undefined; s?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; it?: undefined; p?: undefined; a?: undefined; s?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; it?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; shapes: { ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; ks?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; })[]; })[]; layers: ({ ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent?: undefined; refId?: undefined; w?: undefined; h?: undefined; shapes?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; refId?: undefined; w?: undefined; h?: undefined; shapes?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; refId?: undefined; w?: undefined; h?: undefined; shapes?: undefined; } | { ddd: number; refId: string; w: number; h: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; r: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; shapes?: undefined; } | { ddd: number; refId: string; w: number; h: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; r: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; shapes?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; parent: number; shapes: { ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { t: number; s: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; ks?: undefined; r?: undefined; bm?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; d?: undefined; ks?: undefined; w?: undefined; lc?: undefined; lj?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; bm?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; parent: number; shapes: { ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; ks?: undefined; r?: undefined; bm?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; d?: undefined; ks?: undefined; w?: undefined; lc?: undefined; lj?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; bm?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; parent: number; shapes: { ty: string; it: ({ ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; s?: undefined; e?: undefined; o?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; e?: undefined; m?: undefined; })[]; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; it?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; it?: undefined; w?: undefined; lc?: undefined; lj?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; it?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; bm?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent?: undefined; refId?: undefined; w?: undefined; h?: undefined; shapes?: undefined; } | { ddd: number; refId: string; w: number; h: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; shapes?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; refId?: undefined; w?: undefined; h?: undefined; shapes?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; parent: number; shapes: { ty: string; it: ({ ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; ks?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; e?: undefined; m?: undefined; })[]; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; p?: undefined; a?: undefined; s?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; it?: undefined; p?: undefined; a?: undefined; s?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; it?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; parent: number; shapes: { ty: string; it: ({ ty: string; d: number; s: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; p: { a: number; k: number[]; ix: number; }; c?: undefined; o?: undefined; r?: undefined; bm?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; r: number; bm: number; d?: undefined; s?: undefined; p?: undefined; e?: undefined; m?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; p?: undefined; c?: undefined; r?: undefined; bm?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; c?: undefined; bm?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; parent: number; shapes: { ty: string; it: ({ ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; s?: undefined; e?: undefined; o?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; e?: undefined; m?: undefined; })[]; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; it?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; it?: undefined; w?: undefined; lc?: undefined; lj?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; it?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; bm?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; parent: number; shapes: { ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { t: number; s: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; c?: undefined; o?: undefined; r?: undefined; bm?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; d?: undefined; ks?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; c?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; a: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; c?: undefined; bm?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; parent: number; shapes: { ty: string; it: ({ ty: string; d: number; ks: { a: number; k: { c: boolean; v: number[][]; i: number[][]; o: number[][]; }; }; c?: undefined; o?: undefined; w?: undefined; lc?: undefined; lj?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; d?: undefined; ks?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: number; ix: number; }; e: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; d?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; e?: undefined; m?: undefined; })[]; }[]; ip: number; op: number; st: number; bm: number; refId?: undefined; w?: undefined; h?: undefined; } | { ddd: number; refId: string; w: number; h: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; o: { a: number; k: { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; }[]; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; shapes?: undefined; } | { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { p: { a: number; k: ({ t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; ti: number[]; to: number[]; } | { t: number; s: number[]; i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; ti?: undefined; to?: undefined; })[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; }; ao: number; ip: number; op: number; st: number; bm: number; parent: number; refId?: undefined; w?: undefined; h?: undefined; shapes?: undefined; })[]; markers: never[]; } | { v: string; fr: number; ip: number; op: number; w: number; h: number; nm: string; ddd: number; assets: never[]; layers: { ddd: number; ind: number; ty: number; nm: string; sr: number; ks: { o: { a: number; k: number; ix: number; }; r: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; }; ao: number; shapes: ({ ty: string; it: ({ ind: number; ty: string; ix: number; ks: { a: number; k: { i: number[][]; o: number[][]; v: number[][]; c: boolean; }; ix: number; }; nm: string; mn: string; hd: boolean; c?: undefined; o?: undefined; r?: undefined; bm?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; r: number; bm: number; nm: string; mn: string; hd: boolean; ind?: undefined; ix?: undefined; ks?: undefined; p?: undefined; a?: undefined; s?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: ({ i: { x: number; y: number; }; o: { x: number; y: number; }; t: number; s: number[]; e: number[]; to: number[]; ti: number[]; } | { t: number; i?: undefined; o?: undefined; s?: undefined; e?: undefined; to?: undefined; ti?: undefined; })[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; nm: string; ind?: undefined; ix?: undefined; ks?: undefined; mn?: undefined; hd?: undefined; c?: undefined; bm?: undefined; })[]; nm: string; np: number; cix: number; bm: number; ix: number; mn: string; hd: boolean; } | { ty: string; it: ({ ind: number; ty: string; ix: number; ks: { a: number; k: { i: number[][]; o: number[][]; v: number[][]; c: boolean; }; ix: number; }; nm: string; mn: string; hd: boolean; s?: undefined; e?: undefined; o?: undefined; m?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; ml?: undefined; bm?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; s: { a: number; k: ({ i: { x: number[]; y: number[]; }; o: { x: number[]; y: number[]; }; t: number; s: number[]; e: number[]; } | { t: number; i?: undefined; o?: undefined; s?: undefined; e?: undefined; })[]; ix: number; }; e: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; m: number; ix: number; nm: string; mn: string; hd: boolean; ind?: undefined; ks?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; ml?: undefined; bm?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; c: { a: number; k: number[]; ix: number; }; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; lc: number; lj: number; ml: number; bm: number; nm: string; mn: string; hd: boolean; ind?: undefined; ix?: undefined; ks?: undefined; s?: undefined; e?: undefined; m?: undefined; p?: undefined; a?: undefined; r?: undefined; sk?: undefined; sa?: undefined; } | { ty: string; p: { a: number; k: number[]; ix: number; }; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; sk: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; nm: string; ind?: undefined; ix?: undefined; ks?: undefined; mn?: undefined; hd?: undefined; e?: undefined; m?: undefined; c?: undefined; w?: undefined; lc?: undefined; lj?: undefined; ml?: undefined; bm?: undefined; })[]; nm: string; np: number; cix: number; bm: number; ix: number; mn: string; hd: boolean; })[]; ip: number; op: number; st: number; bm: number; }[]; markers: never[]; } | { nm: string; mn: string; layers: ({ ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; shapes: { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; }[]; ind: number; parent: number; masksProperties?: undefined; } | { ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: { o: { x: number; y: number; }; i: { x: number; y: number; }; s: number[]; t: number; }[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; shapes: { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; }[]; ind: number; parent: number; masksProperties?: undefined; } | { ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; shapes: { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; o?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; cix?: undefined; np?: undefined; it?: undefined; })[]; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; o?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; o?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; cix?: undefined; np?: undefined; it?: undefined; })[]; }[]; ind: number; parent?: undefined; masksProperties?: undefined; } | { ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: { o: { x: number; y: number; }; i: { x: number; y: number; }; s: number[]; t: number; }[]; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; shapes: { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { o: { x: number; y: number; }; i: { x: number; y: number; }; s: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }[]; t: number; }[]; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; }[]; ind: number; parent: number; masksProperties?: undefined; } | { ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; shapes: { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; }[]; ind: number; parent?: undefined; masksProperties?: undefined; } | { ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: { o: { x: number; y: number; }; i: { x: number; y: number; }; s: number[]; t: number; }[]; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; shapes: { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; }[]; ind: number; parent: number; masksProperties?: undefined; } | { ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: { o: { x: number; y: number; }; i: { x: number; y: number; }; s: number[]; t: number; }[]; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; shapes: { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; }[]; ind: number; parent?: undefined; masksProperties?: undefined; } | { ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: { o: { x: number; y: number; }; i: { x: number; y: number; }; s: number[]; t: number; }[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; shapes: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; o?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; cix?: undefined; np?: undefined; it?: undefined; })[]; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; })[]; ind: number; parent?: undefined; masksProperties?: undefined; } | { ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; shapes: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; lc?: undefined; lj?: undefined; ml?: undefined; o?: undefined; w?: undefined; c?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; lc: number; lj: number; ml: number; o: { a: number; k: number; ix: number; }; w: { a: number; k: number; ix: number; }; d: { nm: string; mn: string; n: string; v: { a: number; k: number; ix: number; }; }[]; c: { a: number; k: number[]; ix: number; }; ix?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; lc?: undefined; lj?: undefined; ml?: undefined; w?: undefined; c?: undefined; })[]; e?: undefined; o?: undefined; s?: undefined; m?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; e: { a: number; k: { o: { x: number; y: number; }; i: { x: number; y: number; }; s: number[]; t: number; }[]; ix: number; }; o: { a: number; k: number; ix: number; }; s: { a: number; k: { o: { x: number; y: number; }; i: { x: number; y: number; }; s: number[]; t: number; }[]; ix: number; }; m: number; cix?: undefined; np?: undefined; it?: undefined; })[]; ind: number; parent?: undefined; masksProperties?: undefined; } | { ty: number; nm: string; mn: string; sr: number; st: number; op: number; ip: number; hd: boolean; cl: string; ln: string; ddd: number; bm: number; hasMask: boolean; ao: number; ks: { a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; }; o: { a: number; k: number; ix: number; }; }; ef: never[]; masksProperties: { nm: string; mn: string; inv: boolean; mode: string; x: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; pt: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; }[]; shapes: { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; o?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; cix?: undefined; np?: undefined; it?: undefined; })[]; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; o?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; cix?: undefined; np?: undefined; it?: undefined; })[]; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; o?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; cix: number; np: number; it: ({ ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; ix: number; d: number; ks: { a: number; k: { c: boolean; i: number[][]; o: number[][]; v: number[][]; }; ix: number; }; c?: undefined; r?: undefined; o?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; bm: number; cl: string; ln: string; hd: boolean; mn: string; nm: string; c: { a: number; k: number[]; ix: number; }; r: number; o: { a: number; k: number; ix: number; }; ix?: undefined; d?: undefined; ks?: undefined; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; sa?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: number; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; d?: undefined; ks?: undefined; c?: undefined; })[]; a?: undefined; s?: undefined; sk?: undefined; p?: undefined; r?: undefined; sa?: undefined; o?: undefined; } | { ty: string; a: { a: number; k: number[]; ix: number; }; s: { a: number; k: number[]; ix: number; }; sk: { a: number; k: number; ix: number; }; p: { a: number; k: number[]; ix: number; }; r: { a: number; k: { o: { x: number; y: number; }; i: { x: number; y: number; }; s: number[]; t: number; }[]; ix: number; }; sa: { a: number; k: number; ix: number; }; o: { a: number; k: number; ix: number; }; bm?: undefined; cl?: undefined; ln?: undefined; hd?: undefined; mn?: undefined; nm?: undefined; ix?: undefined; cix?: undefined; np?: undefined; it?: undefined; })[]; }[]; ind: number; parent?: undefined; })[]; ddd: number; h: number; w: number; meta: { a: string; k: string; d: string; g: string; tc: string; }; v: string; fr: number; op: number; ip: number; assets: never[]; }) => ({
+  const lottieOptions = (animationData: LottieAny) => ({
     loop: true,
     autoplay: true,
-    animationData: animationData,
-    rendererSettings: {
-      preserveAspectRatio: "xMidYMid slice",
-    },
+    animationData,
+    rendererSettings: { preserveAspectRatio: "xMidYMid slice" },
   });
 
   return (
-    <div className="relative flex flex-col min-h-screen overflow-hidden">
-      {/* Background SVG Animation */}
-      <div className="absolute inset-0 -z-10">
-        <motion.div
-          className="absolute top-0 left-0 w-96 h-96 bg-indigo-300 rounded-full opacity-50 blur-3xl"
-          animate={{ x: [0, 50, -50, 0], y: [0, -50, 50, 0] }}
-          transition={{ duration: 10, repeat: Infinity }}
-        />
-        <motion.div
-          className="absolute bottom-0 right-0 w-96 h-96 bg-purple-300 rounded-full opacity-50 blur-3xl"
-          animate={{ x: [0, -50, 50, 0], y: [0, 50, -50, 0] }}
-          transition={{ duration: 12, repeat: Infinity }}
-        />
-      </div>
+    <div
+      className="relative flex flex-col min-h-screen"
+      style={{
+        background: `linear-gradient(to bottom, ${color.mist}11, ${color.ocean}05)`,
+      }}
+    >
+      {/* Soft radial spotlight background */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background: `radial-gradient(60% 40% at 50% -10%, ${color.aqua}33, transparent 60%),
+                       radial-gradient(40% 30% at 80% 10%, ${color.teal}22, transparent 60%)`,
+        }}
+      />
 
-      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center">
-          <motion.h1
-            className="text-4xl tracking-tight font-extrabold text-gray-900 sm:text-5xl md:text-6xl"
-            initial={{ opacity: 0, y: -30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7 }}
-          >
-            <span className="block">Welcome to</span>
-            <span className="block text-indigo-600">Tugon</span>
-          </motion.h1>
-
-          <motion.p
-            className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.7 }}
-          >
-            Empower your teaching with tools to create quizzes, track student progress, and engage your class like never before.
-          </motion.p>
-
-          <motion.div
-            className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5, duration: 0.7 }}
-          >
-            <Link
-              to="/teacherDashboard"
-              className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-2xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-md md:py-4 md:text-lg md:px-10 transition-all"
+      <header className="w-full">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-10 sm:pt-16">
+          {/* Hero */}
+          <div className="flex flex-col-reverse items-center gap-10 md:grid md:grid-cols-2 md:items-center">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="text-center md:text-left"
             >
-              Get Started
-            </Link>
-          </motion.div>
-        </div>
+              <span
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium shadow-sm backdrop-blur"
+                style={{
+                  background: "#fff",
+                  border: `1px solid ${color.mist}`,
+                  color: color.teal,
+                }}
+              >
+                <Sparkles className="h-4 w-4" />
+                Built for Grade 11 General Mathematics • Teachers
+              </span>
 
-        <div className="mt-24">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              <h1
+                className="mt-4 text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight"
+                style={{ color: color.deep }}
+              >
+                Teach smarter—{" "}
+                <span style={{ color: color.teal }}>with less busywork.</span>
+              </h1>
+              <p
+                className="mt-4 text-base sm:text-lg md:max-w-xl"
+                style={{ color: color.steel }}
+              >
+                Tugon helps you create, deliver, and analyze quizzes—so you can
+                focus on teaching while students stay engaged.
+              </p>
+
+              <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
+                <Link
+                  to="/teacherDashboard"
+                  className="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold shadow-md transition"
+                  style={{ background: color.teal, color: "#fff" }}
+                >
+                  Go to dashboard
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+                <Link
+                  to="/teacherDashboard"
+                  className="inline-flex items-center justify-center rounded-xl border px-6 py-3 font-semibold transition"
+                  style={{
+                    borderColor: color.mist,
+                    background: "#fff",
+                    color: color.steel,
+                  }}
+                >
+                  Browse tools
+                </Link>
+              </div>
+
+              {/* Trust bullets */}
+              <ul
+                className="mt-6 flex flex-col sm:flex-row gap-3 text-sm"
+                style={{ color: color.steel }}
+              >
+                <li className="flex items-center">
+                  <CheckCircle2
+                    className="mr-2 h-5 w-5"
+                    style={{ color: "#059669" }}
+                  />
+                  No ads, no distractions
+                </li>
+                <li className="flex items-center">
+                  <ShieldCheck
+                    className="mr-2 h-5 w-5"
+                    style={{ color: color.teal }}
+                  />
+                  Secure student data
+                </li>
+                <li className="flex items-center">
+                  <Clock
+                    className="mr-2 h-5 w-5"
+                    style={{ color: color.aqua }}
+                  />
+                  Save hours each week
+                </li>
+              </ul>
+            </motion.div>
+
+            {/* Hero visual */}
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="w-full"
+            >
+              <div
+                className="mx-auto max-w-md md:max-w-none rounded-3xl p-4 shadow-xl ring-1 backdrop-blur"
+                style={{
+                  background: "#fff",
+                  borderColor: `${color.mist}55`,
+                }}
+              >
+                <div className="rounded-2xl overflow-hidden">
+                  <Lottie options={lottieOptions(progressAnimation)} />
+                </div>
+                <div
+                  className="mt-3 grid grid-cols-3 gap-3 text-xs"
+                  style={{ color: color.steel }}
+                >
+                  <div className="rounded-lg border bg-white px-3 py-2">
+                    Sections:{" "}
+                    <span
+                      className="font-semibold"
+                      style={{ color: color.deep }}
+                    >
+                      3
+                    </span>
+                  </div>
+                  <div className="rounded-lg border bg-white px-3 py-2">
+                    Submissions:{" "}
+                    <span
+                      className="font-semibold"
+                      style={{ color: color.deep }}
+                    >
+                      86
+                    </span>
+                  </div>
+                  <div className="rounded-lg border bg-white px-3 py-2">
+                    Avg Score:{" "}
+                    <span
+                      className="font-semibold"
+                      style={{ color: color.deep }}
+                    >
+                      78%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-grow">
+        {/* Quick links (chips) */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16">
+          <h2
+            className="text-xl sm:text-2xl font-bold"
+            style={{ color: color.deep }}
+          >
+            Quick Links
+          </h2>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {quickLinks.map((t) => (
+              <Link
+                key={t}
+                to="/teacherDashboard"
+                className="rounded-full border px-4 py-2 text-sm transition"
+                style={{
+                  borderColor: color.mist,
+                  background: "#fff",
+                  color: color.steel,
+                }}
+              >
+                {t}
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* Feature cards */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
             {features.map((feature, index) => (
               <motion.div
                 key={feature.title}
-                className="pt-6"
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 + index * 0.2, duration: 0.7 }}
+                transition={{ duration: 0.5, delay: 0.05 * index }}
+                className="group overflow-hidden rounded-3xl bg-white shadow-md ring-1 transition"
+                style={{ borderColor: `${color.mist}33` }}
               >
-                <div className="group flow-root bg-white rounded-2xl px-6 pb-8 shadow-md hover:shadow-lg transition-all">
-                  <div className="-mt-6 flex flex-col items-center text-center">
-                    <div className="inline-flex items-center justify-center p-4 bg-indigo-500 rounded-full shadow-lg group-hover:scale-110 transition-transform">
-                      {React.createElement(feature.icon, { className: "h-6 w-6 text-white" })}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-0">
+                  <div className="col-span-2 p-6 sm:p-8">
+                    <div
+                      className="inline-flex items-center justify-center rounded-xl p-3"
+                      style={{ background: `${color.teal}22` }}
+                    >
+                      <feature.icon
+                        className="h-6 w-6"
+                        style={{ color: color.teal }}
+                      />
                     </div>
-                    <h3 className="mt-6 text-lg font-semibold text-gray-900 tracking-tight">
+                    <h3
+                      className="mt-4 text-lg sm:text-xl font-semibold"
+                      style={{ color: color.deep }}
+                    >
                       {feature.title}
                     </h3>
-                    <p className="mt-4 text-base text-gray-500">{feature.description}</p>
-                    {/* Add Lottie Animation */}
-                    <div className="mt-4 w-48 h-48">
-                      <Lottie options={lottieOptions(feature.animation)} height={192} width={192} />
+                    <p
+                      className="mt-2 text-sm sm:text-base"
+                      style={{ color: color.steel }}
+                    >
+                      {feature.description}
+                    </p>
+                    <Link
+                      to={feature.link}
+                      className="mt-4 inline-flex items-center font-medium hover:underline"
+                      style={{ color: color.teal }}
+                    >
+                      Try this <ArrowRight className="ml-1 h-4 w-4" />
+                    </Link>
+                  </div>
+                  <div
+                    className="sm:border-l bg-gradient-to-b p-4 sm:p-6"
+                    style={{
+                      borderColor: `${color.mist}33`,
+                      background: `${color.mist}11`,
+                    }}
+                  >
+                    <div className="rounded-2xl overflow-hidden">
+                      <Lottie options={lottieOptions(feature.animation)} />
                     </div>
                   </div>
                 </div>
               </motion.div>
             ))}
           </div>
-        </div>
+        </section>
+
+        {/* Value props */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16">
+          <div
+            className="rounded-3xl px-6 sm:px-10 py-10 sm:py-12 text-white shadow-lg"
+            style={{
+              background: `linear-gradient(to right, ${color.teal}, ${color.aqua})`,
+            }}
+          >
+            <div className="grid md:grid-cols-3 gap-8">
+              <div>
+                <h3 className="text-2xl font-bold">Less grading, more teaching</h3>
+                <p className="mt-2 max-w-md text-white/90">
+                  Auto-scoring, item analysis, and exportable reports take the
+                  busywork off your plate.
+                </p>
+              </div>
+              <ul className="space-y-3 text-white/90">
+                <li className="flex items-start">
+                  <CheckCircle2 className="mr-2 mt-0.5 h-5 w-5 text-white" />
+                  Question bank & randomized forms
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle2 className="mr-2 mt-0.5 h-5 w-5 text-white" />
+                  Real-time monitoring and locks
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle2 className="mr-2 mt-0.5 h-5 w-5 text-white" />
+                  Alignment to SHS Gen Math
+                </li>
+              </ul>
+              <div className="flex md:justify-end">
+                <Link
+                  to="/teacherDashboard"
+                  className="inline-flex items-center rounded-xl bg-white px-5 py-3 font-semibold shadow-md transition"
+                  style={{ color: color.teal }}
+                >
+                  Set up your next quiz
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 my-12 sm:my-16">
+          <div
+            className="rounded-3xl border bg-white p-6 sm:p-10 shadow-sm"
+            style={{ borderColor: color.mist }}
+          >
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-1 text-center md:text-left">
+                <h3
+                  className="text-2xl font-bold"
+                  style={{ color: color.deep }}
+                >
+                  Launch a quiz in minutes.
+                </h3>
+                <p className="mt-2" style={{ color: color.steel }}>
+                  Create, assign, and review results—faster than ever.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/teacherDashboard"
+                  className="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold shadow-md transition"
+                  style={{ background: color.teal, color: "#fff" }}
+                >
+                  Create a quiz
+                </Link>
+                <Link
+                  to="/teacherDashboard"
+                  className="inline-flex items-center justify-center rounded-xl border px-6 py-3 font-semibold transition"
+                  style={{
+                    borderColor: color.mist,
+                    background: "#fff",
+                    color: color.steel,
+                  }}
+                >
+                  View reports
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* Footer */}
       <Footer />
     </div>
   );
