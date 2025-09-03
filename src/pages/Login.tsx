@@ -226,7 +226,7 @@ function Login() {
                     )}
 
                     <div className="space-y-2">
-                      <label className="text-xs font-medium text-white/90">
+                      <label className="text-xs font-medium text-black/90">
                         Teacher email address
                       </label>
                       <input
@@ -237,7 +237,7 @@ function Login() {
                         placeholder="name@school.edu"
                         className="w-full rounded-2xl px-4 py-3 outline-none border transition-shadow"
                         style={{
-                          background: "#ffffff",
+                          background: "#000000ff",
                           borderColor: c.aqua,
                         }}
                         onFocus={(e) => (e.currentTarget.style.boxShadow = `0 0 0 4px ${c.aqua}33`)}
