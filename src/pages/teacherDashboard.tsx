@@ -166,11 +166,11 @@ function TeacherDashboard() {
   if (loading) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center"
+        className="min-h-screen flex items-center justify-center px-4"
         style={{ background: `linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)` }}
       >
         <motion.div
-          className="rounded-full h-12 w-12 border-4 border-t-4"
+          className="rounded-full h-10 w-10 sm:h-12 sm:w-12 border-4 border-t-4"
           style={{ borderColor: `${color.teal}40` }}
           animate={{
             rotate: 360,
@@ -190,35 +190,36 @@ function TeacherDashboard() {
       className="flex flex-col min-h-screen"
       style={{ background: `linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)` }}
     >
-      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="flex-grow max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 w-full">
         {/* Hero / Greeting */}
         <motion.div
-          className="rounded-3xl p-5 sm:p-8 shadow-xl ring-1 mb-6 sm:mb-8"
+          className="rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xl ring-1 mb-4 sm:mb-8"
           style={{ background: "#fff", borderColor: `${color.mist}55` }}
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
+            <div className="min-w-0">
               <h1
-                className="text-xl sm:text-3xl font-extrabold leading-tight"
+                className="text-lg sm:text-3xl font-extrabold leading-tight truncate"
                 style={{ color: color.deep }}
+                title={`Welcome back, ${username}`}
               >
                 Welcome back, <span style={{ color: color.teal }}>{username}</span> 👋
               </h1>
               {email && (
-                <p className="mt-1 text-xs sm:text-sm" style={{ color: color.steel }}>
+                <p className="mt-1 text-xs sm:text-sm truncate" style={{ color: color.steel }}>
                   Signed in as {email}
                 </p>
               )}
-              <p className="mt-3 text-sm sm:text-base" style={{ color: color.steel }}>
+              <p className="mt-2 sm:mt-3 text-xs sm:text-base" style={{ color: color.steel }}>
                 Plan lessons, monitor progress, and keep your class engaged.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
               <Link
                 to="/create-quiz"
-                className="inline-flex items-center justify-center rounded-xl px-4 py-2 sm:px-5 sm:py-3 font-semibold shadow-md transition w-full sm:w-auto"
+                className="inline-flex items-center justify-center rounded-xl px-3 py-2 sm:px-5 sm:py-3 text-sm sm:text-base font-semibold shadow-md transition w-full sm:w-auto"
                 style={{ background: color.teal, color: "#fff" }}
               >
                 <PenSquare className="mr-2 h-4 w-4" />
@@ -226,7 +227,7 @@ function TeacherDashboard() {
               </Link>
               <Link
                 to="/teacherDashboard"
-                className="inline-flex items-center justify-center rounded-xl border px-4 py-2 sm:px-5 sm:py-3 font-semibold transition w-full sm:w-auto"
+                className="inline-flex items-center justify-center rounded-xl border px-3 py-2 sm:px-5 sm:py-3 text-sm sm:text-base font-semibold transition w-full sm:w-auto"
                 style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
               >
                 View reports
@@ -235,78 +236,82 @@ function TeacherDashboard() {
           </div>
         </motion.div>
 
-        <div className="lg:grid lg:grid-cols-3 lg:gap-8 space-y-6 lg:space-y-0">
+        <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-8 gap-4">
           {/* LEFT: KPIs + Student Progress + Quizzes */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             {/* KPIs */}
             <motion.div
-              className="rounded-2xl p-5 sm:p-6 shadow-xl ring-1"
+              className="rounded-2xl p-4 sm:p-6 shadow-xl ring-1"
               style={{ background: "#fff", borderColor: `${color.mist}55` }}
               initial="hidden"
               animate="visible"
               variants={containerVariants}
             >
-              <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6" style={{ color: color.deep }}>
+              <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6" style={{ color: color.deep }}>
                 Class Overview 📊
               </h2>
+
+              {/* KPI Select */}
               <div className="mb-3">
-                    <label className="block text-xs mb-1" style={{ color: color.steel }}>
-                      Average Quiz Score
-                    </label>
-                    <select
-                      value={quizForAvg}
-                      onChange={(e) => setQuizForAvg(e.target.value)}
-                      className="w-full rounded-lg border px-3 py-2 text-sm"
-                      style={{ borderColor: color.mist, background: "#fff", color: color.deep }}
-                    >
-                      {quizzes.map((q) => (
-                        <option key={q.id} value={q.id}>
-                          {q.title || "(Untitled)"}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <label className="block text-xs mb-1" style={{ color: color.steel }}>
+                  Average Quiz Score
+                </label>
+                <select
+                  value={quizForAvg}
+                  onChange={(e) => setQuizForAvg(e.target.value)}
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  style={{ borderColor: color.mist, background: "#fff", color: color.deep }}
+                >
+                  {quizzes.map((q) => (
+                    <option key={q.id} value={q.id}>
+                      {q.title || "(Untitled)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <motion.div
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6"
                 variants={containerVariants}
               >
                 {/* Students */}
                 <motion.div
-                  className="rounded-2xl p-5 shadow-sm transition"
+                  className="rounded-2xl p-4 sm:p-5 shadow-sm transition"
                   style={{ background: `${color.mist}11`, border: `1px solid ${color.mist}55` }}
                   variants={itemVariants}
-                  whileHover={{ scale: 1.03, y: -5 }}
+                  whileHover={{ scale: 1.02, y: -3 }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="rounded-xl p-3" style={{ background: `${color.teal}22` }}>
-                      <Users className="h-6 w-6" style={{ color: color.teal }} />
+                      <Users className="h-5 w-5 sm:h-6 sm:w-6" style={{ color: color.teal }} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-xs sm:text-sm" style={{ color: color.steel }}>
                         Active Students
                       </div>
-                      <div className="text-xl sm:text-2xl font-extrabold" style={{ color: color.deep }}>
+                      <div className="text-lg sm:text-2xl font-extrabold" style={{ color: color.deep }}>
                         {studentProgress.length}
                       </div>
                     </div>
                   </div>
                 </motion.div>
-                {/* Avg Score (dropdown ABOVE the value) */}
+
+                {/* Avg Score */}
                 <motion.div
-                  className="rounded-2xl p-5 shadow-sm transition"
+                  className="rounded-2xl p-4 sm:p-5 shadow-sm transition"
                   style={{ background: `${color.mist}11`, border: `1px solid ${color.mist}55` }}
                   variants={itemVariants}
-                  whileHover={{ scale: 1.03, y: -5 }}
+                  whileHover={{ scale: 1.02, y: -3 }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="rounded-xl p-3" style={{ background: `${color.teal}22` }}>
-                      <BarChartIcon className="h-6 w-6" style={{ color: color.teal }} />
+                      <BarChartIcon className="h-5 w-5 sm:h-6 sm:w-6" style={{ color: color.teal }} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-xs sm:text-sm" style={{ color: color.steel }}>
                         Average Score
                       </div>
-                      <div className="text-xl sm:text-2xl font-extrabold" style={{ color: color.deep }}>
+                      <div className="text-lg sm:text-2xl font-extrabold" style={{ color: color.deep }}>
                         {averageScore.toFixed(1)}%
                       </div>
                     </div>
@@ -315,20 +320,20 @@ function TeacherDashboard() {
 
                 {/* Avg Time */}
                 <motion.div
-                  className="rounded-2xl p-5 shadow-sm transition"
+                  className="rounded-2xl p-4 sm:p-5 shadow-sm transition"
                   style={{ background: `${color.mist}11`, border: `1px solid ${color.mist}55` }}
                   variants={itemVariants}
-                  whileHover={{ scale: 1.03, y: -5 }}
+                  whileHover={{ scale: 1.02, y: -3 }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="rounded-xl p-3" style={{ background: `${color.teal}22` }}>
-                      <Timer className="h-6 w-6" style={{ color: color.teal }} />
+                      <Timer className="h-5 w-5 sm:h-6 sm:w-6" style={{ color: color.teal }} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-xs sm:text-sm" style={{ color: color.steel }}>
                         Avg. Time per Quiz
                       </div>
-                      <div className="text-xl sm:text-2xl font-extrabold" style={{ color: color.deep }}>
+                      <div className="text-lg sm:text-2xl font-extrabold" style={{ color: color.deep }}>
                         0m
                       </div>
                     </div>
@@ -339,12 +344,12 @@ function TeacherDashboard() {
 
             {/* Student Progress (latest per student) */}
             <motion.div
-              className="rounded-2xl p-5 sm:p-6 shadow-xl ring-1"
+              className="rounded-2xl p-4 sm:p-6 shadow-xl ring-1"
               style={{ background: "#fff", borderColor: `${color.mist}55` }}
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6" style={{ color: color.deep }}>
+              <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6" style={{ color: color.deep }}>
                 Student Progress 📈
               </h2>
 
@@ -363,8 +368,12 @@ function TeacherDashboard() {
                         style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="font-semibold text-sm" style={{ color: color.deep }}>
+                          <div className="min-w-0">
+                            <div
+                              className="font-semibold text-sm truncate"
+                              style={{ color: color.deep }}
+                              title={s.student_name}
+                            >
                               {s.student_name}
                             </div>
                             <div className="text-xs mt-0.5" style={{ color: color.steel }}>
@@ -391,7 +400,7 @@ function TeacherDashboard() {
                             {["Student", "Latest Quiz", "Completed At"].map((h) => (
                               <th
                                 key={h}
-                                className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                                className="px-4 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                                 style={{ color: color.steel }}
                               >
                                 {h}
@@ -402,13 +411,13 @@ function TeacherDashboard() {
                         <tbody className="bg-white divide-y" style={{ borderColor: color.mist }}>
                           {pagedStudents.map((s) => (
                             <tr key={s.student_id} className="hover:bg-gray-50/60">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: color.deep }}>
+                              <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm" style={{ color: color.deep }}>
                                 {s.student_name}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: color.deep }}>
+                              <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm" style={{ color: color.deep }}>
                                 {s.latest_quiz_title}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: color.steel }}>
+                              <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm" style={{ color: color.steel }}>
                                 {safeDate(s.completed_at)}
                               </td>
                             </tr>
@@ -419,7 +428,7 @@ function TeacherDashboard() {
                   </div>
 
                   {/* Pagination */}
-                  <div className="mt-5 flex items-center justify-between">
+                  <div className="mt-4 sm:mt-5 flex items-center justify-between">
                     <div className="text-xs sm:text-sm" style={{ color: color.steel }}>
                       Showing <strong>{pagedStudents.length}</strong> of{" "}
                       <strong>{studentProgress.length}</strong>
@@ -428,21 +437,19 @@ function TeacherDashboard() {
                       <button
                         onClick={() => setPage((p) => Math.max(1, p - 1))}
                         disabled={page <= 1}
-                        className="rounded-lg border px-3 py-2 disabled:opacity-40"
+                        className="rounded-lg border px-3 py-2 disabled:opacity-40 active:scale-95"
                         style={{ borderColor: color.mist, background: "#fff" }}
                         aria-label="Previous page"
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </button>
                       <span className="text-sm" style={{ color: color.steel }}>
-                        Page {page} / {Math.max(1, Math.ceil(studentProgress.length / 10))}
+                        Page {page} / {totalPages}
                       </span>
                       <button
-                        onClick={() =>
-                          setPage((p) => Math.min(Math.max(1, Math.ceil(studentProgress.length / 10)), p + 1))
-                        }
-                        disabled={page >= Math.max(1, Math.ceil(studentProgress.length / 10))}
-                        className="rounded-lg border px-3 py-2 disabled:opacity-40"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page >= totalPages}
+                        className="rounded-lg border px-3 py-2 disabled:opacity-40 active:scale-95"
                         style={{ borderColor: color.mist, background: "#fff" }}
                         aria-label="Next page"
                       >
@@ -482,13 +489,13 @@ function QuizzesBlock({ quizzes }: { quizzes: Quiz[] }) {
 
   return (
     <motion.div
-      className="rounded-2xl p-5 sm:p-6 shadow-xl ring-1"
+      className="rounded-2xl p-4 sm:p-6 shadow-xl ring-1"
       style={{ background: "#fff", borderColor: `${color.mist}55` }}
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
-      <h2 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6" style={{ color: color.deep }}>
+      <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6" style={{ color: color.deep }}>
         Available Quizzes 🧠
       </h2>
 
@@ -502,7 +509,7 @@ function QuizzesBlock({ quizzes }: { quizzes: Quiz[] }) {
             <motion.div
               key={quiz.id}
               variants={itemVariants}
-              whileHover={{ scale: 1.02, x: 5 }}
+              whileHover={{ scale: 1.01, x: 4 }}
               whileTap={{ scale: 0.98 }}
             >
               <div
@@ -510,16 +517,20 @@ function QuizzesBlock({ quizzes }: { quizzes: Quiz[] }) {
                 style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
               >
                 <div className="min-w-0">
-                  <h3 className="text-base sm:text-lg font-semibold" style={{ color: color.deep }}>
+                  <h3
+                    className="text-base sm:text-lg font-semibold truncate"
+                    style={{ color: color.deep }}
+                    title={quiz.title}
+                  >
                     {quiz.title}
                   </h3>
-                  <p className="text-sm mt-1" style={{ color: color.steel }}>
+                  <p className="text-sm mt-1 line-clamp-2 sm:line-clamp-none" style={{ color: color.steel }}>
                     {quiz.description ?? ""}
                   </p>
                 </div>
                 <Link
                   to={`/edit-quiz/${quiz.id}`}
-                  className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full transition w-full sm:w-auto"
+                  className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full transition w-full sm:w-auto text-sm sm:text-base"
                   style={{ background: color.teal, color: "#fff" }}
                 >
                   <PenSquare className="h-4 w-4" />
@@ -570,18 +581,18 @@ function TopicsBlock({
 
   return (
     <motion.div
-      className="rounded-2xl p-5 sm:p-6 h-full shadow-xl ring-1"
+      className="rounded-2xl p-4 sm:p-6 shadow-xl ring-1"
       style={{ background: "#fff", borderColor: `${color.mist}55` }}
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
-      <div className="flex items-center justify-between mb-5 sm:mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold" style={{ color: color.deep }}>
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-2xl font-bold" style={{ color: color.deep }}>
           Topics 📚
         </h2>
         <span
-          className="rounded-full px-3 py-1 text-xs font-medium"
+          className="rounded-full px-2.5 sm:px-3 py-1 text-xs font-medium whitespace-nowrap"
           style={{ background: `${color.teal}15`, color: color.teal, border: `1px solid ${color.teal}40` }}
         >
           {topics.length} total
@@ -595,22 +606,22 @@ function TopicsBlock({
             <motion.div
               key={topic.title}
               variants={itemVariants}
-              whileHover={{ scale: 1.02, x: 5 }}
+              whileHover={{ scale: 1.01, x: 4 }}
               whileTap={{ scale: 0.98 }}
             >
               <div
-                className="flex items-center rounded-lg p-4 transition relative"
+                className="flex items-center rounded-lg p-3 sm:p-4 transition relative"
                 style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
               >
                 <Link to={topic.path} className="flex-grow flex items-center min-w-0">
                   <BookOpen className="h-5 w-5 mr-3 flex-shrink-0" style={{ color: color.teal }} />
-                  <span className="font-medium truncate" style={{ color: color.deep }}>
+                  <span className="font-medium truncate" style={{ color: color.deep }} title={topic.title}>
                     {topic.title}
                   </span>
                 </Link>
                 <button
                   onClick={() => toggleFavorite(topic.title)}
-                  className="ml-3 p-2 rounded-full transition"
+                  className="ml-2 sm:ml-3 p-2 rounded-full transition"
                   aria-label={`Toggle favorite for ${topic.title}`}
                   style={{
                     color: fav ? color.teal : "#9CA3AF",

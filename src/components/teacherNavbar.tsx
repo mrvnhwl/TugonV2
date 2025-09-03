@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Trophy } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import color from "../styles/color"; // centralized palette
 
@@ -10,7 +9,7 @@ function TugonLogo({ size = 32 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" role="img" aria-label="Tugon logo">
       <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={id} x1="0" y="0" x2="1" y2="1">
           <stop offset="0%" stopColor={color.teal} />
           <stop offset="100%" stopColor={color.aqua} />
         </linearGradient>
@@ -123,7 +122,7 @@ function TeacherNavbar() {
                   Create Quiz
                 </Link>
 
-                {/* NEW: Student Progress */}
+                {/* Student Progress */}
                 <Link
                   to="/student-progress"
                   aria-current={isActive("/student-progress") ? "page" : undefined}
@@ -188,7 +187,7 @@ function TeacherNavbar() {
                   Create Quiz
                 </Link>
 
-                {/* NEW: Student Progress (mobile) */}
+                {/* Student Progress (mobile) */}
                 <Link
                   to="/student-progress"
                   onClick={() => setMenuOpen(false)}
@@ -196,16 +195,6 @@ function TeacherNavbar() {
                   style={{ color: "#fff", background: isActive("/student-progress") ? `${color.mist}22` : "transparent" }}
                 >
                   Student Progress
-                </Link>
-
-                <Link
-                  to="/leaderboards"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-3 py-2 rounded-md text-base font-medium flex items-center transition"
-                  style={{ color: "#fff", background: isActive("/leaderboards") ? `${color.mist}22` : "transparent" }}
-                >
-                  <Trophy className="h-4 w-4 mr-1" />
-                  Leaderboards
                 </Link>
 
                 <button

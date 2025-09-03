@@ -1,4 +1,5 @@
-import React, { useRef, useState } from "react";
+// src/pages/CreateQuiz.tsx
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, Save } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -7,24 +8,71 @@ import { motion } from "framer-motion";
 import MathSymbolPad from "../components/MathSymbolPad";
 import { MathJax } from "better-react-mathjax";
 
-interface Answer {
-  answer: string;
-  is_correct: boolean;
-}
-interface Question {
-  question: string;
-  time_limit: number; // seconds
-  points: number;
-  answers: Answer[];
-}
+/* ----------------------------- Types & helpers ---------------------------- */
 
-const freshAnswers = () =>
-  Array.from({ length: 4 }, () => ({ answer: "", is_correct: false }));
-
-// What field is currently focused (target for the global math keyboard)
+interface Answer { answer: string; is_correct: boolean; }
+interface Question { question: string; time_limit: number; points: number; answers: Answer[]; }
 type PadTarget =
   | { type: "question"; qIndex: number }
   | { type: "answer"; qIndex: number; aIndex: number };
+
+const freshAnswers = () => Array.from({ length: 4 }, () => ({ answer: "", is_correct: false }));
+
+// Quick check if caret is inside \( ... \)
+const isInsideInlineMath = (text: string, caret: number) => {
+  const before = text.slice(0, caret);
+  const lastOpen = before.lastIndexOf("\\(");
+  const lastClose = before.lastIndexOf("\\)");
+  return lastOpen !== -1 && lastOpen > lastClose;
+};
+
+// Ensure a given snippet is wrapped as inline math \( ... \) if it isn't already.
+const wrapInlineIfNeeded = (s: string) => {
+  const trimmed = s.trim();
+  if (trimmed.startsWith("\\(") && trimmed.endsWith("\\)")) return s;
+  return `\\(${trimmed}\\)`;
+};
+
+// Very light, safe “smart formatter” for common patterns.
+// It tries to transform only simple, *standalone* math and avoids double-wrapping.
+function smartFormat(text: string): string {
+  let out = text;
+
+  // Skip quick exit if there are no math-y triggers at all
+  if (!/[A-Za-z]\^|\bsqrt\s*\(|\b\d+\/\d+\b|\b(alpha|beta|theta|lambda|pi|Delta)\b|\b(sin|cos|tan)\s*\(/.test(out)) {
+    return out;
+  }
+
+  // 1) sqrt(...) -> \sqrt{...}
+  out = out.replace(/\bsqrt\s*\(\s*([^()]+?)\s*\)/g, (_m, inner) => wrapInlineIfNeeded(`\\sqrt{${inner}}`));
+
+  // 2) trig like sin(x) -> \sin(x)
+  out = out.replace(/\b(sin|cos|tan)\s*\(\s*([^()]+?)\s*\)/g, (_m, fn, inner) =>
+    wrapInlineIfNeeded(`\\${fn}(${inner})`)
+  );
+
+  // 3) simple exponents x^2 or (x+1)^3 -> ^{...}
+  //    - If RHS is a single token/number, brace it.
+  out = out.replace(/(\w|\)|\])\^(\w)/g, (_m, base, power) => wrapInlineIfNeeded(`${base}^{${power}}`));
+
+  // 4) simple standalone a/b with small integers -> \frac{a}{b}
+  out = out.replace(/\b(\d{1,3})\s*\/\s*(\d{1,3})\b/g, (_m, a, b) => wrapInlineIfNeeded(`\\frac{${a}}{${b}}`));
+
+  // 5) common greek names -> \alpha etc. (only if not already escaped)
+  out = out.replace(/\b(alpha|beta|theta|lambda|pi|Delta)\b/g, (_m, name) => wrapInlineIfNeeded(`\\${name}`));
+
+  // 6) inequalities
+  out = out.replace(/\s<=\s/g, () => wrapInlineIfNeeded(`\\le`))
+           .replace(/\s>=\s/g, () => wrapInlineIfNeeded(`\\ge`))
+           .replace(/\sto\s/g, () => wrapInlineIfNeeded(`\\to`));
+
+  // Avoid nested \( \(x\) \) from repeated passes
+  out = out.replace(/\\\(\s*\\\((.*?)\\\)\s*\\\)/g, (_m, inner) => `\\(${inner}\\)`);
+
+  return out;
+}
+
+/* -------------------------------- Component ------------------------------- */
 
 function CreateQuiz() {
   const navigate = useNavigate();
@@ -40,12 +88,28 @@ function CreateQuiz() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdQuizId, setCreatedQuizId] = useState<string | null>(null);
 
-  // GLOBAL: always-on math keyboard + preview outside question boxes
+  // math keyboard target
   const [padTarget, setPadTarget] = useState<PadTarget | null>(null);
+
+  // Mobile docking for keyboard
+  const [dockPad, setDockPad] = useState(true);
 
   // Refs for caret placement
   const questionRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const answerRefs = useRef<(HTMLInputElement | null)[][]>([]);
+
+  useEffect(() => {
+    // Default: dock on small screens
+    try {
+      const mq = window.matchMedia("(max-width: 640px)");
+      setDockPad(mq.matches);
+      const handler = (e: MediaQueryListEvent) => setDockPad(e.matches);
+      mq.addEventListener?.("change", handler);
+      return () => mq.removeEventListener?.("change", handler);
+    } catch {}
+  }, []);
+
+  /* ----------------------------- Mutators (UI) ---------------------------- */
 
   const addQuestion = () => {
     setQuestions((prev) => [
@@ -56,7 +120,6 @@ function CreateQuiz() {
 
   const removeQuestion = (index: number) => {
     setQuestions((prev) => prev.filter((_, i) => i !== index));
-    // If we deleted the focused question/answer, clear target
     if (padTarget && padTarget.qIndex === index) setPadTarget(null);
   };
 
@@ -68,18 +131,11 @@ function CreateQuiz() {
     });
   };
 
-  const updateAnswer = (
-    qIndex: number,
-    aIndex: number,
-    field: keyof Answer,
-    value: any
-  ) => {
+  const updateAnswer = (qIndex: number, aIndex: number, field: keyof Answer, value: any) => {
     setQuestions((prev) => {
       const next = [...prev];
       const q = { ...next[qIndex] };
-      q.answers = q.answers.map((ans, i) =>
-        i === aIndex ? { ...ans, [field]: value } : ans
-      );
+      q.answers = q.answers.map((ans, i) => (i === aIndex ? { ...ans, [field]: value } : ans));
       next[qIndex] = q;
       return next;
     });
@@ -89,22 +145,13 @@ function CreateQuiz() {
     setQuestions((prev) => {
       const next = [...prev];
       const q = { ...next[qIndex] };
-      q.answers = q.answers.map((ans, i) => ({
-        ...ans,
-        is_correct: i === aIndex,
-      }));
+      q.answers = q.answers.map((ans, i) => ({ ...ans, is_correct: i === aIndex }));
       next[qIndex] = q;
       return next;
     });
   };
 
-  // === Inline-math helpers ===
-  const isInsideInlineMath = (text: string, caret: number) => {
-    const before = text.slice(0, caret);
-    const lastOpen = before.lastIndexOf("\\(");
-    const lastClose = before.lastIndexOf("\\)");
-    return lastOpen !== -1 && lastOpen > lastClose;
-  };
+  /* -------------------------- Keyboard insert logic ----------------------- */
 
   const insertFromPad = (snippet: string) => {
     if (!padTarget) {
@@ -129,9 +176,10 @@ function CreateQuiz() {
       const before = text.slice(0, selStart);
       const after = text.slice(selEnd);
       let inserted: string;
+
       if (isPlain) inserted = snippet;
       else if (alreadyInMath || !looksLatex) inserted = snippet;
-      else inserted = `\\(${snippet}\\)`;
+      else inserted = `\\(${snippet}\\)`; // auto-wrap LaTeX
 
       const newText = before + inserted + after;
 
@@ -159,13 +207,7 @@ function CreateQuiz() {
       const selEnd = el?.selectionEnd ?? selStart;
       const alreadyInMath = isInsideInlineMath(current, selStart);
 
-      const { newText, caretPos } = insertIntoText({
-        text: current,
-        selStart,
-        selEnd,
-        alreadyInMath,
-      });
-
+      const { newText, caretPos } = insertIntoText({ text: current, selStart, selEnd, alreadyInMath });
       const next = [...questions];
       next[qIndex] = { ...next[qIndex], question: newText };
       setQuestions(next);
@@ -183,13 +225,7 @@ function CreateQuiz() {
       const selEnd = el?.selectionEnd ?? selStart;
       const alreadyInMath = isInsideInlineMath(current, selStart);
 
-      const { newText, caretPos } = insertIntoText({
-        text: current,
-        selStart,
-        selEnd,
-        alreadyInMath,
-      });
-
+      const { newText, caretPos } = insertIntoText({ text: current, selStart, selEnd, alreadyInMath });
       updateAnswer(qIndex, aIndex, "answer", newText);
 
       requestAnimationFrame(() => {
@@ -199,7 +235,23 @@ function CreateQuiz() {
     }
   };
 
-  // === Validation ===
+  /* ---------------------------- Smart formatting -------------------------- */
+
+  // Apply “smartFormat” when a field loses focus (auto-LaTeX).
+  const onBlurFormatQuestion = (qIndex: number) => {
+    const current = questions[qIndex].question;
+    const next = smartFormat(current);
+    if (next !== current) updateQuestion(qIndex, "question", next);
+  };
+
+  const onBlurFormatAnswer = (qIndex: number, aIndex: number) => {
+    const current = questions[qIndex].answers[aIndex].answer;
+    const next = smartFormat(current);
+    if (next !== current) updateAnswer(qIndex, aIndex, "answer", next);
+  };
+
+  /* ------------------------------- Validation ----------------------------- */
+
   const validate = () => {
     if (!title.trim()) return "Please add a quiz title.";
     if (!questions.length) return "Add at least one question.";
@@ -220,24 +272,18 @@ function CreateQuiz() {
     return null;
   };
 
-  // === Submit: quizzes → questions → answers ===
+  /* ------------------------------- Submit --------------------------------- */
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const reason = validate();
-    if (reason) {
-      alert(reason);
-      return;
-    }
-    if (!user?.id) {
-      alert("You must be signed in to create a quiz.");
-      return;
-    }
+    if (reason) return alert(reason);
+    if (!user?.id) return alert("You must be signed in to create a quiz.");
 
     setSaving(true);
     let quizId: string | null = null;
 
     try {
-      // 1) Insert quiz
       const { data: quiz, error: quizErr } = await supabase
         .from("quizzes")
         .insert({ title, description, created_by: user.id })
@@ -247,7 +293,6 @@ function CreateQuiz() {
       if (quizErr || !quiz) throw quizErr || new Error("Failed to insert quiz.");
       quizId = quiz.id;
 
-      // 2) Insert questions and answers
       for (const q of questions) {
         const { data: qRow, error: qErr } = await supabase
           .from("questions")
@@ -267,7 +312,6 @@ function CreateQuiz() {
           answer: a.answer,
           is_correct: a.is_correct,
         }));
-
         const { error: aErr } = await supabase.from("answers").insert(answersRows);
         if (aErr) throw aErr;
       }
@@ -275,42 +319,35 @@ function CreateQuiz() {
       setCreatedQuizId(quizId);
       setShowSuccessModal(true);
     } catch (err: any) {
-      console.error("Error creating quiz:");
-      console.error(JSON.stringify(err, null, 2));
-
-      // Optional rollback if child insert failed
-      if (quizId) {
-        await supabase.from("quizzes").delete().eq("id", quizId);
-      }
-
+      console.error("Error creating quiz:", err);
+      if (quizId) await supabase.from("quizzes").delete().eq("id", quizId);
       alert(err?.message ?? "Something went wrong creating the quiz.");
     } finally {
       setSaving(false);
     }
   };
 
-  // ===== Global toolbar preview text (current focused field) =====
+  // Live preview text for the focused field
   const previewText = (() => {
     if (!padTarget) return "";
-    if (padTarget.type === "question") {
-      return questions[padTarget.qIndex]?.question ?? "";
-    } else {
-      return questions[padTarget.qIndex]?.answers?.[padTarget.aIndex]?.answer ?? "";
-    }
+    if (padTarget.type === "question") return questions[padTarget.qIndex]?.question ?? "";
+    return questions[padTarget.qIndex]?.answers?.[padTarget.aIndex]?.answer ?? "";
   })();
+
+  /* --------------------------------- UI ----------------------------------- */
 
   return (
     <>
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="max-w-4xl mx-auto px-4 py-8"
+        transition={{ duration: 0.4 }}
+        className="max-w-4xl mx-auto px-3 sm:px-6 py-6 sm:py-8"
       >
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
           {/* Quiz meta */}
-          <div className="bg-white rounded-lg shadow-lg p-6 space-y-4">
-            <h1 className="text-2xl font-bold text-gray-900">Create New Quiz</h1>
+          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Create New Quiz</h1>
             <input
               type="text"
               required
@@ -328,43 +365,70 @@ function CreateQuiz() {
             />
           </div>
 
-          {/* ===== ALWAYS-VISIBLE MATH TOOLBAR (outside question boxes) ===== */}
-          <div className="bg-white rounded-lg shadow-lg p-6 space-y-4">
-            <div className="text-xs text-gray-500">
-              Tip: click any question or answer first, then insert symbols below.
+          {/* Always-visible math tools */}
+          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-3 sm:space-y-4">
+            <div className="text-[11px] sm:text-xs text-gray-500">
+              Tip: click any question or answer first, then insert symbols below. Blur (tap away) to auto-format.
             </div>
 
-            {/* Live LaTeX preview (for the currently focused field) */}
+            {/* Live LaTeX preview */}
             <div className="rounded-md bg-gray-50 border px-3 py-2">
-              <div className="text-xs text-gray-500 mb-1">Live Preview</div>
+              <div className="text-[11px] sm:text-xs text-gray-500 mb-1">Live Preview</div>
               <MathJax dynamic>
-                {previewText && previewText.trim() !== ""
-                  ? previewText
-                  : "\\(\\text{(empty)}\\)"}
+                {previewText && previewText.trim() !== "" ? previewText : "\\(\\text{(empty)}\\)"}
               </MathJax>
             </div>
 
-            {/* Global Math Keyboard (always shown) */}
-            <div className="pt-2">
-              <MathSymbolPad
-                open
-                onInsert={insertFromPad}
-                onClose={() => { /* kept for API compatibility, no-op */ }}
-              />
+            {/* Docked/inline keyboard */}
+            <div
+              className={
+                dockPad
+                  ? "fixed bottom-0 left-0 right-0 z-40 border-t bg-white"
+                  : "pt-2"
+              }
+              style={dockPad ? { boxShadow: "0 -6px 16px rgba(0,0,0,0.06)" } : undefined}
+            >
+              {dockPad && (
+                <div className="flex items-center justify-between px-3 py-2 sm:hidden">
+                  <span className="text-xs font-medium text-gray-600">Math Keyboard</span>
+                  <button
+                    type="button"
+                    onClick={() => setDockPad(false)}
+                    className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
+                  >
+                    Hide
+                  </button>
+                </div>
+              )}
+              <div className={dockPad ? "px-3 pb-3 sm:px-0 sm:pb-0" : ""}>
+                <MathSymbolPad open onInsert={insertFromPad} onClose={() => setDockPad(false)} />
+              </div>
             </div>
+
+            {!dockPad && (
+              <div className="sm:hidden">
+                <button
+                  type="button"
+                  onClick={() => setDockPad(true)}
+                  className="mt-2 text-xs px-3 py-1 rounded border bg-white hover:bg-gray-50"
+                >
+                  Show Math Keyboard
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Questions */}
           {questions.map((q, qIndex) => (
             <motion.div
               key={qIndex}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: qIndex * 0.05 }}
-              className="bg-white rounded-lg shadow-lg p-6 space-y-4"
+              transition={{ delay: qIndex * 0.04 }}
+              className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4"
             >
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Question {qIndex + 1}</h2>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base sm:text-lg font-semibold">Question {qIndex + 1}</h2>
                 <button
                   type="button"
                   onClick={() => removeQuestion(qIndex)}
@@ -375,20 +439,21 @@ function CreateQuiz() {
                 </button>
               </div>
 
-              {/* QUESTION TEXTAREA (focus sets global pad target) */}
+              {/* QUESTION TEXTAREA */}
               <textarea
                 ref={(el) => (questionRefs.current[qIndex] = el)}
                 onFocus={() => setPadTarget({ type: "question", qIndex })}
+                onBlur={() => onBlurFormatQuestion(qIndex)}
                 required
                 rows={3}
                 value={q.question}
                 onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
                 className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="Type your question here. Use \( ... \) for inline math."
+                placeholder="Type your question. Examples: x^2, sqrt(x+1), 1/2, alpha, sin(x)."
               />
 
               {/* Time & Points */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <input
                   type="number"
                   min={5}
@@ -416,31 +481,34 @@ function CreateQuiz() {
                 />
               </div>
 
-              {/* Answers (use the global keyboard) */}
+              {/* Answers */}
               <div className="space-y-2">
                 {q.answers.map((a, aIndex) => (
-                  <div key={aIndex} className="flex items-center space-x-3">
+                  <div key={aIndex} className="flex items-center gap-2 sm:gap-3">
                     <input
                       ref={(el) => {
                         if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
                         answerRefs.current[qIndex][aIndex] = el;
                       }}
                       onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex })}
+                      onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
                       type="text"
                       required
                       value={a.answer}
                       onChange={(e) => updateAnswer(qIndex, aIndex, "answer", e.target.value)}
                       className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      placeholder={`Answer ${aIndex + 1}`}
+                      placeholder={`Answer ${aIndex + 1} (e.g., 2x^2, sqrt(9), 3/4, theta)`}
                     />
-                    <input
-                      type="radio"
-                      name={`correct-${qIndex}`}
-                      checked={a.is_correct}
-                      onChange={() => setCorrectAnswer(qIndex, aIndex)}
-                      className="text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm">Correct</span>
+                    <label className="flex items-center gap-1 text-sm">
+                      <input
+                        type="radio"
+                        name={`correct-${qIndex}`}
+                        checked={a.is_correct}
+                        onChange={() => setCorrectAnswer(qIndex, aIndex)}
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>Correct</span>
+                    </label>
                   </div>
                 ))}
               </div>
@@ -448,37 +516,56 @@ function CreateQuiz() {
           ))}
 
           {/* Footer buttons */}
-          <div className="flex justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-between">
             <button
               type="button"
               onClick={addQuestion}
-              className="flex items-center space-x-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition"
             >
               <Plus className="h-5 w-5" />
               <span>Add Question</span>
             </button>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:opacity-60"
-            >
-              <Save className="h-5 w-5" />
-              <span>{saving ? "Saving..." : "Save Quiz"}</span>
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  // Format all fields in one go
+                  setQuestions((prev) =>
+                    prev.map((q) => ({
+                      ...q,
+                      question: smartFormat(q.question),
+                      answers: q.answers.map((a) => ({ ...a, answer: smartFormat(a.answer) })),
+                    }))
+                  );
+                }}
+                className="px-4 py-2 bg-white border rounded-md hover:bg-gray-50 transition"
+              >
+                Format all math
+              </button>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:opacity-60"
+              >
+                <Save className="h-5 w-5" />
+                <span>{saving ? "Saving..." : "Save Quiz"}</span>
+              </button>
+            </div>
           </div>
         </form>
       </motion.div>
 
       {/* Success Modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-96 space-y-4">
-            <h2 className="text-xl font-bold text-gray-900">Quiz Created Successfully!</h2>
-            <p className="text-gray-600">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-3">
+          <div className="bg-white rounded-xl shadow-lg p-5 sm:p-6 w-full max-w-md space-y-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Quiz Created Successfully!</h2>
+            <p className="text-sm sm:text-base text-gray-600">
               Your quiz was saved with all questions and answers.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-end">
               <button
                 onClick={() => navigate("/teacherDashboard")}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
