@@ -199,7 +199,7 @@ function TeacherHome() {
                 }}
               >
                 <div className="rounded-2xl overflow-hidden">
-                  <Lottie options={lottieOptions(progressAnimation)} />
+                  <Lottie options={lottieOptions(createAnimation)} />
                 </div>
                 <div
                   className="mt-3 grid grid-cols-3 gap-3 text-xs"

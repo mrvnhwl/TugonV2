@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Trophy } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import color from "../styles/color"; // 👈 centralized palette
+import color from "../styles/color"; // centralized palette
 
 // Reusable Tugon logo (gradient badge + white "T")
 function TugonLogo({ size = 32 }: { size?: number }) {
@@ -26,12 +26,26 @@ function TeacherNavbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const handleSignIn = () => navigate("/");
+  const handleSignIn = () => navigate("/userTypeSelection");
   const handleLogout = async () => {
     await signOut();
     localStorage.removeItem("userType");
     navigate("/");
+  };
+
+  const isActive = (path: string) => location.pathname === path;
+
+  const linkStyle = (active: boolean) => ({
+    color: "#fff",
+    background: active ? `${color.mist}22` : "transparent",
+    borderRadius: "0.5rem",
+  });
+
+  const hoverHandlers = (el: HTMLAnchorElement, active: boolean) => {
+    if (active) return;
+    el.style.color = el.dataset._hovering === "1" ? color.mist : "#fff";
   };
 
   return (
@@ -72,37 +86,61 @@ function TeacherNavbar() {
           </div>
 
           {/* Desktop links */}
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-2">
             {user ? (
               <>
                 <Link
                   to="/teacherDashboard"
+                  aria-current={isActive("/teacherDashboard") ? "page" : undefined}
                   className="px-3 py-2 rounded-md text-sm font-medium transition"
-                  style={{ color: "#fff" }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = color.mist)}
-                  onMouseOut={(e) => (e.currentTarget.style.color = "#fff")}
+                  style={linkStyle(isActive("/teacherDashboard"))}
+                  onMouseOver={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "1";
+                    hoverHandlers(e.currentTarget, isActive("/teacherDashboard"));
+                  }}
+                  onMouseOut={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "0";
+                    hoverHandlers(e.currentTarget, isActive("/teacherDashboard"));
+                  }}
                 >
                   Dashboard
                 </Link>
+
                 <Link
                   to="/create-quiz"
+                  aria-current={isActive("/create-quiz") ? "page" : undefined}
                   className="px-3 py-2 rounded-md text-sm font-medium transition"
-                  style={{ color: "#fff" }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = color.mist)}
-                  onMouseOut={(e) => (e.currentTarget.style.color = "#fff")}
+                  style={linkStyle(isActive("/create-quiz"))}
+                  onMouseOver={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "1";
+                    hoverHandlers(e.currentTarget, isActive("/create-quiz"));
+                  }}
+                  onMouseOut={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "0";
+                    hoverHandlers(e.currentTarget, isActive("/create-quiz"));
+                  }}
                 >
                   Create Quiz
                 </Link>
+
+                {/* NEW: Student Progress */}
                 <Link
-                  to="/leaderboards"
-                  className="px-3 py-2 rounded-md text-sm font-medium flex items-center transition"
-                  style={{ color: "#fff" }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = color.mist)}
-                  onMouseOut={(e) => (e.currentTarget.style.color = "#fff")}
+                  to="/student-progress"
+                  aria-current={isActive("/student-progress") ? "page" : undefined}
+                  className="px-3 py-2 rounded-md text-sm font-medium transition"
+                  style={linkStyle(isActive("/student-progress"))}
+                  onMouseOver={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "1";
+                    hoverHandlers(e.currentTarget, isActive("/student-progress"));
+                  }}
+                  onMouseOut={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "0";
+                    hoverHandlers(e.currentTarget, isActive("/student-progress"));
+                  }}
                 >
-                  <Trophy className="h-4 w-4 mr-1" />
-                  Leaderboards
+                  Student Progress
                 </Link>
+
                 <button
                   onClick={handleLogout}
                   className="px-4 py-2 rounded-md text-sm font-semibold transition"
@@ -134,34 +172,47 @@ function TeacherNavbar() {
               <>
                 <Link
                   to="/teacherDashboard"
+                  onClick={() => setMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium transition"
-                  style={{ color: "#fff" }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = color.mist)}
-                  onMouseOut={(e) => (e.currentTarget.style.color = "#fff")}
+                  style={{ color: "#fff", background: isActive("/teacherDashboard") ? `${color.mist}22` : "transparent" }}
                 >
                   Dashboard
                 </Link>
+
                 <Link
                   to="/create-quiz"
+                  onClick={() => setMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium transition"
-                  style={{ color: "#fff" }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = color.mist)}
-                  onMouseOut={(e) => (e.currentTarget.style.color = "#fff")}
+                  style={{ color: "#fff", background: isActive("/create-quiz") ? `${color.mist}22` : "transparent" }}
                 >
                   Create Quiz
                 </Link>
+
+                {/* NEW: Student Progress (mobile) */}
+                <Link
+                  to="/student-progress"
+                  onClick={() => setMenuOpen(false)}
+                  className="block px-3 py-2 rounded-md text-base font-medium transition"
+                  style={{ color: "#fff", background: isActive("/student-progress") ? `${color.mist}22` : "transparent" }}
+                >
+                  Student Progress
+                </Link>
+
                 <Link
                   to="/leaderboards"
+                  onClick={() => setMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium flex items-center transition"
-                  style={{ color: "#fff" }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = color.mist)}
-                  onMouseOut={(e) => (e.currentTarget.style.color = "#fff")}
+                  style={{ color: "#fff", background: isActive("/leaderboards") ? `${color.mist}22` : "transparent" }}
                 >
                   <Trophy className="h-4 w-4 mr-1" />
                   Leaderboards
                 </Link>
+
                 <button
-                  onClick={handleLogout}
+                  onClick={async () => {
+                    await handleLogout();
+                    setMenuOpen(false);
+                  }}
                   className="w-full mt-2 px-4 py-2 rounded-md text-base font-semibold transition"
                   style={{ background: "#ef4444", color: "#fff" }}
                   onMouseOver={(e) => (e.currentTarget.style.opacity = "0.95")}

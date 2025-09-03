@@ -1,22 +1,30 @@
 import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, Save, Keyboard } from "lucide-react";
+import { Plus, Trash2, Save } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { motion } from "framer-motion";
 import MathSymbolPad from "../components/MathSymbolPad";
 import { MathJax } from "better-react-mathjax";
 
-interface Question {
-  question: string;
-  time_limit: number;
-  points: number;
-  answers: Answer[];
-}
 interface Answer {
   answer: string;
   is_correct: boolean;
 }
+interface Question {
+  question: string;
+  time_limit: number; // seconds
+  points: number;
+  answers: Answer[];
+}
+
+const freshAnswers = () =>
+  Array.from({ length: 4 }, () => ({ answer: "", is_correct: false }));
+
+// What field is currently focused (target for the global math keyboard)
+type PadTarget =
+  | { type: "question"; qIndex: number }
+  | { type: "answer"; qIndex: number; aIndex: number };
 
 function CreateQuiz() {
   const navigate = useNavigate();
@@ -25,52 +33,72 @@ function CreateQuiz() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<Question[]>([
-    {
-      question: "",
-      time_limit: 30,
-      points: 1000,
-      answers: Array(4).fill({ answer: "", is_correct: false }),
-    },
+    { question: "", time_limit: 30, points: 1000, answers: freshAnswers() },
   ]);
 
+  const [saving, setSaving] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdQuizId, setCreatedQuizId] = useState<string | null>(null);
 
-  // Which question’s pad is open (null = none)
-  const [padOpenFor, setPadOpenFor] = useState<number | null>(null);
+  // GLOBAL: always-on math keyboard + preview outside question boxes
+  const [padTarget, setPadTarget] = useState<PadTarget | null>(null);
 
-  // Refs for placing text at the cursor
+  // Refs for caret placement
   const questionRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const answerRefs = useRef<(HTMLInputElement | null)[][]>([]);
 
   const addQuestion = () => {
     setQuestions((prev) => [
       ...prev,
-      {
-        question: "",
-        time_limit: 30,
-        points: 1000,
-        answers: Array(4).fill({ answer: "", is_correct: false }),
-      },
+      { question: "", time_limit: 30, points: 1000, answers: freshAnswers() },
     ]);
   };
 
   const removeQuestion = (index: number) => {
     setQuestions((prev) => prev.filter((_, i) => i !== index));
-    if (padOpenFor === index) setPadOpenFor(null);
+    // If we deleted the focused question/answer, clear target
+    if (padTarget && padTarget.qIndex === index) setPadTarget(null);
   };
 
   const updateQuestion = (index: number, field: keyof Question, value: any) => {
-    const next = [...questions];
-    next[index] = { ...next[index], [field]: value };
-    setQuestions(next);
+    setQuestions((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
   };
 
-  const updateAnswer = (qIndex: number, aIndex: number, field: keyof Answer, value: any) => {
-    const next = [...questions];
-    next[qIndex].answers[aIndex] = { ...next[qIndex].answers[aIndex], [field]: value };
-    setQuestions(next);
+  const updateAnswer = (
+    qIndex: number,
+    aIndex: number,
+    field: keyof Answer,
+    value: any
+  ) => {
+    setQuestions((prev) => {
+      const next = [...prev];
+      const q = { ...next[qIndex] };
+      q.answers = q.answers.map((ans, i) =>
+        i === aIndex ? { ...ans, [field]: value } : ans
+      );
+      next[qIndex] = q;
+      return next;
+    });
   };
 
-  // === Insert logic ===
+  const setCorrectAnswer = (qIndex: number, aIndex: number) => {
+    setQuestions((prev) => {
+      const next = [...prev];
+      const q = { ...next[qIndex] };
+      q.answers = q.answers.map((ans, i) => ({
+        ...ans,
+        is_correct: i === aIndex,
+      }));
+      next[qIndex] = q;
+      return next;
+    });
+  };
+
+  // === Inline-math helpers ===
   const isInsideInlineMath = (text: string, caret: number) => {
     const before = text.slice(0, caret);
     const lastOpen = before.lastIndexOf("\\(");
@@ -78,95 +106,198 @@ function CreateQuiz() {
     return lastOpen !== -1 && lastOpen > lastClose;
   };
 
-  const insertFromPad = (qIndex: number, snippet: string) => {
-    const el = questionRefs.current[qIndex];
-    const next = [...questions];
-    const text = next[qIndex].question;
+  const insertFromPad = (snippet: string) => {
+    if (!padTarget) {
+      alert("Click a question or an answer field first, then use the Math Keyboard.");
+      return;
+    }
 
-    const selStart = el?.selectionStart ?? text.length;
-    const selEnd = el?.selectionEnd ?? selStart;
-
-    const before = text.slice(0, selStart);
-    const after = text.slice(selEnd);
-
-    // Heuristics
     const isPlain = /^[0-9a-zA-Z+\-*/=() .,]+$/.test(snippet);
     const looksLatex = snippet.startsWith("\\") || /[\^_{}]/.test(snippet);
-    const alreadyInMath = isInsideInlineMath(text, selStart);
 
-    let inserted: string;
-    if (isPlain) {
-      inserted = snippet; // plain → no wrapping
-    } else if (alreadyInMath || !looksLatex) {
-      inserted = snippet; // already in math OR not LaTeX → insert raw
-    } else {
-      inserted = `\\(${snippet}\\)`; // wrap LaTeX snippet if outside math
-    }
+    const insertIntoText = ({
+      text,
+      selStart,
+      selEnd,
+      alreadyInMath,
+    }: {
+      text: string;
+      selStart: number;
+      selEnd: number;
+      alreadyInMath: boolean;
+    }) => {
+      const before = text.slice(0, selStart);
+      const after = text.slice(selEnd);
+      let inserted: string;
+      if (isPlain) inserted = snippet;
+      else if (alreadyInMath || !looksLatex) inserted = snippet;
+      else inserted = `\\(${snippet}\\)`;
 
-    const newText = before + inserted + after;
-    next[qIndex].question = newText;
-    setQuestions(next);
+      const newText = before + inserted + after;
 
-    // Caret placement
-    const basePos = before.length;
-    let caretPos = basePos + inserted.length;
-
-    const searchTarget = inserted.startsWith("\\(") ? inserted.slice(2, -2) : inserted;
-    const firstBrace = searchTarget.indexOf("{");
-    if (firstBrace !== -1) {
-      const offset = inserted.startsWith("\\(") ? 2 : 0;
-      caretPos = basePos + offset + firstBrace + 1;
-    } else if (searchTarget.includes("()")) {
-      caretPos = basePos + inserted.indexOf("()") + 1;
-    } else if (searchTarget.includes("[]")) {
-      caretPos = basePos + inserted.indexOf("[]") + 1;
-    }
-
-    requestAnimationFrame(() => {
-      if (el) {
-        el.focus();
-        el.setSelectionRange(caretPos, caretPos);
+      // Smart caret placement
+      const basePos = before.length;
+      let caretPos = basePos + inserted.length;
+      const searchTarget = inserted.startsWith("\\(") ? inserted.slice(2, -2) : inserted;
+      const firstBrace = searchTarget.indexOf("{");
+      if (firstBrace !== -1) {
+        const offset = inserted.startsWith("\\(") ? 2 : 0;
+        caretPos = basePos + offset + firstBrace + 1;
+      } else if (searchTarget.includes("()")) {
+        caretPos = basePos + inserted.indexOf("()") + 1;
+      } else if (searchTarget.includes("[]")) {
+        caretPos = basePos + inserted.indexOf("[]") + 1;
       }
-    });
+      return { newText, caretPos };
+    };
+
+    if (padTarget.type === "question") {
+      const { qIndex } = padTarget;
+      const el = questionRefs.current[qIndex];
+      const current = questions[qIndex].question;
+      const selStart = el?.selectionStart ?? current.length;
+      const selEnd = el?.selectionEnd ?? selStart;
+      const alreadyInMath = isInsideInlineMath(current, selStart);
+
+      const { newText, caretPos } = insertIntoText({
+        text: current,
+        selStart,
+        selEnd,
+        alreadyInMath,
+      });
+
+      const next = [...questions];
+      next[qIndex] = { ...next[qIndex], question: newText };
+      setQuestions(next);
+
+      requestAnimationFrame(() => {
+        el?.focus();
+        el?.setSelectionRange(caretPos, caretPos);
+      });
+    } else {
+      const { qIndex, aIndex } = padTarget;
+      if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
+      const el = answerRefs.current[qIndex][aIndex];
+      const current = questions[qIndex].answers[aIndex].answer;
+      const selStart = el?.selectionStart ?? current.length;
+      const selEnd = el?.selectionEnd ?? selStart;
+      const alreadyInMath = isInsideInlineMath(current, selStart);
+
+      const { newText, caretPos } = insertIntoText({
+        text: current,
+        selStart,
+        selEnd,
+        alreadyInMath,
+      });
+
+      updateAnswer(qIndex, aIndex, "answer", newText);
+
+      requestAnimationFrame(() => {
+        el?.focus();
+        el?.setSelectionRange(caretPos, caretPos);
+      });
+    }
   };
 
+  // === Validation ===
+  const validate = () => {
+    if (!title.trim()) return "Please add a quiz title.";
+    if (!questions.length) return "Add at least one question.";
+
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.question.trim()) return `Question ${i + 1} is empty.`;
+      if (!Number.isFinite(q.time_limit) || q.time_limit < 5 || q.time_limit > 600)
+        return `Question ${i + 1}: time limit should be between 5 and 600 seconds.`;
+      if (!Number.isFinite(q.points) || q.points < 50 || q.points > 10000)
+        return `Question ${i + 1}: points should be between 50 and 10000.`;
+      if (q.answers.length !== 4) return `Question ${i + 1} must have 4 answers.`;
+      const empty = q.answers.findIndex((a) => !a.answer.trim());
+      if (empty !== -1) return `Question ${i + 1}: Answer ${empty + 1} is empty.`;
+      const correctCount = q.answers.filter((a) => a.is_correct).length;
+      if (correctCount !== 1) return `Question ${i + 1} must have exactly one correct answer.`;
+    }
+    return null;
+  };
+
+  // === Submit: quizzes → questions → answers ===
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const { data: quiz, error } = await supabase
-        .from("quizzes")
-        .insert({ title, description, created_by: user?.id })
-        .select()
-        .single();
-      if (error) throw error;
+    const reason = validate();
+    if (reason) {
+      alert(reason);
+      return;
+    }
+    if (!user?.id) {
+      alert("You must be signed in to create a quiz.");
+      return;
+    }
 
-      for (const question of questions) {
-        const { data: qData, error: qError } = await supabase
+    setSaving(true);
+    let quizId: string | null = null;
+
+    try {
+      // 1) Insert quiz
+      const { data: quiz, error: quizErr } = await supabase
+        .from("quizzes")
+        .insert({ title, description, created_by: user.id })
+        .select("*")
+        .single();
+
+      if (quizErr || !quiz) throw quizErr || new Error("Failed to insert quiz.");
+      quizId = quiz.id;
+
+      // 2) Insert questions and answers
+      for (const q of questions) {
+        const { data: qRow, error: qErr } = await supabase
           .from("questions")
           .insert({
-            quiz_id: quiz.id,
-            question: question.question,
-            time_limit: question.time_limit,
-            points: question.points,
+            quiz_id: quizId,
+            question: q.question,
+            time_limit: q.time_limit,
+            points: q.points,
           })
-          .select()
+          .select("*")
           .single();
-        if (qError) throw qError;
 
-        const answers = question.answers.map((a) => ({
-          question_id: qData.id,
+        if (qErr || !qRow) throw qErr || new Error("Failed to insert question.");
+
+        const answersRows = q.answers.map((a) => ({
+          question_id: qRow.id,
           answer: a.answer,
           is_correct: a.is_correct,
         }));
-        const { error: aError } = await supabase.from("answers").insert(answers);
-        if (aError) throw aError;
+
+        const { error: aErr } = await supabase.from("answers").insert(answersRows);
+        if (aErr) throw aErr;
       }
 
+      setCreatedQuizId(quizId);
       setShowSuccessModal(true);
-    } catch (err) {
-      console.error("Error creating quiz:", err);
+    } catch (err: any) {
+      console.error("Error creating quiz:");
+      console.error(JSON.stringify(err, null, 2));
+
+      // Optional rollback if child insert failed
+      if (quizId) {
+        await supabase.from("quizzes").delete().eq("id", quizId);
+      }
+
+      alert(err?.message ?? "Something went wrong creating the quiz.");
+    } finally {
+      setSaving(false);
     }
   };
+
+  // ===== Global toolbar preview text (current focused field) =====
+  const previewText = (() => {
+    if (!padTarget) return "";
+    if (padTarget.type === "question") {
+      return questions[padTarget.qIndex]?.question ?? "";
+    } else {
+      return questions[padTarget.qIndex]?.answers?.[padTarget.aIndex]?.answer ?? "";
+    }
+  })();
 
   return (
     <>
@@ -192,9 +323,35 @@ function CreateQuiz() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="Quiz Description"
+              placeholder="Quiz Description (optional)"
               rows={3}
             />
+          </div>
+
+          {/* ===== ALWAYS-VISIBLE MATH TOOLBAR (outside question boxes) ===== */}
+          <div className="bg-white rounded-lg shadow-lg p-6 space-y-4">
+            <div className="text-xs text-gray-500">
+              Tip: click any question or answer first, then insert symbols below.
+            </div>
+
+            {/* Live LaTeX preview (for the currently focused field) */}
+            <div className="rounded-md bg-gray-50 border px-3 py-2">
+              <div className="text-xs text-gray-500 mb-1">Live Preview</div>
+              <MathJax dynamic>
+                {previewText && previewText.trim() !== ""
+                  ? previewText
+                  : "\\(\\text{(empty)}\\)"}
+              </MathJax>
+            </div>
+
+            {/* Global Math Keyboard (always shown) */}
+            <div className="pt-2">
+              <MathSymbolPad
+                open
+                onInsert={insertFromPad}
+                onClose={() => { /* kept for API compatibility, no-op */ }}
+              />
+            </div>
           </div>
 
           {/* Questions */}
@@ -218,91 +375,57 @@ function CreateQuiz() {
                 </button>
               </div>
 
-              <div className="relative space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600"></span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPadOpenFor((prev) => (prev === qIndex ? null : qIndex))
-                    }
-                    className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition"
-                    title="Math Keyboard"
-                  >
-                    <Keyboard className="h-4 w-4" />
-                    <span className="text-xs font-medium">Math Keyboard</span>
-                  </button>
-                </div>
-
-                <textarea
-                  ref={(el) => (questionRefs.current[qIndex] = el)}
-                  required
-                  rows={3}
-                  value={q.question}
-                  onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  placeholder="Type your question here."
-                />
-
-                {/* Live LaTeX preview */}
-                <div className="rounded-md bg-gray-50 border px-3 py-2">
-                  <div className="text-xs text-gray-500 mb-1">Preview</div>
-                  <MathJax dynamic>
-                    {q.question && q.question.trim() !== ""
-                      ? q.question
-                      : "\\(\\text{(empty)}\\)"}
-                  </MathJax>
-                </div>
-
-                {/* Math pad popover */}
-                {padOpenFor === qIndex && (
-                  <div className="relative">
-                    <div className="absolute z-20 mt-2 w-full">
-                      <MathSymbolPad
-                        open
-                        onInsert={(latex) => insertFromPad(qIndex, latex)}
-                        onClose={() => setPadOpenFor(null)}
-                        anchorClassName="mx-auto"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* QUESTION TEXTAREA (focus sets global pad target) */}
+              <textarea
+                ref={(el) => (questionRefs.current[qIndex] = el)}
+                onFocus={() => setPadTarget({ type: "question", qIndex })}
+                required
+                rows={3}
+                value={q.question}
+                onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
+                className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                placeholder="Type your question here. Use \( ... \) for inline math."
+              />
 
               {/* Time & Points */}
               <div className="grid grid-cols-2 gap-4">
                 <input
                   type="number"
                   min={5}
-                  max={120}
+                  max={600}
                   required
                   value={q.time_limit}
                   onChange={(e) =>
-                    updateQuestion(qIndex, "time_limit", parseInt(e.target.value, 10))
+                    updateQuestion(qIndex, "time_limit", parseInt(e.target.value || "0", 10))
                   }
                   className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   placeholder="Time Limit (sec)"
                 />
                 <input
                   type="number"
-                  min={100}
-                  max={2000}
-                  step={100}
+                  min={50}
+                  max={10000}
+                  step={50}
                   required
                   value={q.points}
                   onChange={(e) =>
-                    updateQuestion(qIndex, "points", parseInt(e.target.value, 10))
+                    updateQuestion(qIndex, "points", parseInt(e.target.value || "0", 10))
                   }
                   className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   placeholder="Points"
                 />
               </div>
 
-              {/* Answers */}
+              {/* Answers (use the global keyboard) */}
               <div className="space-y-2">
                 {q.answers.map((a, aIndex) => (
                   <div key={aIndex} className="flex items-center space-x-3">
                     <input
+                      ref={(el) => {
+                        if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
+                        answerRefs.current[qIndex][aIndex] = el;
+                      }}
+                      onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex })}
                       type="text"
                       required
                       value={a.answer}
@@ -314,14 +437,7 @@ function CreateQuiz() {
                       type="radio"
                       name={`correct-${qIndex}`}
                       checked={a.is_correct}
-                      onChange={() => {
-                        const next = [...questions];
-                        next[qIndex].answers = next[qIndex].answers.map((ans, i) => ({
-                          ...ans,
-                          is_correct: i === aIndex,
-                        }));
-                        setQuestions(next);
-                      }}
+                      onChange={() => setCorrectAnswer(qIndex, aIndex)}
                       className="text-indigo-600 focus:ring-indigo-500"
                     />
                     <span className="text-sm">Correct</span>
@@ -344,10 +460,11 @@ function CreateQuiz() {
 
             <button
               type="submit"
-              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+              disabled={saving}
+              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:opacity-60"
             >
               <Save className="h-5 w-5" />
-              <span>Save Quiz</span>
+              <span>{saving ? "Saving..." : "Save Quiz"}</span>
             </button>
           </div>
         </form>
@@ -359,7 +476,7 @@ function CreateQuiz() {
           <div className="bg-white rounded-lg shadow-lg p-6 w-96 space-y-4">
             <h2 className="text-xl font-bold text-gray-900">Quiz Created Successfully!</h2>
             <p className="text-gray-600">
-              Go to dashboard to see the quiz or create another one.
+              Your quiz was saved with all questions and answers.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -373,19 +490,21 @@ function CreateQuiz() {
                   setShowSuccessModal(false);
                   setTitle("");
                   setDescription("");
-                  setQuestions([
-                    {
-                      question: "",
-                      time_limit: 30,
-                      points: 1000,
-                      answers: Array(4).fill({ answer: "", is_correct: false }),
-                    },
-                  ]);
+                  setQuestions([{ question: "", time_limit: 30, points: 1000, answers: freshAnswers() }]);
+                  setCreatedQuizId(null);
                 }}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
               >
                 Create Another Quiz
               </button>
+              {createdQuizId && (
+                <button
+                  onClick={() => navigate(`/edit-quiz/${createdQuizId}`)}
+                  className="px-4 py-2 bg-white border rounded-md hover:bg-gray-50 transition"
+                >
+                  Edit Quiz
+                </button>
+              )}
             </div>
           </div>
         </div>

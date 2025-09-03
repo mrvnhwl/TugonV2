@@ -43,8 +43,14 @@ import Inversetopic from "./pages/topics/inversetopic";
 import Exponentialtopic from "./pages/topics/exponentialtopic";
 import Logarithmictopic from "./pages/topics/logarithmictopic";
 
-// ➕ bring back UserTypeSelection for the Sign In button target
+// Role selection
 import UserTypeSelection from "./pages/UserTypeSelection";
+
+// ✨ Edit quiz page
+import EditQuiz from "./pages/editQuiz";
+
+// ✨ New: Student Progress page
+import StudentProgress from "./pages/StudentProgress";
 
 // MathJax config (inline: \( ... \), block: \[ ... \])
 const mathJaxConfig = {
@@ -70,6 +76,7 @@ function App() {
 
 function AppContent() {
   const location = useLocation();
+  const path = location.pathname;
 
   const evaluationRoutes = [
     "/evaluationdifficulty",
@@ -79,17 +86,33 @@ function AppContent() {
     "/eEvaluationPhase4",
   ];
 
-  const teacherRoutes = ["/teacherDashboard", "/create-quiz", "/teacherHome"];
-  // Include "/" so StudentNavbar shows on landing
-  const studentRoutes = ["/", "/studentDashboard", "/studentHome"];
+  // Use prefixes so nested paths (like /edit-quiz/:id) match correctly
+  const teacherPrefixes = [
+    "/teacherDashboard",
+    "/create-quiz",
+    "/teacherHome",
+    "/edit-quiz",
+    "/quiz/", // keep teacher navbar visible on /quiz/:id/edit alias
+    "/student-progress", // 👈 show Teacher navbar on Student Progress page
+  ];
+  const studentPrefixes = ["/", "/studentDashboard", "/studentHome"];
 
-  const isEvaluationRoute = evaluationRoutes.includes(location.pathname);
-  const isTeacherRoute = teacherRoutes.includes(location.pathname);
-  const isStudentRoute = studentRoutes.includes(location.pathname);
+  const isEvaluationRoute = evaluationRoutes.includes(path);
+  const isTeacherRoute = teacherPrefixes.some((p) => path.startsWith(p));
+  const isStudentRoute = studentPrefixes.some((p) => path === p); // landing strict
 
-  // Hide AI button on these routes (cover both spellings + userTypeSelection)
-  const hideOnRoutes = ["/login", "/", "/userTypeSelection", "/tugon-play", "/tugonSense", "/tugonsense"];
-  const shouldShowAIButton = !hideOnRoutes.includes(location.pathname);
+  // Hide AI button on these routes
+  const hideOnRoutes = [
+    "/login",
+    "/",
+    "/userTypeSelection",
+    "/tugon-play",
+    "/tugonSense",
+    "/tugonsense",
+  ];
+  const hideOnPrefixes = ["/edit-quiz"]; // optional: hide on edit page
+  const shouldShowAIButton =
+    !hideOnRoutes.includes(path) && !hideOnPrefixes.some((p) => path.startsWith(p));
 
   return (
     <div className="min-h-screen">
@@ -119,9 +142,14 @@ function AppContent() {
             <Route path="/studentHome" element={<StudentHome />} />
             <Route path="/quiz/:id" element={<Quiz />} />
             <Route path="/create-quiz" element={<CreateQuiz />} />
+            {/* Edit quiz routes (both supported) */}
+            <Route path="/edit-quiz/:id" element={<EditQuiz />} />
+            <Route path="/quiz/:id/edit" element={<EditQuiz />} />
             <Route path="/login" element={<Login />} />
             <Route path="/teacherDashboard" element={<TeacherDashboard />} />
             <Route path="/studentDashboard" element={<StudentDashboard />} />
+            {/* ✨ New: Student Progress */}
+            <Route path="/student-progress" element={<StudentProgress />} />
             <Route path="/challenge" element={<Challenge />} />
             <Route path="/tugonsense" element={<TugonSense />} />
             <Route path="/tugon-play" element={<TugonPlay />} />
@@ -150,9 +178,7 @@ function AppContent() {
           </Routes>
 
           {shouldShowAIButton && (
-            <FloatingAIButton
-              onWrongAnswer={(questionId) => console.log("Wrong answer for:", questionId)}
-            />
+            <FloatingAIButton onWrongAnswer={(questionId) => console.log("Wrong answer for:", questionId)} />
           )}
         </div>
       )}
