@@ -19,6 +19,7 @@ import Operation from './pages/tugonsense/operations';
 import Evaluation from './pages/tugonsense/evaluation';
 import Radio from './components/Radio';
 import FloatingAIButton from './components/FloatingAIButton';
+import { MathKeyboard } from './components/MathKeyboard';
 
 import TugonPlay from './pages/reviewer/TugonPlay';
 import HostGame from './pages/HostGame';
@@ -136,6 +137,13 @@ function AppContent() {
           {shouldShowAIButton && (
             <FloatingAIButton onWrongAnswer={(questionId) => console.log('Wrong answer for:', questionId)} />
           )}
+          {shouldShowAIButton && (
+            <>
+              <FloatingAIButton onWrongAnswer={(questionId) => console.log('Wrong answer for:', questionId)} />
+              <MathKeyboard onInsert={(symbol) => console.log('Inserted symbol:', symbol)} />
+            </>
+          )}
+
         </div>
       )}
     </div>
