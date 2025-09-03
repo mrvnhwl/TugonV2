@@ -16,7 +16,20 @@
     transform: translateY(0);
   }
 }
+html,
+body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+.content-fit {
+  height: fit-content !important;
+  min-height: unset !important;
+}
 
+input[type="text"],
+textarea {
+  font-size: 16px;
+}
 .animate-slide-down {
   animation: slideDown 0.3s ease-out;
 }

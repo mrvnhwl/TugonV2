@@ -4,6 +4,7 @@
 export interface GivenQuestion {
   question_id: number;
   question_text: string;
+  guide_text: string;
 }
 
 export interface Question {
@@ -27,27 +28,27 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "Is the relation a function?",
         given_question: [
-          { question_id: 1, question_text: "Given the coordinates of relation {(1,2),(2,3),(3,4),(2,5)}" },
-          { question_id: 2, question_text: "Given the coordinates of relation {(0,1),(1,2),(2,3),(3,4)}" },
-          { question_id: 3, question_text: "Given the coordinates of relation {(1,1),(2,2),(3,3),(1,4)}" },
-          { question_id: 4, question_text: "Given the coordinates of relation {(5,6),(7,8),(9,10),(11,12)}" }
+          { question_id: 1, question_text: "Given the coordinates of relation {(1,2),(2,3),(3,4),(2,5)}", guide_text: "Check if any x-value repeats with different y-values." },
+          { question_id: 2, question_text: "Given the coordinates of relation {(0,1),(1,2),(2,3),(3,4)}", guide_text: "Each x-value should map to only one y-value." },
+          { question_id: 3, question_text: "Given the coordinates of relation {(1,1),(2,2),(3,3),(1,4)}", guide_text: "Look for repeated x-values with different y-values." },
+          { question_id: 4, question_text: "Given the coordinates of relation {(5,6),(7,8),(9,10),(11,12)}", guide_text: "Are all x-values unique?" }
         ]
       },
       { 
         category_id: 2, 
         category_question: "Is the graph a function?",
         given_question: [
-          { question_id: 1, question_text: "Graph showing a vertical line at x = 3" },
-          { question_id: 2, question_text: "Graph showing a parabola opening upward" },
-          { question_id: 3, question_text: "Graph showing a circle centered at origin" },
-          { question_id: 4, question_text: "Graph showing a horizontal line at y = 5" }
+          { question_id: 1, question_text: "Graph showing a vertical line at x = 3", guide_text: "Does any vertical line cross the graph more than once?" },
+          { question_id: 2, question_text: "Graph showing a parabola opening upward", guide_text: "Try the vertical line test." },
+          { question_id: 3, question_text: "Graph showing a circle centered at origin", guide_text: "What happens if you draw a vertical line through the center?" },
+          { question_id: 4, question_text: "Graph showing a horizontal line at y = 5", guide_text: "Does every x have only one y?" }
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 3",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
     ],
@@ -60,30 +61,30 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "g(x)=x+5. Find g(7).",
         given_question: [
-          { question_id: 1, question_text: "g(x) = x + 5. Find g(7)" },
-          { question_id: 2, question_text: "g(x) = x + 5. Find g(3)" },
-          { question_id: 3, question_text: "g(x) = x + 5. Find g(-2)" },
-          { question_id: 4, question_text: "g(x) = x + 5. Find g(0)" }
+          { question_id: 1, question_text: "g(x) = x + 5. Find g(7)", guide_text: "Substitute 7 for x and solve." },
+          { question_id: 2, question_text: "g(x) = x + 5. Find g(3)", guide_text: "Replace x with 3." },
+          { question_id: 3, question_text: "g(x) = x + 5. Find g(-2)", guide_text: "Plug in -2 for x." },
+          { question_id: 4, question_text: "g(x) = x + 5. Find g(0)", guide_text: "What is g(0)?" }
         ]
       },
       { 
         category_id: 2, 
         category_question: "p(x)=x^2+4. Find p(6)",
         given_question: [
-          { question_id: 1, question_text: "p(x) = x² + 4. Find p(6)" },
-          { question_id: 2, question_text: "p(x) = x² + 4. Find p(3)" },
-          { question_id: 3, question_text: "p(x) = x² + 4. Find p(-1)" },
-          { question_id: 4, question_text: "p(x) = x² + 4. Find p(0)" }
+          { question_id: 1, question_text: "p(x) = x² + 4. Find p(6)", guide_text: "Substitute 6 for x and compute." },
+          { question_id: 2, question_text: "p(x) = x² + 4. Find p(3)", guide_text: "Replace x with 3 and solve." },
+          { question_id: 3, question_text: "p(x) = x² + 4. Find p(-1)", guide_text: "Plug in -1 for x." },
+          { question_id: 4, question_text: "p(x) = x² + 4. Find p(0)", guide_text: "What is p(0)?" }
         ]
       },
       { 
         category_id: 3, 
         category_question: "f(x)=2x^2-3x+1. Find f(-2)",
         given_question: [
-          { question_id: 1, question_text: "f(x) = 2x² - 3x + 1. Find f(-2)" },
-          { question_id: 2, question_text: "f(x) = 2x² - 3x + 1. Find f(1)" },
-          { question_id: 3, question_text: "f(x) = 2x² - 3x + 1. Find f(3)" },
-          { question_id: 4, question_text: "f(x) = 2x² - 3x + 1. Find f(0)" }
+          { question_id: 1, question_text: "f(x) = 2x² - 3x + 1. Find f(-2)", guide_text: "Substitute -2 for x and solve." },
+          { question_id: 2, question_text: "f(x) = 2x² - 3x + 1. Find f(1)", guide_text: "Replace x with 1 and compute." },
+          { question_id: 3, question_text: "f(x) = 2x² - 3x + 1. Find f(3)", guide_text: "Plug in 3 for x." },
+          { question_id: 4, question_text: "f(x) = 2x² - 3x + 1. Find f(0)", guide_text: "What is f(0)?" }
         ]
       },
     ],
@@ -96,21 +97,21 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "TODO: input question here 7",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 2, 
         category_question: "TODO: input question here 8",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 9",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
     ],
@@ -123,21 +124,21 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "TODO: input question here 10",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 2, 
         category_question: "TODO: input question here 11",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 12",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
     ],
@@ -150,21 +151,21 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "TODO: input question here 13",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 2, 
         category_question: "TODO: input question here 14",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 15",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
     ],
@@ -177,21 +178,21 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "TODO: input question here 16",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 2, 
         category_question: "TODO: input question here 17",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 18",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
     ],
@@ -204,21 +205,21 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "TODO: input question here 19",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 2, 
         category_question: "TODO: input question here 20",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 21",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
     ],

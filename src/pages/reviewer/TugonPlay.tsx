@@ -9,15 +9,47 @@ import HintBubble from "../../components/tugon/hint-system/HintBubble";
 import Character from "../../components/tugon/hint-system/Character";
 import { Heading,Text, Small } from "../../components/Typography";
 
-const DEFAULT_HINT_TEXT = "Try isolating y. Start by substituting x = 2.";
+const FALLBACK_HINT_TEXT = "Try isolating y. Start by substituting x = 2.";
 
 export default function TugonPlay() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [hint, setHint] = useState(DEFAULT_HINT_TEXT);
   const [attempts, setAttempts] = useState(0);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const idleTimer = useRef<number | null>(null);
+
+  // Extract URL parameters
+  const topicId = Number(searchParams.get("topic")) || 1;
+  const categoryId = Number(searchParams.get("category")) || 1;
+  const questionId = Number(searchParams.get("question")) || 1;
+  const legacyQ = Number(searchParams.get("q"));
+  const finalCategoryId = legacyQ || categoryId;
+
+  // Get the guide_text from question.ts based on current question
+  const getGuideText = () => {
+    const topic = defaultTopics.find(t => t.id === topicId);
+    if (topic) {
+      const category = topic.level.find(q => q.category_id === finalCategoryId);
+      if (category) {
+        const specificQuestion = category.given_question.find(gq => gq.question_id === questionId);
+        return specificQuestion?.guide_text || FALLBACK_HINT_TEXT;
+      }
+    }
+    return FALLBACK_HINT_TEXT;
+  };
+
+  // Initialize hint with guide_text from current question
+  const [hint, setHint] = useState(getGuideText());
+
+  // Update hint when URL parameters change
+  useEffect(() => {
+    setHint(getGuideText());
+  }, [topicId, finalCategoryId, questionId]);
+
+  const stageIndex = topicId && finalCategoryId ? (topicId - 1) * 3 + finalCategoryId : undefined;
+  const expectedAnswers = stageIndex ? questionAnswersByStage[stageIndex as keyof typeof questionAnswersByStage] : undefined;
+  const topic = defaultTopics.find((t) => t.id === topicId);
+  const topicName = topic?.name || "Question";
 
   const steps: Step[] = [
     { id: "s1", label: "Short answer", placeholder: "Enter a single-line answer" },
@@ -28,7 +60,10 @@ export default function TugonPlay() {
   const resetIdle = () => {
     if (idleTimer.current) window.clearTimeout(idleTimer.current);
     idleTimer.current = window.setTimeout(() => {
-      if (!isCorrect) setHint("Stuck? Compute 4×2 first, then add 3.");
+      if (!isCorrect) {
+        // Use dynamic guide text for idle hint as well
+        setHint(`Stuck? ${getGuideText()}`);
+      }
     }, 20000);
   };
 
@@ -41,34 +76,19 @@ export default function TugonPlay() {
     setAttempts((n) => n + 1);
     setIsCorrect(correct);
     if (correct) {
-      setHint("Great job! 🎉 You isolated y correctly.");
+      setHint("Great job! 🎉 You solved it correctly.");
       return;
     }
-    // Wrong attempt → graduated hints
+    
+    // Progressive hints based on attempts, but still use guide_text as base
+    const baseGuideText = getGuideText();
     setHint(() => {
-      if (attempts === 0) return "Try substituting x = 2 first.";
-      if (attempts === 1) return "Add 3 to both sides to isolate y.";
-      return "Compute 4x when x = 2, then solve for y.";
+      if (attempts === 0) return `Hint: ${baseGuideText}`;
+      if (attempts === 1) return `Try again: ${baseGuideText}`;
+      return `Keep trying: ${baseGuideText}`;
     });
     resetIdle();
   };
-
-  // Extract URL parameters and calculate IDs
-  const topicId = Number(searchParams.get("topic")) || 1;
-  const categoryId = Number(searchParams.get("category")) || 1;
-  const questionId = Number(searchParams.get("question")) || 1;
-  
-  // Legacy support - if using old "q" parameter, map it to categoryId
-  const legacyQ = Number(searchParams.get("q"));
-  const finalCategoryId = legacyQ || categoryId;
-
-  // Calculate stage index for expected answers (keeping backward compatibility)
-  const stageIndex = topicId && finalCategoryId ? (topicId - 1) * 3 + finalCategoryId : undefined;
-  const expectedAnswers = stageIndex ? questionAnswersByStage[stageIndex as keyof typeof questionAnswersByStage] : undefined;
-
-  // Get topic name for display
-  const topic = defaultTopics.find((t) => t.id === topicId);
-  const topicName = topic?.name || "Question";
 
   const handleSubmit = (finalSteps: WizardStep[]) => {
     console.log("Wizard steps:", finalSteps);
@@ -76,98 +96,97 @@ export default function TugonPlay() {
   };
 
   const handleIndexChange = (newIndex: number) => {
-    // Handle step changes if needed
     console.log("Step changed to:", newIndex);
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Navbar - Fixed at top with improved typography */}
-      <nav className="fixed top-0 w-full z-50 px-2 sm:px-4 h-14 bg-purple-600 shadow-md">
-        <div className="h-full flex items-center justify-between">
-          <Heading className="text-white font-semibold text-fluid-sm sm:text-fluid-base">
-            TugonPlay
-          </Heading>
-          <button
-            aria-label="Exit TugonPlay"
-            className="text-white/90 hover:text-white font-semibold tracking-wide px-2 sm:px-4 py-2 text-fluid-sm sm:text-fluid-base transition-colors"
-            onClick={() => navigate("/tugonsense")}
-          >
-            ✕
-          </button>
-        </div>
-      </nav>
+    <div style={{
+      height: "100vh",
+      display: "flex",
+      flexDirection: "column",
+      margin: 0,
+      padding: 0,
+      overflow: "hidden",
+      backgroundColor: "white"
+    }}>
+      {/* Navbar */}
+      <div style={{
+        height: "52px",
+        backgroundColor: "#7c3aed",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 16px",
+        flexShrink: 0
+      }}>
+        <Heading className="text-white font-semibold">TugonPlay</Heading>
+        <button
+          onClick={() => navigate("/tugonsense")}
+          style={{ color: "white", background: "none", border: "none", fontSize: "18px" }}
+        >
+          ✕
+        </button>
+      </div>
 
-      {/* Stage wrapper - Mobile-first responsive (Brilliant.org style) */}
-     <main className="mx-auto pt-16 w-full h-auto px-4 
-                 md:w-[640px] md:h-[640px] 
-                 bg-white rounded-none md:rounded-2xl 
-        
-                 flex flex-col relative">
-        
-        {/* Content column - Optimized for readability with max-w-reading */}
-        <section className="w-full max-w-reading mx-auto mt-4 sm:mt-6 md:mt-10 flex flex-col gap-4 sm:gap-6" role="main" aria-label="Learning content">
-          
-          {/* Question Section - Responsive typography and accessibility */}
-          <div className="flex flex-col items-center text-center sm:text-left space-y-3">
-            {/* CategoryQuestion - Enhanced with responsive alignment */}
+      {/* Content - Takes remaining space */}
+      <div style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "16px",
+        margin: 0
+      }}>
+        <div style={{
+          maxWidth: "448px", // max-w-md
+          margin: "0 auto",
+          padding: 0
+        }}>
+          {/* Question Section */}
+          <div style={{ marginBottom: "16px" }}>
             <CategoryQuestion 
               topicId={topicId}
               categoryId={finalCategoryId}
-              className="w-full text-left sm:text-left"
             />
-            
-            {/* QuestionBox - Optimized for readability */}
+          </div>
+          
+          <div style={{ marginBottom: "16px" }}>
             <QuestionBox 
               topicId={topicId}
               categoryId={finalCategoryId}
               questionId={questionId}
               title={topicName}
-              fallbackText="Question not found. Please check the URL parameters."
-              className="w-full leading-relaxed"
+              fallbackText="Question not found."
             />
           </div>
           
-          {/* AnswerWizard - Enhanced with responsive spacing */}
-          <AnswerWizard
-            steps={steps}
-            onSubmit={handleSubmit}
-            onIndexChange={handleIndexChange}
-            expectedAnswers={expectedAnswers}
-            className="w-full max-w-content mx-auto"
-            onValidationResult={(type) => {
-              // Handle validation results and update hint
-              const correct = type === "correct";
-              handleAttempt({ correct });
-            }}
-            onAnswerChange={() => {
-              // Reset idle timer when user types
-              resetIdle();
-            }}
-          />
-          
-          {/* HintBubble - Accessible with aria-live and responsive typography */}
-          <div aria-live="polite" aria-label="Hint messages">
-            <HintBubble 
-              message={hint} 
-              className="text-center sm:text-left leading-relaxed max-w-reading mx-auto"
+          {/* Answer Wizard */}
+          <div style={{ marginBottom: "16px" }}>
+            <AnswerWizard
+              steps={steps}
+              onSubmit={handleSubmit}
+              onIndexChange={handleIndexChange}
+              expectedAnswers={expectedAnswers}
+              onValidationResult={(type) => {
+                handleAttempt({ correct: type === "correct" });
+              }}
+              onAnswerChange={resetIdle}
             />
           </div>
           
-        </section>
+          {/* Hint */}
+          <div>
+            <HintBubble message={hint} />
+          </div>
+        </div>
+      </div>
 
-      </main>
-
-      {/* Character in lower right corner - Enhanced responsive positioning and accessibility */}
-      <div 
-        className="fixed bottom-6 right-4 sm:right-6 z-50 md:bottom-8 md:right-8"
-        role="complementary"
-        aria-label="Virtual assistant character"
-      >
-        <Character 
-          name="Tugon"
-          className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-        />
+      {/* Character */}
+      <div style={{
+        position: "fixed",
+        bottom: "16px",
+        right: "16px",
+        zIndex: 50
+      }}>
+        <Character name="Tugon" className="w-24 h-24" />
       </div>
     </div>
   );

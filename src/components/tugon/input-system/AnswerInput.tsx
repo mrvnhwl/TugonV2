@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, forwardRef } from "react";
 import { Input } from "../../ui/input";
 import { Textarea } from "../../ui/textarea";
 
@@ -11,9 +11,10 @@ export type AnswerInputProps = {
   className?: string;
   onResetSpamFlag?: () => void;
   onSpamDetected?: () => void;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
 };
 
-export default function AnswerInput({ 
+const AnswerInput = forwardRef<HTMLInputElement | HTMLTextAreaElement, AnswerInputProps>(({ 
   value, 
   onChange, 
   placeholder, 
@@ -21,8 +22,9 @@ export default function AnswerInput({
   disabled, 
   className, 
   onResetSpamFlag, 
-  onSpamDetected 
-}: AnswerInputProps) {
+  onSpamDetected,
+  onKeyDown
+}, ref) => {
   const [localDisabled, setLocalDisabled] = useState(false);
   const [hasSpamWarned, setHasSpamWarned] = useState(false);
 
@@ -99,8 +101,10 @@ export default function AnswerInput({
     <div className="space-y-2">
       {multiline ? (
         <Textarea
+          ref={ref as React.Ref<HTMLTextAreaElement>}
           value={value}
           onChange={(e) => handleChange(e.target.value)}
+          onKeyDown={onKeyDown}
           placeholder={placeholder}
           disabled={isDisabled}
           rows={4}
@@ -108,9 +112,11 @@ export default function AnswerInput({
         />
       ) : (
         <Input
+          ref={ref as React.Ref<HTMLInputElement>}
           type="text"
           value={value}
           onChange={(e) => handleChange(e.target.value)}
+          onKeyDown={onKeyDown}
           placeholder={placeholder}
           disabled={isDisabled}
           className={`${inputTypographyClasses} h-14 sm:h-16 ${className || ''}`}
@@ -118,4 +124,8 @@ export default function AnswerInput({
       )}
     </div>
   );
-}
+});
+
+AnswerInput.displayName = "AnswerInput";
+
+export default AnswerInput;
