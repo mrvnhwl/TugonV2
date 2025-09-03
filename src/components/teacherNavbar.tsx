@@ -80,36 +80,14 @@ function TeacherNavbar() {
                   Logout
                 </button>
 
-                <Link to="/teacherDashboard" className="hover:underline px-3 py-2 rounded-md text-sm font-medium">Dashboard</Link>
-                <Link to="/tugonSense" className="hover:underline px-3 py-2 rounded-md text-sm font-medium">TugonSense</Link>
-                <Link to="/create-quiz" className="hover:underline px-3 py-2 rounded-md text-sm font-medium">Create Quiz</Link>
-                <Link to="/host" className="hover:underline px-3 py-2 rounded-md text-sm font-medium flex items-center"><Play className="h-4 w-4 mr-1" />Host Game</Link>
-                <Link to="/join" className="hover:underline px-3 py-2 rounded-md text-sm font-medium flex items-center"><Users className="h-4 w-4 mr-1" />Join Game</Link>
-                <button onClick={async () => { await signOut(); localStorage.removeItem("userType"); navigate("/"); }} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-md text-sm font-medium">Logout</button>
-
+               
               </>
             ) : (
               <button onClick={handleSignIn} className="bg-white text-indigo-600 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-100">Sign In</button>
             )}
           </div>
         </div>
-        {/* Mobile menu, show/hide based on menuOpen */}
-        {menuOpen && (
-          <div className="md:hidden mt-2 space-y-1 pb-4">
-            {user ? (
-              <>
-                <Link to="/teacherDashboard" className="block hover:underline px-3 py-2 rounded-md text-base font-medium">Dashboard</Link>
-                <Link to="/tugonSense" className="block hover:underline px-3 py-2 rounded-md text-base font-medium">TugonSense</Link>
-                <Link to="/create-quiz" className="block hover:underline px-3 py-2 rounded-md text-base font-medium">Create Quiz</Link>
-                <Link to="/host" className="block hover:underline px-3 py-2 rounded-md text-base font-medium flex items-center"><Play className="h-4 w-4 mr-1" />Host Game</Link>
-                <Link to="/join" className="block hover:underline px-3 py-2 rounded-md text-base font-medium flex items-center"><Users className="h-4 w-4 mr-1" />Join Game</Link>
-                <button onClick={async () => { await signOut(); localStorage.removeItem("userType"); navigate("/"); }} className="w-full bg-red-500 hover:bg-red-600 px-4 py-2 rounded-md text-base font-medium mt-2">Logout</button>
-              </>
-            ) : (
-              <button onClick={handleSignIn} className="w-full bg-white text-indigo-600 px-4 py-2 rounded-md text-base font-medium hover:bg-gray-100">Sign In</button>
-            )}
-          </div>
-        )}
+        
       </div>
     </nav>
   );

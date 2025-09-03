@@ -351,12 +351,7 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
           {error && <p className="text-red-500 text-xs">{error}</p>}
 
           {/* ✅ Math Keyboard inserted here */}
-          {showKeyboard && (
-            <MathKeyboard
-              onInsert={handleInsert}
-              onClose={() => setShowKeyboard(false)}
-            />
-          )}
+            
         </div>
 
         {/* X and Y Inputs */}
