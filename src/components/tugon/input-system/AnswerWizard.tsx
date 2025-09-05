@@ -76,8 +76,6 @@ export default function AnswerWizard({
     } as WizardStep;
   });
 
-  
-
   const [steps, setSteps] = useState<WizardStep[]>(fixedSteps);
   const [index, setIndex] = useState(0);
   const [correctness, setCorrectness] = useState<Array<boolean | null>>(
@@ -88,6 +86,39 @@ export default function AnswerWizard({
   const [userInputs, setUserInputs] = useState<string[][]>(
     fixedSteps.map(() => [''])
   );
+
+  // Add hint state for testing
+  const [hintState, setHintState] = useState({
+    show: false,
+    text: "",
+    requestCount: 0
+  });
+
+  // Sample hints for testing (30-50 words each)
+  const sampleHints = [
+    "Start by identifying what you need to substitute. Look for the variable in your function and replace it with the given value.",
+    "After substitution, follow order of operations: parentheses, exponents, multiplication, division, addition, and subtraction in that order.",
+    "Double-check each calculation step. Small arithmetic errors can lead to wrong final answers. Work slowly and verify each operation.",
+    "Make sure your final answer is a single number, not an expression that needs further simplification. Complete all calculations."
+  ];
+
+  // Function to trigger hints for testing
+  const triggerTestHint = () => {
+    const hintIndex = hintState.requestCount % sampleHints.length;
+    setHintState({
+      show: true,
+      text: sampleHints[hintIndex],
+      requestCount: hintState.requestCount + 1
+    });
+  };
+
+  // Function to hide hints
+  const hideHints = () => {
+    setHintState(prev => ({
+      ...prev,
+      show: false
+    }));
+  };
 
   const total = steps.length;
   const current = steps[index];
@@ -102,16 +133,25 @@ export default function AnswerWizard({
     return lines.join('\n');
   };
 
+  // Handle Enter key submission
+  const handleEnterSubmission = (lines: string[]) => {
+    console.log("🎯 Submitting via Enter key:", lines);
+    
+    // Use your existing submit logic
+    const validationResult = InputValidator.validateAllSteps([lines], answersSource ? [answersSource[index]] : []);
+    onSubmit(steps, validationResult);
+  };
+
+  const handleSuggestSubmission = (lines: string[]) => {
+    // Removed toast notification - just log for now
+    console.log("Suggestion: Fix incorrect steps, then press Enter to submit");
+  };
+
   // Handle input changes from UserInput
   const handleInputChange = (lines: string[]) => {
-    // Use InputValidator for logging with updated structure
-    const expectedSteps = answersSource?.[index]?.steps; // Use steps instead of answer
+    const expectedSteps = answersSource?.[index]?.steps;
     
-    InputValidator.logValidation(
-      lines, 
-      expectedSteps, // Pass Step[] instead of old answer property
-      index
-    );
+    InputValidator.logValidation(lines, expectedSteps, index);
     
     // Update internal steps state
     setSteps((prev) => {
@@ -190,6 +230,29 @@ export default function AnswerWizard({
 
             return (
               <div className="space-y-2">
+                {/* Test Button for Hints - Positioned on the side */}
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <Small className="text-gray-600">Step {index + 1}</Small>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={triggerTestHint}
+                      className="px-3 py-1 text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-md border border-yellow-300 transition-colors"
+                    >
+                      🧪 Test Hint
+                    </button>
+                    {hintState.show && (
+                      <button
+                        onClick={hideHints}
+                        className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md border border-gray-300 transition-colors"
+                      >
+                        ✕ Hide
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <UserInput
                   key={`user-input-${index}`}
                   value={answerLines}
@@ -198,6 +261,9 @@ export default function AnswerWizard({
                   maxLines={8}
                   disabled={Boolean(inputDisabled || (correctness[index] === true))}
                   className={inputClasses}
+                  expectedSteps={expectedSteps}
+                  onSubmit={handleEnterSubmission}
+                  onSuggestSubmission={handleSuggestSubmission}
                   onSpamDetected={() => {
                     onSpamDetected?.();
                     handleValidationResult("spam");
@@ -205,6 +271,10 @@ export default function AnswerWizard({
                   onResetSpamFlag={() => {
                     // Reset any spam flags if needed
                   }}
+                  // Add hint props
+                  showHints={hintState.show}
+                  hintText={hintState.text}
+                  onRequestHint={triggerTestHint}
                 />
 
                 {correctness[index] === true && (

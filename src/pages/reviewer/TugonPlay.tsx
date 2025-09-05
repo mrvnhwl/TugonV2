@@ -189,9 +189,9 @@ export default function TugonPlay() {
           </div>
           
           {/* Hint */}
-          <div>
+          {/*<div>
             <HintBubble message={hint} />
-          </div>
+          </div>*/}
         </div>
       </div>
 

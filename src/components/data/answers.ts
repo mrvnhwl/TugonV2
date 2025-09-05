@@ -2,7 +2,7 @@
 // Each question corresponds to the structure in question.ts
 
 export type Step = {
-  label: "substitution" | "simplification" | "final" | "math"; // Default: "math"
+  label: "substitution" | "simplification" | "final" | "math" | "text"; // Added "text" for text-based answers
   answer: string;
 };
 
@@ -18,32 +18,32 @@ export const Topic1_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "No" },
-      { label: "math", answer: "The x-value 2 maps to both 3 and 5" }
+      { label: "text", answer: "No" }, // Changed from "math" to "text"
+      { label: "text", answer: "The x-value 2 maps to both 3 and 5" } // Changed from "math" to "text"
     ]
   },
   // Question 2: {(0,1),(1,2),(2,3),(3,4)}
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "Yes" },
-      { label: "math", answer: "Each x-value maps to only one y-value" }
+      { label: "text", answer: "Yes" }, // Changed from "math" to "text"
+      { label: "text", answer: "Each x-value maps to only one y-value" } // Changed from "math" to "text"
     ]
   },
   // Question 3: {(1,1),(2,2),(3,3),(1,4)}
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "No" },
-      { label: "math", answer: "The x-value 1 maps to both 1 and 4" }
+      { label: "text", answer: "No" }, // Changed from "math" to "text"
+      { label: "text", answer: "The x-value 1 maps to both 1 and 4" } // Changed from "math" to "text"
     ]
   },
   // Question 4: {(5,6),(7,8),(9,10),(11,12)}
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "Yes" },
-      { label: "math", answer: "All x-values are unique" }
+      { label: "text", answer: "Yes" }, // Changed from "math" to "text"
+      { label: "text", answer: "All x-values are unique" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -54,32 +54,32 @@ export const Topic1_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "No" },
-      { label: "math", answer: "Vertical line fails the vertical line test" }
+      { label: "text", answer: "No" }, // Changed from "math" to "text"
+      { label: "text", answer: "Vertical line fails the vertical line test" } // Changed from "math" to "text"
     ]
   },
   // Question 2: Parabola opening upward
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "Yes" },
-      { label: "math", answer: "Passes the vertical line test" }
+      { label: "text", answer: "Yes" }, // Changed from "math" to "text"
+      { label: "text", answer: "Passes the vertical line test" } // Changed from "math" to "text"
     ]
   },
   // Question 3: Circle centered at origin
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "No" },
-      { label: "math", answer: "Vertical lines through the circle intersect at two points" }
+      { label: "text", answer: "No" }, // Changed from "math" to "text"
+      { label: "text", answer: "Vertical lines through the circle intersect at two points" } // Changed from "math" to "text"
     ]
   },
   // Question 4: Horizontal line at y = 5
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "Yes" },
-      { label: "math", answer: "Each x has only one y-value" }
+      { label: "text", answer: "Yes" }, // Changed from "math" to "text"
+      { label: "text", answer: "Each x has only one y-value" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -91,7 +91,7 @@ export const Topic2_Category1_Answers: PredefinedAnswer[] = [
   {
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "7+5" },
+      { label: "substitution", answer: "(7)+5" },
       { label: "final", answer: "12" }
     ]
   },
@@ -99,8 +99,8 @@ export const Topic2_Category1_Answers: PredefinedAnswer[] = [
   {
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "g(3) = 3 + 5" },
-      { label: "final", answer: "g(3) = 8" }
+      { label: "substitution", answer: "(3)+5" },
+      { label: "final", answer: "8" }
     ]
   },
   // Question 3: g(x) = x + 5. Find g(-2)
@@ -127,9 +127,9 @@ export const Topic2_Category2_Answers: PredefinedAnswer[] = [
   {
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "p(6) = 6² + 4" },
-      { label: "simplification", answer: "p(6) = 36 + 4" },
-      { label: "final", answer: "p(6) = 40" }
+      { label: "substitution", answer: "6(6)+4" },
+      { label: "simplification", answer: "36 + 4" },
+      { label: "final", answer: "40" }
     ]
   },
   // Question 2: p(x) = x² + 4. Find p(3)
@@ -211,7 +211,7 @@ export const Topic3_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add piecewise function solution steps" }
+      { label: "text", answer: "TODO: Add piecewise function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -219,7 +219,7 @@ export const Topic3_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add piecewise function solution steps" }
+      { label: "text", answer: "TODO: Add piecewise function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -227,7 +227,7 @@ export const Topic3_Category3_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add piecewise function solution steps" }
+      { label: "text", answer: "TODO: Add piecewise function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -237,7 +237,7 @@ export const Topic4_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add function operations solution steps" }
+      { label: "text", answer: "TODO: Add function operations solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -245,7 +245,7 @@ export const Topic4_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add function operations solution steps" }
+      { label: "text", answer: "TODO: Add function operations solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -253,7 +253,7 @@ export const Topic4_Category3_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add function operations solution steps" }
+      { label: "text", answer: "TODO: Add function operations solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -263,7 +263,7 @@ export const Topic5_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add function composition solution steps" }
+      { label: "text", answer: "TODO: Add function composition solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -271,7 +271,7 @@ export const Topic5_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add function composition solution steps" }
+      { label: "text", answer: "TODO: Add function composition solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -279,7 +279,7 @@ export const Topic5_Category3_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add function composition solution steps" }
+      { label: "text", answer: "TODO: Add function composition solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -289,7 +289,7 @@ export const Topic6_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add rational function solution steps" }
+      { label: "text", answer: "TODO: Add rational function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -297,7 +297,7 @@ export const Topic6_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add rational function solution steps" }
+      { label: "text", answer: "TODO: Add rational function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -305,7 +305,7 @@ export const Topic6_Category3_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add rational function solution steps" }
+      { label: "text", answer: "TODO: Add rational function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -315,7 +315,7 @@ export const Topic7_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add graphing rational function solution steps" }
+      { label: "text", answer: "TODO: Add graphing rational function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -323,7 +323,7 @@ export const Topic7_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add graphing rational function solution steps" }
+      { label: "text", answer: "TODO: Add graphing rational function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -331,7 +331,7 @@ export const Topic7_Category3_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add graphing rational function solution steps" }
+      { label: "text", answer: "TODO: Add graphing rational function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -341,7 +341,7 @@ export const Topic8_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add rational equations solution steps" }
+      { label: "text", answer: "TODO: Add rational equations solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -349,7 +349,7 @@ export const Topic8_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add rational equations solution steps" }
+      { label: "text", answer: "TODO: Add rational equations solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -357,7 +357,7 @@ export const Topic8_Category3_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add rational equations solution steps" }
+      { label: "text", answer: "TODO: Add rational equations solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -367,7 +367,7 @@ export const Topic9_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add inverse function solution steps" }
+      { label: "text", answer: "TODO: Add inverse function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -375,7 +375,7 @@ export const Topic9_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add inverse function solution steps" }
+      { label: "text", answer: "TODO: Add inverse function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -383,7 +383,7 @@ export const Topic9_Category3_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add inverse function solution steps" }
+      { label: "text", answer: "TODO: Add inverse function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -393,7 +393,7 @@ export const Topic10_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add exponential function solution steps" }
+      { label: "text", answer: "TODO: Add exponential function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -401,7 +401,7 @@ export const Topic10_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add exponential function solution steps" }
+      { label: "text", answer: "TODO: Add exponential function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -409,7 +409,7 @@ export const Topic10_Category3_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add exponential function solution steps" }
+      { label: "text", answer: "TODO: Add exponential function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -419,7 +419,7 @@ export const Topic11_Category1_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add logarithmic function solution steps" }
+      { label: "text", answer: "TODO: Add logarithmic function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -427,7 +427,7 @@ export const Topic11_Category2_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add logarithmic function solution steps" }
+      { label: "text", answer: "TODO: Add logarithmic function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];
@@ -435,7 +435,7 @@ export const Topic11_Category3_Answers: PredefinedAnswer[] = [
   { 
     type: "multiLine", 
     steps: [
-      { label: "math", answer: "TODO: Add logarithmic function solution steps" }
+      { label: "text", answer: "TODO: Add logarithmic function solution steps" } // Changed from "math" to "text"
     ]
   },
 ];

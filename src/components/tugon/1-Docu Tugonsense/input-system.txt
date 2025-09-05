@@ -1,92 +1,284 @@
-TIE SYSTEM - Multi-Line Input System Documentation
-=================================================
+TUGON INPUT SYSTEM - Multi-Line Mathematical Step-by-Step Input Documentation
+===============================================================================
 
 OVERVIEW
 --------
-This system provides a multi-line text input interface for educational applications,
-specifically designed for mathematical problem-solving with step-by-step answer collection
-and line-by-line validation.
+This system provides an intelligent multi-line text input interface for educational 
+applications, specifically designed for mathematical problem-solving with step-by-step 
+answer collection, two-phase validation, progressive percentage scoring, and smart 
+position-aware feedback.
+
+KEY FEATURES
+------------
+✅ Two-Phase Validation (Mathematical Equivalence + Positional Validation)
+✅ Progressive Percentage Scoring (20% → 80% → 100%)
+✅ Smart Final Answer Detection with Position Enforcement  
+✅ Auto-Scrolling Multi-Line Input with Line Restrictions
+✅ Real-Time Step-by-Step Progress Indicators
+✅ Anti-Spam Protection and Focus Management
+✅ Label-Based Step Context Awareness
 
 FILE STRUCTURE & RESPONSIBILITIES
 ---------------------------------
 
 1. answers.ts
-   - Central database of predefined correct answers
+   - Central database of predefined correct answers with step labels
+   - NEW: Step-based structure with labels: "substitution", "simplification", "final", "math", "text"
+   - Each answer stored as Step[] array with {label, answer} objects
    - Organized by Topic → Category → Questions structure
-   - Each answer stored as string[] array for line-by-line comparison
-   - Only supports "multiLine" type (matches UserInput component)
-   - Helper function: getAnswerForQuestion(topicId, categoryId, questionId)
+   - Example: steps: [
+       { label: "substitution", answer: "6(6)+4" },
+       { label: "simplification", answer: "36 + 4" }, 
+       { label: "final", answer: "40" }
+     ]
 
-2. AnswerInput.tsx
-   - Low-level input component (forwardRef wrapper)
-   - Handles single text input with spam detection
-   - Supports both Input and Textarea rendering
-   - Forwards keyboard events (onKeyDown) for Enter key handling
-   - Anti-spam protection with cooldown mechanism
+2. AnswerInput.tsx (Deprecated - replaced by native inputs)
+   - Legacy component - no longer used in current system
 
-3. UserInput.tsx
-   - Multi-line input manager component
-   - Manages array of individual text lines (up to 8 lines)
-   - Handles Enter key to create new lines with cursor movement
-   - Provides line navigation (Arrow Up/Down), deletion, and focus management
-   - Auto-scrolling when more than 2 lines visible
-   - Each line is a separate AnswerInput component
+3. UserInput.tsx (HEAVILY UPDATED)
+   - Advanced multi-line input manager with intelligent features
+   - NEW: Two-phase validation system (mathematical + positional)
+   - NEW: Progressive percentage scoring system
+   - NEW: Smart line restriction based on expected steps count
+   - NEW: Auto-scrolling when exceeding 2 visible lines
+   - NEW: Enhanced focus management with aggressive retry logic  
+   - NEW: Real-time progress bar with color-coded feedback
+   - NEW: Final answer detection with position enforcement rules
+   - Manages dynamic line creation restricted to expected steps count
 
-4. UserInputValidator.tsx (NEW)
-   - Dedicated validation logic component
-   - Handles line-by-line array comparison validation
-   - Sanitizes only user input (expected answers are pre-clean)
-   - Supports both string and array expected answer formats
-   - Provides comprehensive validation results and logging
+4. UserInputValidator.tsx (COMPLETELY REWRITTEN)
+   - NEW: Two-phase validation architecture
+   - NEW: Smart step validation with cross-contamination prevention
+   - NEW: Mathematical equivalence checking with positional awareness
+   - NEW: Final answer jump detection across all input positions
+   - Preserves mathematical flexibility while enforcing step order
+   - Enhanced logging with step label context and validation phases
 
-5. AnswerWizard.tsx
-   - High-level orchestrator component
-   - Manages multiple steps/questions in sequence
-   - Uses UserInputValidator for all validation logic
-   - Stores user input as string arrays (one array per step)
-   - Handles submission and correctness validation
+5. AnswerWizard.tsx (SIMPLIFIED)
+   - High-level orchestrator component (simplified from complex logic)
+   - Removed toast notifications, hints, and guidance systems
+   - Now focuses purely on input coordination and submission
+   - Uses UserInput component for all validation and progression logic
 
-DATA FLOW
----------
+DATA FLOW & TWO-PHASE VALIDATION ARCHITECTURE
+---------------------------------------------
 
-User Types → AnswerInput → UserInput → AnswerWizard → UserInputValidator → answers.ts
+User Types → UserInput → Two-Phase Validation → Progress Calculation → Visual Feedback
 
-1. User types in AnswerInput field
-2. AnswerInput forwards changes to UserInput
-3. UserInput manages line array and sends to AnswerWizard
-4. AnswerWizard calls UserInputValidator for validation
-5. UserInputValidator compares against answers.ts (line-by-line)
-6. Console logs show real-time validation results
+1. User types in native HTML input field (no wrapper components)
+2. UserInput captures input and calls validateStepWithTwoPhase()
+3. Two-Phase Validation Process:
+   
+   PHASE 1 - Mathematical Equivalence Check:
+   - Uses isMathematicallyEquivalentRobust() for flexible math validation
+   - Allows variations: "6*6+4" = "6(6)+4" = "6×6+4" ✅
+   - Preserves mathematical flexibility for different notations
+   
+   PHASE 2 - Positional Validation Check:
+   - Verifies answer is appropriate for current step position
+   - Uses step label context ("substitution", "simplification", "final")
+   - Prevents final answers in wrong positions
+   - Enforces educational step-by-step learning approach
+
+4. Progressive Percentage Calculation:
+   - Step 1: 20% (substitution step - required, final answer blocked)
+   - Step 2+: 80% (final answer allowed for quick completion)
+   - All Steps: 100% (complete step-by-step solution)
+
+5. Real-time UI Updates:
+   - Progress bar with color-coded feedback
+   - Step status indicators (✅❌⚠️)
+   - Dynamic messages based on validation state
+
+TWO-PHASE VALIDATION SYSTEM DETAILS
+----------------------------------
+
+Core Validation Function: validateStepWithTwoPhase()
+
+Input Parameters:
+- userInput: string (what user typed)
+- expectedAnswer: string (from answers.ts step.answer)
+- stepLabel: string (from answers.ts step.label) 
+- currentStepIndex: number (0-based position)
+- allExpectedSteps: Step[] (complete step context)
+
+Validation Logic:
+```javascript
+// Phase 1: Mathematical Flexibility
+const mathematicallyCorrect = InputValidator.isMathematicallyEquivalentRobust(
+  userInput.trim(), 
+  expectedAnswer.trim()
+);
+
+// Phase 2: Position-Aware Logic
+if (mathematicallyCorrect) {
+  // RULE 1: If user got current step right, accept it
+  isCurrentStepCorrect = true;
+  
+  // RULE 2: Check for final answer position enforcement
+  if (userInputMatchesFinalAnswer && stepLabel !== "final") {
+    if (currentStepIndex === 0) {
+      // Block final answer in step 1 (must show substitution work)
+      isCurrentStepCorrect = false;
+    } else {
+      // Allow final answer in step 2+ for 80% progression
+      finalAnswerDetected = true;
+      isCurrentStepCorrect = true;
+    }
+  }
+}
+```
+
+Return Type: TwoPhaseValidationResult
+- mathematicallyCorrect: boolean (Phase 1 result)
+- positionallyValid: boolean (Phase 2 result)  
+- finalAnswerDetected: boolean (Early final answer flag)
+- isCurrentStepCorrect: boolean (Final validation decision)
+
+USER EXPERIENCE IMPROVEMENTS
+----------------------------
+
+1. ENHANCED FOCUS MANAGEMENT:
+   - Smart cursor positioning using requestAnimationFrame timing
+   - Aggressive retry mechanism with focusLineAggressively()
+   - Automatic cursor move to next line after Enter press
+   - Timeout-based fallback for DOM update delays
+   
+   Focus Implementation:
+   ```javascript
+   const focusLineAggressively = (lineNumber: number, retryCount = 0) => {
+     if (retryCount > 10) return; // Prevent infinite loops
+     
+     requestAnimationFrame(() => {
+       const input = document.getElementById(`input-${lineNumber}`);
+       if (input && input !== document.activeElement) {
+         input.focus();
+         setTimeout(() => focusLineAggressively(lineNumber, retryCount + 1), 50);
+       }
+     });
+   };
+   ```
+
+2. STEP LIMIT RESTRICTIONS:
+   - Input box creation restricted to required step count
+   - canCreateNewLine() validates against expected steps length
+   - Prevents users from creating infinite input fields
+   - Maintains educational structure integrity
+   
+   Line Creation Logic:
+   ```javascript
+   const canCreateNewLine = () => {
+     const maxLines = questionData?.steps?.length || 1;
+     return lines.length < maxLines;
+   };
+   
+   // In handleKeyDown:
+   if (event.key === 'Enter' && canCreateNewLine()) {
+     event.preventDefault();
+     setLines(prev => [...prev, '']);
+     focusLineAggressively(lines.length);
+   }
+   ```
+
+3. INTELLIGENT INPUT HANDLING:
+   - Prevents duplicate empty lines
+   - Smart Enter key behavior based on step limits
+   - Real-time validation feedback with visual cues
+   - Responsive design for mobile and desktop
 
 VALIDATION SYSTEM (UserInputValidator.tsx)
 -----------------------------------------
 
-Core Validation Methods:
+Core Validation Methods (LEGACY - For Compatibility):
 - validateAnswerArray(): Line-by-line array comparison
-- validateAnswer(): Supports both string and array expected answers
+- validateAnswer(): Supports both string and array expected answers  
 - getValidationResult(): Returns comprehensive validation state
 - validateAllSteps(): Batch validation for multiple steps
 - logValidation(): Enhanced console logging with array details
 
-Validation Process:
+ACTIVE VALIDATION METHODS (Current System):
+- isMathematicallyEquivalentRobust(): Advanced mathematical equivalence checking
+  - Handles various mathematical notations and formats
+  - Uses Math.js library for expression evaluation and comparison
+  - Supports arithmetic, algebraic, and symbolic expressions
+  - Core engine for Phase 1 mathematical validation
+
+- validateStepWithTwoPhase(): NEW - Core validation function
+  - Combines mathematical equivalence with positional validation
+  - Returns comprehensive TwoPhaseValidationResult object
+  - Handles final answer detection and position enforcement
+  - Primary validation method used by UserInput component
+
+Legacy Validation Process (Still Available):
 1. Sanitizes user input array (removes whitespace, empty lines)
 2. Compares directly against clean expected answer array
 3. One-to-one line comparison: userInput[0] vs expectedAnswer[0]
 4. Returns boolean result with detailed logging
 
-Text Processing:
+Text Processing (Utility Methods):
 - sanitizeText(): Removes whitespace, converts to lowercase
 - sanitizeArray(): Sanitizes entire array of lines
 - arrayToString(): Joins array with newlines (for compatibility)
 - stringToArray(): Converts string to array (backward compatibility)
 
-KEY FEATURES
-------------
+PROGRESSIVE PERCENTAGE SYSTEM & COMPLETION LOGIC
+-----------------------------------------------
+
+The new percentage calculation system provides intelligent progress tracking:
+
+1. COMPLETION LOGIC:
+   ```javascript
+   const getCompletionStatus = () => {
+     const status = { percentage: 0, message: "" };
+     
+     // Step 1 (20%): Must complete substitution step
+     if (validationResults[0]?.isCurrentStepCorrect) {
+       status.percentage = 20;
+       status.message = "Great! Substitution step completed.";
+     }
+     
+     // Steps 2+ (80%): Final answer detection OR step completion
+     for (let i = 1; i < lines.length; i++) {
+       if (validationResults[i]?.finalAnswerDetected || 
+           validationResults[i]?.isCurrentStepCorrect) {
+         status.percentage = 80;
+         status.message = "Excellent! You found the final answer.";
+         break;
+       }
+     }
+     
+     // All Steps (100%): Complete step-by-step solution
+     const allStepsComplete = questionData?.steps?.every((_, index) => 
+       validationResults[index]?.isCurrentStepCorrect
+     );
+     if (allStepsComplete) {
+       status.percentage = 100;
+       status.message = "Perfect! Complete solution achieved.";
+     }
+     
+     return status;
+   };
+   ```
+
+2. PERCENTAGE MILESTONES:
+   - 0%: No correct answers yet
+   - 20%: First step (substitution) completed - required baseline
+   - 80%: Final answer detected in any step 2+ OR any step 2+ completed
+   - 100%: All steps completed in proper sequence
+
+3. VISUAL FEEDBACK:
+   - Progress bar with smooth animations
+   - Color-coded indicators (red → yellow → green)
+   - Step-specific status messages
+   - Real-time percentage updates
+
+LEGACY VALIDATION FEATURES (For Reference)
+-----------------------------------------
 
 Enter Key Behavior:
 - Press Enter → Creates new line (if current line has content)
 - Auto-focus moves to new line with proper cursor placement
-- Maximum 8 lines per question
+- Maximum lines limited by expected steps count
 
 Line Management:
 - Backspace on empty line → Deletes line and focuses previous
@@ -112,7 +304,34 @@ Enhanced Validation Features:
 - Support for step-by-step mathematical solutions
 - Console clearing to prevent log spam
 
-VALIDATION EXAMPLES
+UPDATED VALIDATION EXAMPLES (Two-Phase System)
+----------------------------------------------
+
+Example 1 - Proper Step Progression:
+Problem: Evaluate 6*6+4
+User Input Line 1: "6(6)+4"    → ✅ Matches substitution step
+User Input Line 2: "36 + 4"    → ✅ Matches simplification step  
+User Input Line 3: "40"        → ✅ Matches final answer
+Result: 100% completion - Perfect step-by-step solution
+
+Example 2 - Final Answer Detection:
+Problem: Evaluate 6*6+4
+User Input Line 1: "6(6)+4"    → ✅ Matches substitution step (20%)
+User Input Line 2: "40"        → ✅ Final answer detected (80% total)
+Result: 80% completion - Skipped intermediate step but found final answer
+
+Example 3 - Position Enforcement:
+Problem: Evaluate 6*6+4  
+User Input Line 1: "40"        → ❌ Final answer blocked in step 1
+Result: 0% completion - Must show substitution work first
+
+Example 4 - Mathematical Equivalence:
+Problem: Evaluate 6*6+4
+User Input: "6×6+4"            → ✅ Equivalent to "6*6+4" (different notation)
+User Input: "6(6)+4"           → ✅ Equivalent to "6*6+4" (parentheses notation)
+Result: Mathematical flexibility preserved while enforcing position rules
+
+LEGACY VALIDATION EXAMPLES (For Reference)
 -------------------
 
 Example 1 - Function Evaluation:
@@ -130,7 +349,40 @@ User Input: ["Yes"]
 Expected:   ["Yes", "Each x-value maps to only one y-value"]
 Result: ❌ Length mismatch: 1 vs 2 lines
 
-USAGE EXAMPLE
+UPDATED USAGE EXAMPLE (Two-Phase System)
+----------------------------------------
+
+// New UserInput component usage with two-phase validation:
+<UserInput
+  questionData={{
+    steps: [
+      { label: "substitution", answer: "6(6)+4" },
+      { label: "simplification", answer: "36 + 4" },
+      { label: "final", answer: "40" }
+    ]
+  }}
+  onChange={(lines, completionStatus) => {
+    console.log('Input lines:', lines);
+    console.log('Progress:', completionStatus.percentage + '%');
+    console.log('Message:', completionStatus.message);
+  }}
+/>
+
+// Two-phase validation usage:
+const result = InputValidator.validateStepWithTwoPhase(
+  "40",                    // User input
+  "6(6)+4",               // Expected answer for current step
+  "substitution",         // Step label
+  0,                      // Current step index
+  allSteps                // All expected steps for context
+);
+
+console.log('Mathematical:', result.mathematicallyCorrect);    // May be true
+console.log('Positional:', result.positionallyValid);         // May be false  
+console.log('Final Decision:', result.isCurrentStepCorrect);   // Final result
+console.log('Final Answer:', result.finalAnswerDetected);     // Early completion flag
+
+LEGACY USAGE EXAMPLE (For Reference)
 -------------
 
 // Parent component usage:
@@ -153,14 +405,52 @@ const isValid = InputValidator.validateAnswer(
   0                                 // Step index
 );
 
-CONSOLE OUTPUT
---------------
+UPDATED CONSOLE OUTPUT (Two-Phase System)
+-----------------------------------------
 
-Validation Console (with console.clear()):
+Two-Phase Validation Console Output:
+```
+🔍 TWO-PHASE VALIDATION - Step 0
+👤 User Input: "40"
+📋 Expected: "6(6)+4" (label: substitution)
+🧮 Phase 1 - Mathematical Check: ❌ (40 ≠ 6(6)+4)
+🎯 Phase 2 - Position Check: N/A (Phase 1 failed)
+🔍 Final Answer Check: ✅ (40 matches final answer)
+🚫 Position Enforcement: BLOCKED (final answer in step 1)
+📊 Result: ❌ Step incorrect
+📈 Progress: 0%
+```
+
+```  
+🔍 TWO-PHASE VALIDATION - Step 1
+👤 User Input: "40"
+📋 Expected: "36 + 4" (label: simplification)
+🧮 Phase 1 - Mathematical Check: ❌ (40 ≠ 36 + 4)
+🎯 Phase 2 - Position Check: N/A (Phase 1 failed)
+🔍 Final Answer Check: ✅ (40 matches final answer)
+🎉 Final Answer Detection: ALLOWED (step 1+)
+📊 Result: ✅ Final answer detected!
+📈 Progress: 80%
+```
+
+Progress Status Console:
+```
+📊 COMPLETION STATUS UPDATE
+📈 Current Progress: 80%
+💬 Status Message: "Excellent! You found the final answer."
+🎯 Step 1 Status: ✅ (Final answer detected)
+🔢 Lines Completed: 1/3
+⏱️  Validation Time: 2.3ms
+```
+
+LEGACY CONSOLE OUTPUT (For Reference)
+------------------------------------
+
+Legacy Validation Console (with console.clear()):
 === INPUT VALIDATION ===
 Step Index: 0
 User Input Array: ["g(7) = 7 + 5", "g(7) = 12"]
-Individual lines: ["Line 1: g(7) = 7 + 5", "Line 2: g(7) = 12"]
+Individual lines: ["Line 1: g(7) = 7 + 5", "Line 2: g(7) = 12"]  
 Expected Answer Array: ["g(7) = 7 + 5", "g(7) = 12"]
 Expected lines: ["Line 1: g(7) = 7 + 5", "Line 2: g(7) = 12"]
 Sanitized User Array: ["g(7)=7+5", "g(7)=12"]
