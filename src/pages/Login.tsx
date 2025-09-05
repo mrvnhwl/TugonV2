@@ -16,8 +16,8 @@ function Login() {
   const c = {
     deep: "#031716",
     ocean: "#032F30",
-    teal: "#0A7075",   // used on selection page as primary
-    aqua: "#0C969C",   // use as primary here to differentiate
+    teal: "#0A7075",
+    aqua: "#0C969C",
     mist: "#6BA3BE",
     steel: "#274D60",
   };
@@ -52,11 +52,10 @@ function Login() {
     <div
       className="relative min-h-screen flex flex-col"
       style={{
-        // Darker than the selection page for instant differentiation
         background: `linear-gradient(180deg, ${c.teal} 0%, ${c.ocean} 65%, ${c.deep} 100%)`,
       }}
     >
-      {/* soft blobs (subtle, in-brand) */}
+      {/* soft blobs */}
       <div
         className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full blur-3xl opacity-20"
         style={{ background: c.aqua }}
@@ -76,7 +75,6 @@ function Login() {
           <div
             className="rounded-[32px] shadow-2xl p-1"
             style={{
-              // cool edge stroke using mist→aqua
               background: `linear-gradient(135deg, ${c.mist}, ${c.aqua})`,
             }}
           >
@@ -164,7 +162,7 @@ function Login() {
                 <div
                   className="rounded-2xl p-7 shadow-lg h-full"
                   style={{
-                    background: c.steel,           // darker card than selection page
+                    background: c.steel,
                     color: "#fff",
                     boxShadow: `0 18px 40px -18px ${c.deep}99`,
                   }}
@@ -209,7 +207,7 @@ function Login() {
                     </button>
                   </div>
 
-                  <form onSubmit={handleTeacherSubmit} className="space-y-4">
+                  <form onSubmit={handleTeacherSubmit} className="space-y-4" noValidate>
                     {error && (
                       <motion.div
                         initial={{ opacity: 0 }}
@@ -225,8 +223,9 @@ function Login() {
                       </motion.div>
                     )}
 
+                    {/* Email */}
                     <div className="space-y-2">
-                      <label className="text-xs font-medium text-black/90">
+                      <label className="text-xs font-medium text-white/90">
                         Teacher email address
                       </label>
                       <input
@@ -237,7 +236,8 @@ function Login() {
                         placeholder="name@school.edu"
                         className="w-full rounded-2xl px-4 py-3 outline-none border transition-shadow"
                         style={{
-                          background: "#000000ff",
+                          background: "#ffffff",   // readable bg
+                          color: c.deep,          // readable text
                           borderColor: c.aqua,
                         }}
                         onFocus={(e) => (e.currentTarget.style.boxShadow = `0 0 0 4px ${c.aqua}33`)}
@@ -246,6 +246,7 @@ function Login() {
                       />
                     </div>
 
+                    {/* Password */}
                     <div className="space-y-2">
                       <label className="text-xs font-medium text-white/90">Password</label>
                       <input
@@ -256,12 +257,14 @@ function Login() {
                         placeholder={isSignUp ? "Create a password" : "Enter your password"}
                         className="w-full rounded-2xl px-4 py-3 outline-none border transition-shadow"
                         style={{
-                          background: "#ffffff",
+                          background: "#ffffff",   // fixed: white bg
+                          color: c.deep,          // fixed: dark text
                           borderColor: c.aqua,
                         }}
                         onFocus={(e) => (e.currentTarget.style.boxShadow = `0 0 0 4px ${c.aqua}33`)}
                         onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                        autoComplete="current-password"
+                        autoComplete={isSignUp ? "new-password" : "current-password"}
+                        minLength={isSignUp ? 8 : undefined}
                       />
                       <p className="text-[11px] text-white/80">
                         {isSignUp
@@ -276,7 +279,6 @@ function Login() {
                       type="submit"
                       className="w-full rounded-2xl font-semibold shadow-md py-3 transition-colors"
                       style={{
-                        // use AQUA as the primary here (vs TEAL on selection page)
                         background: c.aqua,
                         color: "#002427",
                         boxShadow: `0 10px 24px -10px ${c.aqua}AA`,

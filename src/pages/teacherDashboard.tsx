@@ -31,6 +31,8 @@ interface StudentProgress {
   completed_at: string;
 }
 
+type Section = { id: string; name: string }; // <-- added
+
 function TeacherDashboard() {
   const { user } = useAuth();
 
@@ -49,6 +51,10 @@ function TeacherDashboard() {
   const [progressAll, setProgressAll] = useState<any[]>([]);
   const [studentProgress, setStudentProgress] = useState<StudentProgress[]>([]);
 
+  // NEW: sections + selected section
+  const [sections, setSections] = useState<Section[]>([]);
+  const [selectedSection, setSelectedSection] = useState<string>("");
+
   // KPI filter: which quiz to compute average for
   const [quizForAvg, setQuizForAvg] = useState<string>("");
 
@@ -60,6 +66,15 @@ function TeacherDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
+        // NEW: load teacher's sections (by id or email)
+        const { data: sectionRows, error: secErr } = await supabase
+          .from("sections")
+          .select("id, name")
+          .or(`created_by.eq.${user?.id},created_by_email.eq.${email}`)
+          .order("created_at", { ascending: true });
+        if (secErr) throw secErr;
+        setSections(sectionRows ?? []);
+
         // Quizzes
         const { data: quizzesData, error: quizzesErr } = await supabase
           .from("quizzes")
@@ -89,24 +104,8 @@ function TeacherDashboard() {
 
         setProgressAll(progressRows ?? []);
 
-        // Latest per student (overall)
-        const latestMap = new Map<string, any>();
-        for (const row of progressRows ?? []) {
-          const uid = row.user_id as string;
-          if (!uid || latestMap.has(uid)) continue;
-          latestMap.set(uid, row);
-        }
-
-        const latestPerStudent: StudentProgress[] = Array.from(latestMap.values())
-          .map((row: any) => ({
-            student_id: row.user_id,
-            student_name: row.user_email || (row.user_id ?? "").slice(0, 8) || "Unknown",
-            latest_quiz_title: row.quizzes?.title ?? "Untitled quiz",
-            completed_at: row.completed_at,
-          }))
-          .sort((a, b) => Date.parse(b.completed_at) - Date.parse(a.completed_at));
-
-        setStudentProgress(latestPerStudent);
+        // Build latest-per-student list (initially "All Sections")
+        await buildStudentProgress(progressRows ?? [], "");
         setPage(1);
       } catch (e) {
         console.error("Error loading teacher dashboard:", e);
@@ -118,6 +117,49 @@ function TeacherDashboard() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // NEW: helper to (re)build StudentProgress list, optionally filtered by section
+  const buildStudentProgress = async (rows: any[], sectionId: string) => {
+    let filtered = rows;
+
+    if (sectionId) {
+      // get member emails for the chosen section
+      const { data: members, error: mErr } = await supabase
+        .from("section_students")
+        .select("student_email")
+        .eq("section_id", sectionId);
+      if (!mErr && members) {
+        const memberEmails = new Set(members.map((m) => m.student_email));
+        filtered = rows.filter((r) => memberEmails.has(r.user_email));
+      }
+    }
+
+    // Latest per student by user_id
+    const latestMap = new Map<string, any>();
+    for (const row of filtered) {
+      const uid = row.user_id as string;
+      if (!uid || latestMap.has(uid)) continue;
+      latestMap.set(uid, row);
+    }
+
+    const latestPerStudent: StudentProgress[] = Array.from(latestMap.values())
+      .map((row: any) => ({
+        student_id: row.user_id,
+        student_name:
+          row.user_email || (row.user_id ?? "").slice(0, 8) || "Unknown",
+        latest_quiz_title: row.quizzes?.title ?? "Untitled quiz",
+        completed_at: row.completed_at,
+      }))
+      .sort((a, b) => Date.parse(b.completed_at) - Date.parse(a.completed_at));
+
+    setStudentProgress(latestPerStudent);
+  };
+
+  // NEW: when dropdown changes, rebuild filtered list
+  useEffect(() => {
+    buildStudentProgress(progressAll, selectedSection);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSection]);
 
   // ---------- KPI: Average Score (per selected quiz) ----------
   const averageScore = useMemo(() => {
@@ -132,7 +174,8 @@ function TeacherDashboard() {
     };
 
     const mean =
-      subset.reduce((acc: number, r: any) => acc + toPct(r.score ?? 0), 0) / subset.length;
+      subset.reduce((acc: number, r: any) => acc + toPct(r.score ?? 0), 0) /
+      subset.length;
     return Number(mean.toFixed(1));
   }, [progressAll, quizForAvg]);
 
@@ -353,6 +396,24 @@ function TeacherDashboard() {
                 Student Progress 📈
               </h2>
 
+              {/* NEW: Section dropdown */}
+              <div className="mb-4">
+                <label className="block text-xs mb-1" style={{ color: color.steel }}>
+                  Filter by Section
+                </label>
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="w-full sm:w-64 rounded-lg border px-3 py-2 text-sm"
+                  style={{ borderColor: color.mist, background: "#fff", color: color.deep }}
+                >
+                  <option value="">All Sections</option>
+                  {sections.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
               {studentProgress.length === 0 ? (
                 <div className="text-sm" style={{ color: color.steel }}>
                   No progress yet. Once students complete quizzes, their latest results will appear here.
@@ -400,7 +461,7 @@ function TeacherDashboard() {
                             {["Student", "Latest Quiz", "Completed At"].map((h) => (
                               <th
                                 key={h}
-                                className="px-4 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                                className="px-4 sm:px-6 py-3 text-left text-s font-medium uppercase tracking-wider"
                                 style={{ color: color.steel }}
                               >
                                 {h}

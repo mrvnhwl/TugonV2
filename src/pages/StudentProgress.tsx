@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import color from "../styles/color";
+import { useAuth } from "../hooks/useAuth"; // <-- added
 
 type ProgressRow = {
   id: string;
@@ -32,9 +33,14 @@ type StudentGroup = {
   latest: ProgressRow;
 };
 
+type Section = { id: string; name: string }; // <-- added
+
 const PAGE_SIZE_OPTIONS = [15, 30, 50];
 
 function StudentProgress() {
+  const { user } = useAuth(); // <-- added
+  const email = user?.email ?? "";
+
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -43,6 +49,11 @@ function StudentProgress() {
 
   const [search, setSearch] = useState("");
   const [quizFilter, setQuizFilter] = useState<string>("");
+
+  // NEW: sections + selected section
+  const [sections, setSections] = useState<Section[]>([]);
+  const [selectedSection, setSelectedSection] = useState<string>("");
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
 
@@ -78,14 +89,24 @@ function StudentProgress() {
 
   useEffect(() => {
     const loadFilters = async () => {
+      // quizzes for filter
       const { data, error } = await supabase
         .from("quizzes")
         .select("id, title")
         .order("title", { ascending: true });
       if (!error) setQuizzes(data ?? []);
+
+      // NEW: load teacher sections (by id or email)
+      const { data: secRows, error: secErr } = await supabase
+        .from("sections")
+        .select("id, name")
+        .or(`created_by.eq.${user?.id},created_by_email.eq.${email}`)
+        .order("created_at", { ascending: true });
+      if (!secErr) setSections(secRows ?? []);
     };
     loadFilters();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, email]);
 
   useEffect(() => {
     const load = async () => {
@@ -115,7 +136,22 @@ function StudentProgress() {
 
         const { data, error } = await query;
         if (error) throw error;
-        setRows((data ?? []) as ProgressRow[]);
+
+        let fetched = (data ?? []) as ProgressRow[];
+
+        // NEW: filter by section membership (via student_email)
+        if (selectedSection) {
+          const { data: members, error: mErr } = await supabase
+            .from("section_students")
+            .select("student_email")
+            .eq("section_id", selectedSection);
+          if (mErr) throw mErr;
+
+          const emails = new Set((members ?? []).map((m: any) => m.student_email));
+          fetched = fetched.filter((r) => (r.user_email ? emails.has(r.user_email) : false));
+        }
+
+        setRows(fetched);
         setPage(1);
       } catch (e: any) {
         console.error("Failed to load progress:", e);
@@ -125,7 +161,7 @@ function StudentProgress() {
       }
     };
     load();
-  }, [quizFilter, search]);
+  }, [quizFilter, search, selectedSection]);
 
   const toggleExpand = (user_id: string) => {
     setExpanded((prev) => {
@@ -150,7 +186,7 @@ function StudentProgress() {
         r.quizzes?.title ?? "",
         String(r.score ?? ""),
         r.completed_at ?? "",
-      ].map((v) => `"${String(v).replaceAll('"', '""')}"`);
+      ].map((v) => `"${String(v).replace(/"/g, '""')}"`); // safer than replaceAll for older envs
       lines.push(vals.join(","));
     });
 
@@ -219,6 +255,27 @@ function StudentProgress() {
                   {quizzes.map((q) => (
                     <option key={q.id} value={q.id}>
                       {q.title || "(Untitled)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* NEW: section dropdown */}
+              <div
+                className="flex items-center gap-2 rounded-xl border px-3 py-2 w-full"
+                style={{ borderColor: color.mist, background: "#fff" }}
+              >
+                <Filter className="h-4 w-4 shrink-0" style={{ color: color.steel }} />
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="w-full bg-transparent text-sm outline-none"
+                  style={{ color: color.deep }}
+                >
+                  <option value="">All sections</option>
+                  {sections.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
                     </option>
                   ))}
                 </select>
@@ -343,7 +400,7 @@ function StudentProgress() {
                         {["Student", "Latest Quiz", "Latest Score", "Completed At", ""].map((h, i) => (
                           <th
                             key={i}
-                            className="px-4 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                            className="px-4 sm:px-6 py-3 text-left text-s font-medium uppercase tracking-wider"
                             style={{ color: color.steel }}
                           >
                             {h}
