@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers";
-import type { PredefinedAnswer } from "@/components/data/answers";
+import type { PredefinedAnswer, Step as AnswerStep } from "@/components/data/answers";
 import { cn } from "../../cn";
 import UserInput from './UserInput';
+import InputValidator from './UserInputValidator';
 import { CheckCircle } from "lucide-react";
 import { Text, Small } from "../../Typography";
 
@@ -75,7 +76,7 @@ export default function AnswerWizard({
     } as WizardStep;
   });
 
-  if (import.meta.env?.DEV) console.log("Total steps:", fixedSteps.length);
+  
 
   const [steps, setSteps] = useState<WizardStep[]>(fixedSteps);
   const [index, setIndex] = useState(0);
@@ -96,26 +97,6 @@ export default function AnswerWizard({
     onIndexChange?.(index);
   }, [index, onIndexChange]);
 
-  // Sanitizer shared by validation and submission
-  const sanitizeText = (v: string) => (v ?? "").replace(/[\s\n\r]+/g, "").toLowerCase();
-
-  // Unified validation function - now handles string arrays
-  const validateAnswer = (step: WizardStep | undefined, answerLines: string[] | undefined, stepIndex: number): boolean => {
-    if (!step || !answerLines) return false;
-    
-    // Join all lines for comparison
-    const joinedAnswer = answerLines.join('\n').trim();
-    if (!joinedAnswer) return false;
-
-    const expected = answersSource?.[stepIndex]?.answer;
-    if (!expected) {
-      // Fallback: if no expected is defined, consider non-empty as valid
-      return joinedAnswer.length > 0;
-    }
-
-    return sanitizeText(joinedAnswer) === sanitizeText(expected);
-  };
-
   // Convert string[] to string for parent notifications
   const arrayToString = (lines: string[]): string => {
     return lines.join('\n');
@@ -123,13 +104,17 @@ export default function AnswerWizard({
 
   // Handle input changes from UserInput
   const handleInputChange = (lines: string[]) => {
-    // Console log to see the current lines array
-    console.log("UserInput lines array:", lines);
-    console.log("Individual lines:", lines.map((line, index) => `Line ${index + 1}: "${line}"`));
+    // Use InputValidator for logging with updated structure
+    const expectedSteps = answersSource?.[index]?.steps; // Use steps instead of answer
+    
+    InputValidator.logValidation(
+      lines, 
+      expectedSteps, // Pass Step[] instead of old answer property
+      index
+    );
     
     // Update internal steps state
     setSteps((prev) => {
-       
       const next = [...prev];
       next[index] = { ...next[index], answerValue: lines } as WizardStep;
       return next;
@@ -151,16 +136,11 @@ export default function AnswerWizard({
 
   // Handle submission manually if needed
   const handleSubmit = () => {
-    const len = Math.min(answersSource.length, steps.length);
-    const correctnessArr: boolean[] = [];
-    for (let i = 0; i < len; i++) {
-      const u = steps[i];
-      correctnessArr.push(validateAnswer(u, u.answerValue, i));
-    }
-    const allCorrect = correctnessArr.length > 0 && correctnessArr.every(Boolean);
+    // Use InputValidator for final validation
+    const validationResult = InputValidator.validateAllSteps(userInputs, answersSource);
     
     // Submit with both steps and userInputs for external access
-    onSubmit(steps, { correct: correctnessArr, allCorrect });
+    onSubmit(steps, validationResult);
     
     // Log userInputs for debugging/access
     console.log("Final userInputs array:", userInputs);
@@ -191,19 +171,21 @@ export default function AnswerWizard({
       {current && (
         <div className="space-y-3">
           {(() => {
-            // Compute dynamic classes for input based on validation/correctness
+            // Use InputValidator for validation logic with updated structure
             const answerLines = current.answerValue || [''];
-            const joinedAnswer = arrayToString(answerLines);
-            const isValid = validateAnswer(current, answerLines, index);
-            const nonEmpty = joinedAnswer.trim().length > 0;
-            const isCorrect = correctness[index] === true;
-            const isWrong = nonEmpty && !isValid && !isCorrect;
+            const expectedSteps = answersSource?.[index]?.steps; // Use steps instead of answer
+            const validationResult = InputValidator.getValidationResult(
+              answerLines,
+              expectedSteps, // Pass Step[] instead of old answer property
+              index,
+              correctness[index]
+            );
             
             // Apply styling based on validation state
             const inputClasses = cn(
               "transition-all duration-200",
-              isCorrect && "border-green-500 bg-green-50",
-              isWrong && "border-red-500 bg-red-50"
+              validationResult.isCorrect && "border-green-500 bg-green-50",
+              validationResult.isWrong && "border-red-500 bg-red-50"
             );
 
             return (
@@ -231,8 +213,6 @@ export default function AnswerWizard({
                     <span>Correct! Well done.</span>
                   </div>
                 )}
-
-                
               </div>
             );
           })()}

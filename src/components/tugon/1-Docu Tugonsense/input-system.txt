@@ -1,0 +1,238 @@
+TIE SYSTEM - Multi-Line Input System Documentation
+=================================================
+
+OVERVIEW
+--------
+This system provides a multi-line text input interface for educational applications,
+specifically designed for mathematical problem-solving with step-by-step answer collection
+and line-by-line validation.
+
+FILE STRUCTURE & RESPONSIBILITIES
+---------------------------------
+
+1. answers.ts
+   - Central database of predefined correct answers
+   - Organized by Topic → Category → Questions structure
+   - Each answer stored as string[] array for line-by-line comparison
+   - Only supports "multiLine" type (matches UserInput component)
+   - Helper function: getAnswerForQuestion(topicId, categoryId, questionId)
+
+2. AnswerInput.tsx
+   - Low-level input component (forwardRef wrapper)
+   - Handles single text input with spam detection
+   - Supports both Input and Textarea rendering
+   - Forwards keyboard events (onKeyDown) for Enter key handling
+   - Anti-spam protection with cooldown mechanism
+
+3. UserInput.tsx
+   - Multi-line input manager component
+   - Manages array of individual text lines (up to 8 lines)
+   - Handles Enter key to create new lines with cursor movement
+   - Provides line navigation (Arrow Up/Down), deletion, and focus management
+   - Auto-scrolling when more than 2 lines visible
+   - Each line is a separate AnswerInput component
+
+4. UserInputValidator.tsx (NEW)
+   - Dedicated validation logic component
+   - Handles line-by-line array comparison validation
+   - Sanitizes only user input (expected answers are pre-clean)
+   - Supports both string and array expected answer formats
+   - Provides comprehensive validation results and logging
+
+5. AnswerWizard.tsx
+   - High-level orchestrator component
+   - Manages multiple steps/questions in sequence
+   - Uses UserInputValidator for all validation logic
+   - Stores user input as string arrays (one array per step)
+   - Handles submission and correctness validation
+
+DATA FLOW
+---------
+
+User Types → AnswerInput → UserInput → AnswerWizard → UserInputValidator → answers.ts
+
+1. User types in AnswerInput field
+2. AnswerInput forwards changes to UserInput
+3. UserInput manages line array and sends to AnswerWizard
+4. AnswerWizard calls UserInputValidator for validation
+5. UserInputValidator compares against answers.ts (line-by-line)
+6. Console logs show real-time validation results
+
+VALIDATION SYSTEM (UserInputValidator.tsx)
+-----------------------------------------
+
+Core Validation Methods:
+- validateAnswerArray(): Line-by-line array comparison
+- validateAnswer(): Supports both string and array expected answers
+- getValidationResult(): Returns comprehensive validation state
+- validateAllSteps(): Batch validation for multiple steps
+- logValidation(): Enhanced console logging with array details
+
+Validation Process:
+1. Sanitizes user input array (removes whitespace, empty lines)
+2. Compares directly against clean expected answer array
+3. One-to-one line comparison: userInput[0] vs expectedAnswer[0]
+4. Returns boolean result with detailed logging
+
+Text Processing:
+- sanitizeText(): Removes whitespace, converts to lowercase
+- sanitizeArray(): Sanitizes entire array of lines
+- arrayToString(): Joins array with newlines (for compatibility)
+- stringToArray(): Converts string to array (backward compatibility)
+
+KEY FEATURES
+------------
+
+Enter Key Behavior:
+- Press Enter → Creates new line (if current line has content)
+- Auto-focus moves to new line with proper cursor placement
+- Maximum 8 lines per question
+
+Line Management:
+- Backspace on empty line → Deletes line and focuses previous
+- Arrow Up/Down → Navigate between lines
+- Delete button (hover) → Remove specific lines
+- Add line button → Manual line creation
+
+Data Storage:
+- Each step stores lines as string[] array
+- Individual lines accessible as separate elements
+- Format: userInputs[stepIndex][lineIndex] = "line content"
+
+Line-by-Line Validation:
+- User: ["  2x + 3  ", " = 7 ", "x = 2"]
+- Sanitized: ["2x+3", "=7", "x=2"]
+- Expected: ["2x+3", "=7", "x=2"] (from answers.ts)
+- Result: ✅ All lines match
+
+Enhanced Validation Features:
+- Length validation (arrays must have same number of lines)
+- Empty line filtering
+- Detailed mismatch reporting
+- Support for step-by-step mathematical solutions
+- Console clearing to prevent log spam
+
+VALIDATION EXAMPLES
+-------------------
+
+Example 1 - Function Evaluation:
+User Input: ["g(7) = 7 + 5", "g(7) = 12"]
+Expected:   ["g(7) = 7 + 5", "g(7) = 12"]
+Result: ✅ Perfect match
+
+Example 2 - Complex Calculation:
+User Input: ["f(-2) = 2(-2)² - 3(-2) + 1", "f(-2) = 8 + 6 + 1", "f(-2) = 15"]
+Expected:   ["f(-2) = 2(-2)² - 3(-2) + 1", "f(-2) = 2(4) + 6 + 1", "f(-2) = 8 + 6 + 1", "f(-2) = 15"]
+Result: ❌ Line 2 mismatch and missing step
+
+Example 3 - Length Mismatch:
+User Input: ["Yes"]
+Expected:   ["Yes", "Each x-value maps to only one y-value"]
+Result: ❌ Length mismatch: 1 vs 2 lines
+
+USAGE EXAMPLE
+-------------
+
+// Parent component usage:
+<AnswerWizard
+  expectedAnswers={getAnswerForQuestion(2, 1, 1)}  // From answers.ts
+  onLinesChange={(stepIndex, lines) => {
+    console.log(`Step ${stepIndex} lines:`, lines);
+    // lines = ["g(7) = 7 + 5", "g(7) = 12"]
+  }}
+  onSubmit={(steps, result) => {
+    // UserInputValidator handles all validation logic
+    console.log('Validation result:', result);
+  }}
+/>
+
+// Direct validator usage:
+const isValid = InputValidator.validateAnswer(
+  ["2x+3", "=7", "x=2"],           // User input
+  ["2x+3", "=7", "x=2"],           // Expected from answers.ts
+  0                                 // Step index
+);
+
+CONSOLE OUTPUT
+--------------
+
+Validation Console (with console.clear()):
+=== INPUT VALIDATION ===
+Step Index: 0
+User Input Array: ["g(7) = 7 + 5", "g(7) = 12"]
+Individual lines: ["Line 1: g(7) = 7 + 5", "Line 2: g(7) = 12"]
+Expected Answer Array: ["g(7) = 7 + 5", "g(7) = 12"]
+Expected lines: ["Line 1: g(7) = 7 + 5", "Line 2: g(7) = 12"]
+Sanitized User Array: ["g(7)=7+5", "g(7)=12"]
+Is Valid: true
+========================
+
+Array Validation Details:
+=== ARRAY VALIDATION ===
+User Array (sanitized): ["g(7)=7+5", "g(7)=12"]
+Expected Array (clean): ["g(7)=7+5", "g(7)=12"]
+✅ All lines match!
+
+DATA STRUCTURE
+--------------
+
+answers.ts Structure:
+answersByTopicAndCategory = {
+  1: { // Introduction to Functions
+    1: [
+      { type: "multiLine", answer: ["No", "The x-value 2 maps to both 3 and 5"] },
+      { type: "multiLine", answer: ["Yes", "Each x-value maps to only one y-value"] }
+    ]
+  },
+  2: { // Evaluating Functions
+    1: [
+      { type: "multiLine", answer: ["g(7) = 7 + 5", "g(7) = 12"] }
+    ]
+  }
+}
+
+userInputs Storage:
+userInputs = [
+  ["g(7) = 7 + 5", "g(7) = 12"],                    // Step 0
+  ["p(6) = 6² + 4", "p(6) = 36 + 4", "p(6) = 40"], // Step 1  
+  ["f(-2) = 2(-2)² - 3(-2) + 1", "f(-2) = 15"]     // Step 2
+]
+
+Access pattern:
+- userInputs[0][0] = "g(7) = 7 + 5"
+- userInputs[0][1] = "g(7) = 12"
+- getAnswerForQuestion(2, 1, 1) = ["g(7) = 7 + 5", "g(7) = 12"]
+
+VALIDATION FLOW
+---------------
+
+1. User completes lines in UserInput
+2. AnswerWizard calls UserInputValidator.logValidation()
+3. UserInputValidator.validateAnswer() performs line-by-line comparison
+4. Expected answer retrieved from answers.ts via getAnswerForQuestion()
+5. Sanitized user input compared against clean expected answer
+6. Detailed validation results logged to console
+7. UI updated with validation state (correct/wrong/pending)
+
+ERROR HANDLING
+--------------
+
+- Spam Detection: Prevents rapid character input bursts
+- Empty Line Prevention: Can't create new lines without content
+- Max Lines Limit: Enforced 8-line maximum per question
+- Ref Management: Proper focus handling with forwardRef pattern
+- Length Validation: Arrays must have matching number of lines
+- Line-by-Line Mismatch: Detailed reporting of which lines don't match
+- Console Management: Auto-clearing prevents log accumulation
+
+DEVELOPMENT NOTES
+-----------------
+
+- Enhanced console logging with array-specific details
+- TypeScript interfaces ensure type safety across components
+- Responsive design with mobile keyboard support
+- Accessible navigation with keyboard shortcuts
+- Line-by-line validation optimized for mathematical step-by-step solutions
+- Expected answers pre-formatted in answers.ts (no sanitization needed)
+- Backward compatibility maintained for string-based expected answers
+- UserInputValidator separated for reusability

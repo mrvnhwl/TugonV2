@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { cn } from "../cn";
+import { cn } from "../../cn";
 
 type LayeredInputBoxProps = {
   layers: string[]; // layer labels

@@ -1,240 +1,529 @@
 // Central predefined answers database
-// Each question can reference one of these arrays in the future
+// Each question corresponds to the structure in question.ts
 
-export type PredefinedAnswer = {
-  type: "single" | "multiLine" | "graph";
-  answer: string; // For graph, a string representation (e.g., serialized points)
+export type Step = {
+  label: "substitution" | "simplification" | "final" | "math"; // Default: "math"
+  answer: string;
 };
 
-// Example set for testing
-export const predefinedAnswers: PredefinedAnswer[] = [
-  { type: "graph",    answer: "(1.2,2.4)" },
-  { type: "multiLine", answer: "123" },
-  { type: "graph",     answer: "graphData" },
+export type PredefinedAnswer = {
+  type: "multiLine"; // Only one type now - matches UserInput component
+  steps: Step[]; // Changed from answer: string[] to steps: Step[]
+};
+
+// Topic 1: Introduction to Functions
+// Category 1: Is the relation a function?
+export const Topic1_Category1_Answers: PredefinedAnswer[] = [
+  // Question 1: {(1,2),(2,3),(3,4),(2,5)}
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "No" },
+      { label: "math", answer: "The x-value 2 maps to both 3 and 5" }
+    ]
+  },
+  // Question 2: {(0,1),(1,2),(2,3),(3,4)}
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "Yes" },
+      { label: "math", answer: "Each x-value maps to only one y-value" }
+    ]
+  },
+  // Question 3: {(1,1),(2,2),(3,3),(1,4)}
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "No" },
+      { label: "math", answer: "The x-value 1 maps to both 1 and 4" }
+    ]
+  },
+  // Question 4: {(5,6),(7,8),(9,10),(11,12)}
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "Yes" },
+      { label: "math", answer: "All x-values are unique" }
+    ]
+  },
 ];
 
-// Per-question answer scaffolds (33 total: 11 topics × 3 questions)
-// Stage numbers are sequential across topics: 1..33
-
-export const Question1Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1.2,2.4)" },
-  { type: "multiLine", answer: "123" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question2Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2.3,4.6)" },
-  { type: "multiLine", answer: "abc" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question3Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3.0,6.0)" },
-  { type: "multiLine", answer: "steps..." },
-  { type: "graph", answer: "graphData" },
-];
-
-// Evaluating Functions (Topic 2)
-export const Question4Answers: PredefinedAnswer[] = [
-  { type: "single", answer: "g(7)=7+5" },
-  { type: "single", answer: "12" },
-];
-export const Question5Answers: PredefinedAnswer[] = [
-  { type: "single", answer: "p(6)=6^2+4 " },
-  { type: "single", answer: "36+4" },
-  { type: "single", answer: "40" },
-];
-export const Question6Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1.2,2.4)" },
-  { type: "multiLine", answer: "f(-2)=2(4)-3(-2)+1=8+6+1=15" },
-  { type: "graph", answer: "graphData" },
-];
-
-// Piecewise-Defined Functions (Topic 3)
-export const Question7Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1,1)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question8Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2,2)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question9Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3,3)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
+// Category 2: Is the graph a function?
+export const Topic1_Category2_Answers: PredefinedAnswer[] = [
+  // Question 1: Vertical line at x = 3
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "No" },
+      { label: "math", answer: "Vertical line fails the vertical line test" }
+    ]
+  },
+  // Question 2: Parabola opening upward
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "Yes" },
+      { label: "math", answer: "Passes the vertical line test" }
+    ]
+  },
+  // Question 3: Circle centered at origin
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "No" },
+      { label: "math", answer: "Vertical lines through the circle intersect at two points" }
+    ]
+  },
+  // Question 4: Horizontal line at y = 5
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "Yes" },
+      { label: "math", answer: "Each x has only one y-value" }
+    ]
+  },
 ];
 
-// Operations on Functions (Topic 4)
-export const Question10Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1,2)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question11Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2,3)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question12Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3,4)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-
-// Composition of Functions (Topic 5)
-export const Question13Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1,3)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question14Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2,5)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question15Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3,7)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-
-// Rational Functions (Topic 6)
-export const Question16Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1,-1)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question17Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2,-2)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question18Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3,-3)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
+// Topic 2: Evaluating Functions
+// Category 1: g(x)=x+5. Find g(7)
+export const Topic2_Category1_Answers: PredefinedAnswer[] = [
+  // Question 1: g(x) = x + 5. Find g(7)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "7+5" },
+      { label: "final", answer: "12" }
+    ]
+  },
+  // Question 2: g(x) = x + 5. Find g(3)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "g(3) = 3 + 5" },
+      { label: "final", answer: "g(3) = 8" }
+    ]
+  },
+  // Question 3: g(x) = x + 5. Find g(-2)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "g(-2) = -2 + 5" },
+      { label: "final", answer: "g(-2) = 3" }
+    ]
+  },
+  // Question 4: g(x) = x + 5. Find g(0)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "g(0) = 0 + 5" },
+      { label: "final", answer: "g(0) = 5" }
+    ]
+  },
 ];
 
-// Graphing Rational Functions (Topic 7)
-export const Question19Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1,0)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question20Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2,0)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question21Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3,0)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-
-// Rational Equations and Inequalities (Topic 8)
-export const Question22Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1,4)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question23Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2,5)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question24Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3,6)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-
-// Inverse Functions (Topic 9)
-export const Question25Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1,1)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question26Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2,2)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question27Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3,3)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
+// Category 2: p(x)=x^2+4. Find p(6)
+export const Topic2_Category2_Answers: PredefinedAnswer[] = [
+  // Question 1: p(x) = x² + 4. Find p(6)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "p(6) = 6² + 4" },
+      { label: "simplification", answer: "p(6) = 36 + 4" },
+      { label: "final", answer: "p(6) = 40" }
+    ]
+  },
+  // Question 2: p(x) = x² + 4. Find p(3)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "p(3) = 3² + 4" },
+      { label: "simplification", answer: "p(3) = 9 + 4" },
+      { label: "final", answer: "p(3) = 13" }
+    ]
+  },
+  // Question 3: p(x) = x² + 4. Find p(-1)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "p(-1) = (-1)² + 4" },
+      { label: "simplification", answer: "p(-1) = 1 + 4" },
+      { label: "final", answer: "p(-1) = 5" }
+    ]
+  },
+  // Question 4: p(x) = x² + 4. Find p(0)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "p(0) = 0² + 4" },
+      { label: "simplification", answer: "p(0) = 0 + 4" },
+      { label: "final", answer: "p(0) = 4" }
+    ]
+  },
 ];
 
-// Exponential Functions (Topic 10)
-export const Question28Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1,2)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question29Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2,4)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
-];
-export const Question30Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3,8)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
+// Category 3: f(x)=2x^2-3x+1. Find f(-2)
+export const Topic2_Category3_Answers: PredefinedAnswer[] = [
+  // Question 1: f(x) = 2x² - 3x + 1. Find f(-2)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "f(-2) = 2(-2)² - 3(-2) + 1" },
+      { label: "simplification", answer: "f(-2) = 2(4) + 6 + 1" },
+      { label: "simplification", answer: "f(-2) = 8 + 6 + 1" },
+      { label: "final", answer: "f(-2) = 15" }
+    ]
+  },
+  // Question 2: f(x) = 2x² - 3x + 1. Find f(1)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "f(1) = 2(1)² - 3(1) + 1" },
+      { label: "simplification", answer: "f(1) = 2 - 3 + 1" },
+      { label: "final", answer: "f(1) = 0" }
+    ]
+  },
+  // Question 3: f(x) = 2x² - 3x + 1. Find f(3)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "f(3) = 2(3)² - 3(3) + 1" },
+      { label: "simplification", answer: "f(3) = 2(9) - 9 + 1" },
+      { label: "simplification", answer: "f(3) = 18 - 9 + 1" },
+      { label: "final", answer: "f(3) = 10" }
+    ]
+  },
+  // Question 4: f(x) = 2x² - 3x + 1. Find f(0)
+  {
+    type: "multiLine",
+    steps: [
+      { label: "substitution", answer: "f(0) = 2(0)² - 3(0) + 1" },
+      { label: "simplification", answer: "f(0) = 0 - 0 + 1" },
+      { label: "final", answer: "f(0) = 1" }
+    ]
+  },
 ];
 
-// Logarithmic Functions (Topic 11)
-export const Question31Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(1,0)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
+// Placeholder answers for remaining topics (Topics 3-11)
+// These follow the same pattern but need actual mathematical content
+
+// Topic 3: Piecewise-Defined Functions
+export const Topic3_Category1_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add piecewise function solution steps" }
+    ]
+  },
 ];
-export const Question32Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(2,0.3010)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
+export const Topic3_Category2_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add piecewise function solution steps" }
+    ]
+  },
 ];
-export const Question33Answers: PredefinedAnswer[] = [
-  { type: "graph", answer: "(3,0.4771)" },
-  { type: "multiLine", answer: "explain" },
-  { type: "graph", answer: "graphData" },
+export const Topic3_Category3_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add piecewise function solution steps" }
+    ]
+  },
 ];
 
-// Optional: quick lookup by global stage number (1..33)
-export const questionAnswersByStage = {
-  1: Question1Answers,
-  2: Question2Answers,
-  3: Question3Answers,
-  4: Question4Answers,
-  5: Question5Answers,
-  6: Question6Answers,
-  7: Question7Answers,
-  8: Question8Answers,
-  9: Question9Answers,
-  10: Question10Answers,
-  11: Question11Answers,
-  12: Question12Answers,
-  13: Question13Answers,
-  14: Question14Answers,
-  15: Question15Answers,
-  16: Question16Answers,
-  17: Question17Answers,
-  18: Question18Answers,
-  19: Question19Answers,
-  20: Question20Answers,
-  21: Question21Answers,
-  22: Question22Answers,
-  23: Question23Answers,
-  24: Question24Answers,
-  25: Question25Answers,
-  26: Question26Answers,
-  27: Question27Answers,
-  28: Question28Answers,
-  29: Question29Answers,
-  30: Question30Answers,
-  31: Question31Answers,
-  32: Question32Answers,
-  33: Question33Answers,
+// Topic 4: Operations on Functions
+export const Topic4_Category1_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add function operations solution steps" }
+    ]
+  },
+];
+export const Topic4_Category2_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add function operations solution steps" }
+    ]
+  },
+];
+export const Topic4_Category3_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add function operations solution steps" }
+    ]
+  },
+];
+
+// Topic 5: Composition of Functions
+export const Topic5_Category1_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add function composition solution steps" }
+    ]
+  },
+];
+export const Topic5_Category2_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add function composition solution steps" }
+    ]
+  },
+];
+export const Topic5_Category3_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add function composition solution steps" }
+    ]
+  },
+];
+
+// Topic 6: Rational Functions
+export const Topic6_Category1_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add rational function solution steps" }
+    ]
+  },
+];
+export const Topic6_Category2_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add rational function solution steps" }
+    ]
+  },
+];
+export const Topic6_Category3_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add rational function solution steps" }
+    ]
+  },
+];
+
+// Topic 7: Graphing Rational Functions
+export const Topic7_Category1_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add graphing rational function solution steps" }
+    ]
+  },
+];
+export const Topic7_Category2_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add graphing rational function solution steps" }
+    ]
+  },
+];
+export const Topic7_Category3_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add graphing rational function solution steps" }
+    ]
+  },
+];
+
+// Topic 8: Rational Equations and Inequalities
+export const Topic8_Category1_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add rational equations solution steps" }
+    ]
+  },
+];
+export const Topic8_Category2_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add rational equations solution steps" }
+    ]
+  },
+];
+export const Topic8_Category3_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add rational equations solution steps" }
+    ]
+  },
+];
+
+// Topic 9: Inverse Functions
+export const Topic9_Category1_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add inverse function solution steps" }
+    ]
+  },
+];
+export const Topic9_Category2_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add inverse function solution steps" }
+    ]
+  },
+];
+export const Topic9_Category3_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add inverse function solution steps" }
+    ]
+  },
+];
+
+// Topic 10: Exponential Functions
+export const Topic10_Category1_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add exponential function solution steps" }
+    ]
+  },
+];
+export const Topic10_Category2_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add exponential function solution steps" }
+    ]
+  },
+];
+export const Topic10_Category3_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add exponential function solution steps" }
+    ]
+  },
+];
+
+// Topic 11: Logarithmic Functions
+export const Topic11_Category1_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add logarithmic function solution steps" }
+    ]
+  },
+];
+export const Topic11_Category2_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add logarithmic function solution steps" }
+    ]
+  },
+];
+export const Topic11_Category3_Answers: PredefinedAnswer[] = [
+  { 
+    type: "multiLine", 
+    steps: [
+      { label: "math", answer: "TODO: Add logarithmic function solution steps" }
+    ]
+  },
+];
+
+// Lookup structure by topic and category
+export const answersByTopicAndCategory = {
+  1: { // Introduction to Functions
+    1: Topic1_Category1_Answers,
+    2: Topic1_Category2_Answers,
+    3: [], // No category 3 questions defined yet
+  },
+  2: { // Evaluating Functions
+    1: Topic2_Category1_Answers,
+    2: Topic2_Category2_Answers,
+    3: Topic2_Category3_Answers,
+  },
+  3: { // Piecewise-Defined Functions
+    1: Topic3_Category1_Answers,
+    2: Topic3_Category2_Answers,
+    3: Topic3_Category3_Answers,
+  },
+  4: { // Operations on Functions
+    1: Topic4_Category1_Answers,
+    2: Topic4_Category2_Answers,
+    3: Topic4_Category3_Answers,
+  },
+  5: { // Composition of Functions
+    1: Topic5_Category1_Answers,
+    2: Topic5_Category2_Answers,
+    3: Topic5_Category3_Answers,
+  },
+  6: { // Rational Functions
+    1: Topic6_Category1_Answers,
+    2: Topic6_Category2_Answers,
+    3: Topic6_Category3_Answers,
+  },
+  7: { // Graphing Rational Functions
+    1: Topic7_Category1_Answers,
+    2: Topic7_Category2_Answers,
+    3: Topic7_Category3_Answers,
+  },
+  8: { // Rational Equations and Inequalities
+    1: Topic8_Category1_Answers,
+    2: Topic8_Category2_Answers,
+    3: Topic8_Category3_Answers,
+  },
+  9: { // Inverse Functions
+    1: Topic9_Category1_Answers,
+    2: Topic9_Category2_Answers,
+    3: Topic9_Category3_Answers,
+  },
+  10: { // Exponential Functions
+    1: Topic10_Category1_Answers,
+    2: Topic10_Category2_Answers,
+    3: Topic10_Category3_Answers,
+  },
+  11: { // Logarithmic Functions
+    1: Topic11_Category1_Answers,
+    2: Topic11_Category2_Answers,
+    3: Topic11_Category3_Answers,
+  },
 } as const;
+
+// Helper function to get steps for a specific topic, category, and question
+export function getAnswerForQuestion(
+  topicId: number,
+  categoryId: number,
+  questionId: number
+): Step[] | undefined {
+  const topic = answersByTopicAndCategory[topicId as keyof typeof answersByTopicAndCategory];
+  if (!topic) return undefined;
   
+  const category = topic[categoryId as keyof typeof topic];
+  if (!category || !Array.isArray(category)) return undefined;
+  
+  const question = category[questionId - 1]; // questionId is 1-indexed
+  return question?.steps;
+}
+
+// Helper function to get answer strings for backward compatibility
+export function getAnswerStringsForQuestion(
+  topicId: number,
+  categoryId: number,
+  questionId: number
+): string[] | undefined {
+  const steps = getAnswerForQuestion(topicId, categoryId, questionId);
+  return steps?.map(step => step.answer);
+}
+
+// Backward compatibility - export for existing components
+export const predefinedAnswers = Topic2_Category1_Answers;

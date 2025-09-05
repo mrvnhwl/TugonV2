@@ -3,11 +3,11 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import QuestionBox from "../../components/tugon/question-system/QuestionBox";
 import CategoryQuestion from "../../components/tugon/question-system/CategoryQuestion";
 import { defaultTopics } from "../../components/data/question";
-import { questionAnswersByStage } from "../../components/data/answers";
+import { getAnswerForQuestion, answersByTopicAndCategory } from "../../components/data/answers"; // Updated import
 import AnswerWizard, { Step, WizardStep } from "../../components/tugon/input-system/AnswerWizard";
 import HintBubble from "../../components/tugon/hint-system/HintBubble";
 import Character from "../../components/tugon/hint-system/Character";
-import { Heading,Text, Small } from "../../components/Typography";
+import { SubHeading,Text, Small } from "../../components/Typography";
 
 const FALLBACK_HINT_TEXT = "Try isolating y. Start by substituting x = 2.";
 
@@ -46,10 +46,25 @@ export default function TugonPlay() {
     setHint(getGuideText());
   }, [topicId, finalCategoryId, questionId]);
 
-  const stageIndex = topicId && finalCategoryId ? (topicId - 1) * 3 + finalCategoryId : undefined;
-  const expectedAnswers = stageIndex ? questionAnswersByStage[stageIndex as keyof typeof questionAnswersByStage] : undefined;
+  // Get expected answers using the new structure
+  const getExpectedAnswers = () => {
+    const topic = answersByTopicAndCategory[topicId as keyof typeof answersByTopicAndCategory];
+    if (!topic) return undefined;
+    
+    const category = topic[finalCategoryId as keyof typeof topic];
+    if (!category || !Array.isArray(category)) return undefined;
+    
+    return category; // Return the entire category array of PredefinedAnswer[]
+  };
+
+  const expectedAnswers = getExpectedAnswers();
   const topic = defaultTopics.find((t) => t.id === topicId);
   const topicName = topic?.name || "Question";
+
+  // Get current question's expected answer for validation
+  const getCurrentExpectedAnswer = () => {
+    return getAnswerForQuestion(topicId, finalCategoryId, questionId);
+  };
 
   const steps: Step[] = [
     { id: "s1", label: "Short answer", placeholder: "Enter a single-line answer" },
@@ -92,11 +107,12 @@ export default function TugonPlay() {
 
   const handleSubmit = (finalSteps: WizardStep[]) => {
     console.log("Wizard steps:", finalSteps);
+    console.log("Current expected answer:", getCurrentExpectedAnswer());
     alert("Submitted! Check console for steps.");
   };
 
   const handleIndexChange = (newIndex: number) => {
-    console.log("Step changed to:", newIndex);
+    // Handle step changes if needed
   };
 
   return (
@@ -119,7 +135,7 @@ export default function TugonPlay() {
         padding: "0 16px",
         flexShrink: 0
       }}>
-        <Heading className="text-white font-semibold">TugonPlay</Heading>
+        <SubHeading className="text-white font-semibold">TugonPlay</SubHeading>
         <button
           onClick={() => navigate("/tugonsense")}
           style={{ color: "white", background: "none", border: "none", fontSize: "18px" }}

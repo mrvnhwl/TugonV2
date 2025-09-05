@@ -232,21 +232,21 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "TODO: input question here 22",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here."}
         ]
       },
       { 
         category_id: 2, 
         category_question: "TODO: input question here 23",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here", guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 24",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here." }
         ]
       },
     ],
@@ -259,21 +259,21 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "TODO: input question here 25",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here."}
         ]
       },
       { 
         category_id: 2, 
         category_question: "TODO: input question here 26",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 27",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here."}
         ]
       },
     ],
@@ -286,21 +286,21 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "TODO: input question here WAIT ITS REALLY WORKING",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here."}
         ]
       },
       { 
         category_id: 2, 
         category_question: "TODO: input question here 29",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here."}
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 30",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here." }
         ]
       },
     ],
@@ -313,21 +313,21 @@ export const defaultTopics: Topic[] = [
         category_id: 1, 
         category_question: "TODO: input question here 31",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 2, 
         category_question: "TODO: input question here 32",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here." }
         ]
       },
       { 
         category_id: 3, 
         category_question: "TODO: input question here 33",
         given_question: [
-          { question_id: 1, question_text: "TODO: add specific question variations here" }
+          { question_id: 1, question_text: "TODO: add specific question variations here",guide_text: "Add a guide here." }
         ]
       },
     ],
