@@ -12,6 +12,7 @@ import createAnimation from "../components/assets/animations/create.json";
 import competeAnimation from "../components/assets/animations/comp.json";
 import progressAnimation from "../components/assets/animations/progress.json";
 import quizAnimation from "../components/assets/animations/quiz.json";
+import bookAnimation from "../components/assets/animations/book.json";
 
 import color from "../styles/color";
 import { supabase } from "../lib/supabase";
@@ -26,15 +27,19 @@ const features = [
   { title: "Friendly Competition", description: "Climb leaderboards and challenge friends to sharpen your skills.", icon: Trophy, animation: competeAnimation, link: "/studentDashboard" },
 ];
 
+// 👇 Topic chips now point to real routes from App.tsx
 const topics = [
-  "Rational Functions",
-  "Exponential & Logarithms",
-  "Inverse Functions",
-  "Inequalities",
-  "Piecewise Functions",
-  "Functions & Graphs",
-  "Sequences",
-  "Polynomials",
+  { title: "Introduction to Functions", path: "/introductiontopic" },
+  { title: "Evaluating Functions", path: "/evaluationtopic" },
+  { title: "Piecewise-Defined Functions", path: "/piecewise" },
+  { title: "Operations on Functions", path: "/operationstopic" },
+  { title: "Composition of Functions", path: "/compositiontopic" },
+  { title: "Rational Functions", path: "/rationaltopic" },
+  { title: "Vertical, Horizontal and Oblique Asymptotes", path: "/asymptotestopic" },
+  { title: "Rational Equations and Inequalities", path: "/rationalinequalitiestopic" },
+  { title: "Inverse Functions", path: "/inversetopic" },
+  { title: "Exponential Functions", path: "/exponentialtopic" },
+  { title: "Logarithmic Functions", path: "/logarithmictopic" },
 ];
 
 function StudentHome() {
@@ -184,7 +189,7 @@ function StudentHome() {
                   </div>
 
                   {!mySectionName && (
-                    <div className="flex w/full sm:w-auto gap-2">
+                    <div className="flex w-full sm:w-auto gap-2">
                       <input
                         value={code}
                         onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
@@ -223,7 +228,7 @@ function StudentHome() {
                         transition={{ duration: 0.6, delay: 0.1 }} className="w-full">
               <div className="mx-auto max-w-md md:max-w-none rounded-3xl p-4 shadow-xl ring-1 backdrop-blur"
                    style={{ background: "#fff", borderColor: `${color.mist}55` }}>
-                <div className="rounded-2xl overflow-hidden"><Lottie options={lottieOptions(progressAnimation)} /></div>
+                <div className="rounded-2xl overflow-hidden"><Lottie options={lottieOptions(bookAnimation)} /></div>
                 <div className="mt-3 grid grid-cols-3 gap-3 text-xs" style={{ color: color.steel }}>
                   <div className="rounded-lg border bg-white px-3 py-2">Daily Streak: <span className="font-semibold" style={{ color: color.deep }}>3</span></div>
                   <div className="rounded-lg border bg-white px-3 py-2">XP Today: <span className="font-semibold" style={{ color: color.deep }}>120</span></div>
@@ -242,8 +247,13 @@ function StudentHome() {
           <h2 className="text-xl sm:text-2xl font-bold" style={{ color: color.deep }}>Popular Topics</h2>
           <div className="mt-4 flex flex-wrap gap-2">
             {topics.map((t) => (
-              <Link key={t} to="/studentDashboard" className="rounded-full border px-4 py-2 text-sm transition" style={{ borderColor: color.mist, background: "#fff", color: color.steel }}>
-                {t}
+              <Link
+                key={t.path}
+                to={t.path}
+                className="rounded-full border px-4 py-2 text-sm transition"
+                style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
+              >
+                {t.title}
               </Link>
             ))}
           </div>

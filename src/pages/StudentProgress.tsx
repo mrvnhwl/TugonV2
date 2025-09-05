@@ -235,7 +235,7 @@ function StudentProgress() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full outline-none text-sm"
-                  placeholder="Search by student email…"
+                  placeholder="Search student"
                   style={{ color: color.deep }}
                 />
               </div>

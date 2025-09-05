@@ -21,15 +21,19 @@ import { useAuth } from "../hooks/useAuth";
 type LottieAny = any;
 
 const features = [
-  { title: "Create Quizzes Fast", description: "Build question sets with timers, scoring rules, and automatic answer keys.", icon: Brain, animation: createAnimation, link: "/teacherDashboard" },
-  { title: "Run Live Sessions", description: "Host real-time quizzes with countdowns, locks, and instant feedback.", icon: Play, animation: quizAnimation, link: "/teacherDashboard" },
-  { title: "Progress & Insights", description: "See class trends, item analysis, and exportable grade reports in seconds.", icon: BarChart, animation: progressAnimation, link: "/teacherDashboard" },
+  { title: "Create Quizzes Fast", description: "Build question sets with timers, scoring rules, and automatic answer keys.", icon: Brain, animation: createAnimation, link: "/create-quiz" },
+  { title: "Run Live Sessions", description: "Host real-time quizzes with countdowns, locks, and instant feedback.", icon: Play, animation: quizAnimation, link: "/host" },
+  { title: "Progress & Insights", description: "See class trends, item analysis, and exportable grade reports in seconds.", icon: BarChart, animation: progressAnimation, link: "/student-progress" },
   { title: "Boost Engagement", description: "Leaderboards and teams that motivate—without sacrificing learning goals.", icon: Users, animation: competeAnimation, link: "/teacherDashboard" },
 ];
 
-const quickLinks = [
-  "Create a Quiz","Question Bank","Start Live Quiz","Class Reports",
-  "Export Grades","Invite Students","Manage Sections","Attendance",
+// ✅ Only include links that exist in App routes
+const quickLinks: { label: string; to: string }[] = [
+  { label: "Create a Quiz", to: "/create-quiz" },
+  { label: "Start Live Quiz", to: "/host" },
+  { label: "Class Reports", to: "/teacherDashboard" },
+  { label: "Student Progress", to: "/student-progress" },
+  { label: "Manage Sections", to: "/teacherHome" },
 ];
 
 const lottieOptions = (animationData: LottieAny) => ({
@@ -371,11 +375,11 @@ function TeacherHome() {
                   Go to dashboard <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
                 <Link
-                  to="/teacherDashboard"
+                  to="/create-quiz"
                   className="inline-flex items-center justify-center rounded-xl border px-6 py-3 font-semibold transition"
                   style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
                 >
-                  Browse tools
+                  Create a quiz
                 </Link>
               </div>
               <ul className="mt-6 flex flex-col sm:flex-row gap-3 text-sm" style={{ color: color.steel }}>
@@ -424,19 +428,19 @@ function TeacherHome() {
         </div>
       </header>
 
-      <main className="flex-grow">
+      <main className="flex-grow pb-8 sm:pb-10">
         {/* Quick Links */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16">
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16 mb-8 sm:mb-10">
           <h2 className="text-xl sm:text-2xl font-bold" style={{ color: color.deep }}>Quick Links</h2>
           <div className="mt-4 flex flex-wrap gap-2">
-            {quickLinks.map((t) => (
+            {quickLinks.map((q) => (
               <Link
-                key={t}
-                to="/teacherDashboard"
+                key={q.label}
+                to={q.to}
                 className="rounded-full border px-4 py-2 text-sm transition"
                 style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
               >
-                {t}
+                {q.label}
               </Link>
             ))}
           </div>

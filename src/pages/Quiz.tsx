@@ -20,7 +20,7 @@ interface Answer {
 
 function Quiz() {
   const { id } = useParams();
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // ✅ was missing
   const location = useLocation();
   const { user } = useAuth();
 
@@ -33,7 +33,15 @@ function Quiz() {
   const [questionIndex, setQuestionIndex] = useState<number>(0);
   const [questions, setQuestions] = useState<Question[]>([]);
 
-  const returnTo = location.state?.returnTo || '/challenge'; // 🔑 fallback to challenge page
+  const returnTo = location.state?.returnTo || '/challenge'; // fallback to challenge page
+
+  // ✅ Hide navbar while on quiz page
+  useEffect(() => {
+    document.body.classList.add('hide-navbar');
+    return () => {
+      document.body.classList.remove('hide-navbar');
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -41,6 +49,7 @@ function Quiz() {
       return;
     }
     loadQuiz();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user]);
 
   useEffect(() => {
@@ -53,10 +62,7 @@ function Quiz() {
 
   useEffect(() => {
     if (timeLeft > 0 && !isAnswered) {
-      const timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-
+      const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
       return () => clearInterval(timer);
     } else if (timeLeft === 0 && !isAnswered) {
       handleTimeout();
@@ -107,8 +113,8 @@ function Quiz() {
     if (isAnswered) return;
     setIsAnswered(true);
 
-    if (answer.is_correct) {
-      const timeBonus = Math.floor((timeLeft / 30) * currentQuestion!.points);
+    if (answer.is_correct && currentQuestion) {
+      const timeBonus = Math.floor((timeLeft / 30) * currentQuestion.points);
       setScore((prev) => prev + timeBonus);
     }
   };
@@ -138,13 +144,13 @@ function Quiz() {
     });
 
     toast.success('Challenge Completed!');
-    navigate(returnTo); // 🔑 return back to Challenge page
+    navigate(returnTo); // return back to Challenge page
   };
 
   if (!quiz || !currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600" />
       </div>
     );
   }

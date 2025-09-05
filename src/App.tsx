@@ -52,6 +52,9 @@ import EditQuiz from "./pages/editQuiz";
 // ✨ New: Student Progress page
 import StudentProgress from "./pages/StudentProgress";
 
+// ✨ New: Daily Challenge page
+import DailyChallengeGame from "./pages/DailyChallengeGame";
+
 // MathJax config (inline: \( ... \), block: \[ ... \])
 const mathJaxConfig = {
   tex: {
@@ -175,6 +178,7 @@ function AppContent() {
             <Route path="/inversetopic" element={<Inversetopic />} />
             <Route path="/exponentialtopic" element={<Exponentialtopic />} />
             <Route path="/logarithmictopic" element={<Logarithmictopic />} />
+            <Route path="/daily-challenge" element={<DailyChallengeGame />} />
           </Routes>
 
           {shouldShowAIButton && (
