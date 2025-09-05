@@ -7,7 +7,7 @@ import { getAnswerForQuestion, answersByTopicAndCategory } from "../../component
 import AnswerWizard, { Step, WizardStep } from "../../components/tugon/input-system/AnswerWizard";
 import HintBubble from "../../components/tugon/hint-system/HintBubble";
 import Character from "../../components/tugon/hint-system/Character";
-import { SubHeading,Text, Small } from "../../components/Typography";
+import { Heading,SubHeading,Text, Small } from "../../components/Typography";
 
 const FALLBACK_HINT_TEXT = "Try isolating y. Start by substituting x = 2.";
 
@@ -116,55 +116,32 @@ export default function TugonPlay() {
   };
 
   return (
-    <div style={{
-      height: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      margin: 0,
-      padding: 0,
-      overflow: "hidden",
-      backgroundColor: "white"
-    }}>
-      {/* Navbar */}
-      <div style={{
-        height: "52px",
-        backgroundColor: "#7c3aed",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 16px",
-        flexShrink: 0
-      }}>
-        <SubHeading className="text-white font-semibold">TugonPlay</SubHeading>
+    <div className="h-screen flex flex-col overflow-hidden bg-white">
+      {/* Navbar - Responsive */}
+      <div className="h-16 sm:h-16 bg-violet-600 flex items-center justify-between px-3 sm:px-4 flex-shrink-0">
+        <SubHeading className="text-white font-semibold text-sm sm:text-base truncate">
+          TugonPlay
+        </SubHeading>
         <button
           onClick={() => navigate("/tugonsense")}
-          style={{ color: "white", background: "none", border: "none", fontSize: "18px" }}
+          className="text-white bg-transparent border-none text-lg sm:text-xl p-1 hover:bg-white/10 rounded transition-colors"
         >
           ✕
         </button>
       </div>
 
-      {/* Content - Takes remaining space */}
-      <div style={{
-        flex: 1,
-        overflowY: "auto",
-        padding: "16px",
-        margin: 0
-      }}>
-        <div style={{
-          maxWidth: "448px", // max-w-md
-          margin: "0 auto",
-          padding: 0
-        }}>
-          {/* Question Section */}
-          <div style={{ marginBottom: "16px" }}>
+      {/* Content - Responsive padding and spacing */}
+      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-4 sm:py-6">
+        <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto">
+          {/* Question Section - Responsive spacing */}
+          <div className="mb-3 sm:mb-4">
             <CategoryQuestion 
               topicId={topicId}
               categoryId={finalCategoryId}
             />
           </div>
           
-          <div style={{ marginBottom: "16px" }}>
+          <div className="mb-4 sm:mb-6">
             <QuestionBox 
               topicId={topicId}
               categoryId={finalCategoryId}
@@ -174,8 +151,8 @@ export default function TugonPlay() {
             />
           </div>
           
-          {/* Answer Wizard */}
-          <div style={{ marginBottom: "16px" }}>
+          {/* Answer Wizard - Responsive spacing */}
+          <div className="mb-4 sm:mb-6">
             <AnswerWizard
               steps={steps}
               onSubmit={handleSubmit}
@@ -195,14 +172,9 @@ export default function TugonPlay() {
         </div>
       </div>
 
-      {/* Character */}
-      <div style={{
-        position: "fixed",
-        bottom: "16px",
-        right: "16px",
-        zIndex: 50
-      }}>
-        <Character name="Tugon" className="w-24 h-24" />
+      {/* Character - Responsive positioning and sizing */}
+      <div className="fixed bottom-2 right-2 sm:bottom-4 sm:right-4 z-50">
+        <Character name="Tugon" className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24" />
       </div>
     </div>
   );

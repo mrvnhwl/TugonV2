@@ -13,17 +13,14 @@ export interface UserInputProps {
   className?: string;
   onSpamDetected?: () => void;
   onResetSpamFlag?: () => void;
-  // Props for smart Enter submission
   expectedSteps?: Step[];
   onSubmit?: (lines: string[]) => void;
   onSuggestSubmission?: (lines: string[]) => void;
-  // Props for Short Hints
   showHints?: boolean;
   hintText?: string;
   onRequestHint?: () => void;
 }
 
-// Two-phase validation result type
 type TwoPhaseValidationResult = {
   mathematicallyCorrect: boolean;
   positionallyValid: boolean;
@@ -63,6 +60,10 @@ export default function UserInput({
   const spamThreshold = 10;
   const spamTimeWindow = 1000;
 
+  // Individual line validation state for immediate feedback
+  const [lineValidationStates, setLineValidationStates] = useState<Map<number, TwoPhaseValidationResult | null>>(new Map());
+  const [validationTriggers, setValidationTriggers] = useState<Map<number, 'enter' | null>>(new Map());
+
   // Sync with prop changes
   useEffect(() => {
     setLines(value);
@@ -70,9 +71,7 @@ export default function UserInput({
 
   // Check if scrolling is needed
   const checkScrollNeeded = useCallback(() => {
-    const visibleLines = Math.min(lines.length, 2);
     const needsScrolling = lines.length > 2;
-    
     setIsScrollable(needsScrolling);
     setShowScrollIndicator(needsScrolling);
   }, [lines.length]);
@@ -131,43 +130,39 @@ export default function UserInput({
     let finalAnswerDetected = false;
     let isCurrentStepCorrect = mathematicallyCorrect;
     
-    // FIXED: If the current step is mathematically correct, accept it regardless of final answer match
+    // If user got the current step mathematically right, ALWAYS accept it
     if (mathematicallyCorrect) {
-      // The user got the current step right - this is the PRIMARY validation
+      // PRIMARY RULE: Mathematical correctness for current step takes precedence
       isCurrentStepCorrect = true;
       positionallyValid = true;
       
-      // SECONDARY: Check if this also happens to be the final answer (for detection purposes only)
+      // SECONDARY: Check for final answer detection (for tracking only, not blocking)
       if (allExpectedSteps.length > 0) {
         const finalStep = allExpectedSteps[allExpectedSteps.length - 1];
+        
         const isFinalAnswerMathematically = InputValidator.isMathematicallyEquivalentRobust(
           userInput.trim(),
           finalStep.answer.trim()
         );
         
-        // Only flag as "final answer detected" if it's NOT the current expected step
-        if (isFinalAnswerMathematically && stepLabel !== "final" && userInput.trim() !== expectedAnswer.trim()) {
+        if (isFinalAnswerMathematically && stepLabel !== "final") {
           finalAnswerDetected = true;
           
-          // SPECIAL CASE: Only block if user literally wrote the final answer format (like "40")
-          // But allow mathematical variations of the current step (like "6*6+4" vs "6(6)+4")
-          const isLiteralFinalAnswer = userInput.trim() === finalStep.answer.trim();
+          // ONLY block if user literally typed the exact final answer in step 1
+          const isExactFinalAnswer = userInput.trim() === finalStep.answer.trim();
           
-          if (isLiteralFinalAnswer && currentStepIndex === 0) {
-            // User literally wrote "40" in step 1 - this should be blocked
+          if (isExactFinalAnswer && currentStepIndex === 0) {
+            // Example: User typed "40" in step 1 - block this
             positionallyValid = false;
             isCurrentStepCorrect = false;
-            finalAnswerDetected = true;
           }
-          // Otherwise, keep the step as correct even if it mathematically equals final answer
         }
       }
     } else {
-      // Phase 2: Check for step confusion if current step is wrong
+      // Phase 2: Only check for step confusion if current step is mathematically wrong
       if (allExpectedSteps.length > 0) {
-        // Check if user input matches other steps
         for (let i = 0; i < allExpectedSteps.length; i++) {
-          if (i === currentStepIndex) continue; // Skip current step
+          if (i === currentStepIndex) continue;
           
           const otherStep = allExpectedSteps[i];
           const matchesOtherStep = InputValidator.isMathematicallyEquivalentRobust(
@@ -176,19 +171,19 @@ export default function UserInput({
           );
           
           if (matchesOtherStep) {
-            if (otherStep.label === "final" && currentStepIndex === 0) {
-              // Final answer in step 1 - block it
+            if (otherStep.label === "final") {
               finalAnswerDetected = true;
-              positionallyValid = false;
-              isCurrentStepCorrect = false;
-            } else if (otherStep.label === "final" && currentStepIndex > 0) {
-              // Final answer in step 2+ - allow it for 80% progression
-              finalAnswerDetected = true;
-              positionallyValid = true;
-              isCurrentStepCorrect = true;
+              if (currentStepIndex === 0) {
+                // Final answer in step 1 when current step is wrong - block it
+                positionallyValid = false;
+                isCurrentStepCorrect = false;
+              } else {
+                // Final answer in step 2+ - allow for 80% progression
+                positionallyValid = true;
+                isCurrentStepCorrect = true;
+              }
             } else {
               // Other step confusion
-              console.log(`Step confusion: "${userInput}" matches step ${i + 1} (${otherStep.label}) but is in position ${currentStepIndex + 1} (${stepLabel})`);
               positionallyValid = false;
               isCurrentStepCorrect = false;
             }
@@ -205,6 +200,39 @@ export default function UserInput({
       isCurrentStepCorrect
     };
   }, []);
+
+  // Function to validate individual line and update its state
+  const validateIndividualLine = useCallback((lineIndex: number, trigger: 'enter') => {
+    const line = lines[lineIndex];
+    
+    // Only validate if line has content and we have expected steps
+    if (!line.trim() || !expectedSteps || lineIndex >= expectedSteps.length) {
+      return;
+    }
+
+    const expectedStep = expectedSteps[lineIndex];
+    
+    const validation = validateStepWithTwoPhase(
+      line.trim(),
+      expectedStep.answer,
+      expectedStep.label,
+      lineIndex,
+      expectedSteps
+    );
+
+    // Update validation states
+    setLineValidationStates(prev => {
+      const newMap = new Map(prev);
+      newMap.set(lineIndex, validation);
+      return newMap;
+    });
+    
+    setValidationTriggers(prev => {
+      const newMap = new Map(prev);
+      newMap.set(lineIndex, trigger);
+      return newMap;
+    });
+  }, [lines, expectedSteps, validateStepWithTwoPhase]);
 
   // Check if answer is complete using two-phase validation
   const isAnswerComplete = useCallback((currentLines: string[]): boolean => {
@@ -261,78 +289,49 @@ export default function UserInput({
     let finalAnswerPosition = -1;
     const finalStepIndex = totalSteps - 1;
 
-    // TWO-PHASE: Check each step for correctness
+    // FIXED: Use validated states instead of real-time validation
     for (let i = 0; i < Math.min(nonEmptyLines.length, expectedSteps.length); i++) {
-      const userLine = nonEmptyLines[i];
-      const expectedStep = expectedSteps[i];
+      // Only count as correct if it has been validated (Enter pressed)
+      const validatedResult = lineValidationStates.get(i);
+      const isValidated = validationTriggers.get(i) === 'enter';
       
-      // Use two-phase validation
-      const validation = validateStepWithTwoPhase(
-        userLine,
-        expectedStep.answer,
-        expectedStep.label,
-        i,
-        expectedSteps
-      );
-      
-      stepCorrectness[i] = validation.isCurrentStepCorrect;
-      
-      if (validation.isCurrentStepCorrect) {
+      if (validatedResult && isValidated && validatedResult.isCurrentStepCorrect) {
+        stepCorrectness[i] = true;
         correctSteps++;
-      }
-    }
-
-    // TWO-PHASE: Enhanced final answer detection across all lines
-    for (let i = 0; i < nonEmptyLines.length; i++) {
-      const userLine = nonEmptyLines[i];
-      
-      if (expectedSteps.length > 0) {
-        const finalStep = expectedSteps[finalStepIndex];
         
-        // Check if this line is mathematically equivalent to final answer
-        const isMathematicallyFinal = InputValidator.isMathematicallyEquivalentRobust(
-          userLine.trim(),
-          finalStep.answer.trim()
-        );
-        
-        if (isMathematicallyFinal) {
-          // Apply positional rules
-          if (i === 0) {
-            // Final answer in position 1 - not allowed
-            continue;
-          } else {
-            // Final answer in position 2+ - allowed
-            finalAnswerDetected = true;
-            finalAnswerPosition = i;
-            break;
-          }
+        // Check for final answer detection from validated results
+        if (validatedResult.finalAnswerDetected && i > 0) {
+          finalAnswerDetected = true;
+          finalAnswerPosition = i;
         }
+      } else {
+        stepCorrectness[i] = false;
       }
     }
 
     const isComplete = nonEmptyLines.length >= totalSteps;
     const allCorrect = correctSteps === totalSteps && isComplete;
     
-    // TWO-PHASE: Percentage calculation with your rules
+    // Percentage calculation based on VALIDATED steps only
     const calculatePercentage = (): number => {
       if (totalSteps === 0) return 0;
       
       let percentage = 0;
       
-      // YOUR RULE: Award 80% if final answer is detected in position 2+
+      // Award 80% if final answer is detected in position 2+ (and validated)
       if (finalAnswerDetected && finalAnswerPosition > 0) {
         percentage += 80;
       }
       
-      // YOUR RULE: Step 1 gets 20%, must be substitution
+      // Step 1 gets 20%, must be substitution (and validated)
       if (stepCorrectness[0]) {
         percentage += 20;
       }
       
-      // Award remaining percentage for other intermediate steps
+      // Award remaining percentage for other intermediate steps (validated only)
       for (let i = 1; i < totalSteps - 1; i++) {
         if (stepCorrectness[i]) {
-          const stepValue = Math.max(15 - ((i - 1) * 5), 5); // 15%, 10%, 5%...
+          const stepValue = Math.max(15 - ((i - 1) * 5), 5);
           percentage += stepValue;
         }
       }
@@ -340,16 +339,15 @@ export default function UserInput({
       // Handle final step separately to avoid double counting
       const finalStepCorrect = stepCorrectness[finalStepIndex];
       if (finalStepCorrect && !finalAnswerDetected) {
-        // Only award final step points if we haven't already awarded final answer points
         percentage += Math.max(80 - (stepCorrectness.filter(Boolean).length - 1) * 20, 20);
       }
       
-      // Only award 100% if ALL steps are correct AND complete
+      // Only award 100% if ALL steps are correct AND complete AND validated
       if (allCorrect && isComplete) {
         return 100;
       }
       
-      return Math.min(percentage, 99); // Cap at 99% unless truly complete
+      return Math.min(percentage, 99);
     };
 
     const percentage = calculatePercentage();
@@ -365,7 +363,7 @@ export default function UserInput({
       finalAnswerDetected,
       finalAnswerPosition
     };
-  }, [expectedSteps, validateStepWithTwoPhase]);
+  }, [expectedSteps, lineValidationStates, validationTriggers]); // Added dependencies
 
   // Handle line changes with spam detection
   const handleLineChange = (index: number, newValue: string) => {
@@ -387,6 +385,18 @@ export default function UserInput({
     newLines[index] = newValue;
     setLines(newLines);
     onChange(newLines);
+
+    // Clear any existing validation state for this line
+    setLineValidationStates(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(index);
+      return newMap;
+    });
+    setValidationTriggers(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(index);
+      return newMap;
+    });
   };
 
   // Handle key events
@@ -394,20 +404,24 @@ export default function UserInput({
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       
+      // Validate current line immediately on Enter
+      if (lines[index].trim() && expectedSteps && index < expectedSteps.length) {
+        validateIndividualLine(index, 'enter');
+      }
+      
       const isComplete = isAnswerComplete(lines);
       
       if (isComplete) {
-        console.log("🎯 Answer complete! Submitting via Enter key...");
         onSubmit?.(lines);
         return;
       }
       
-      // FIXED: Check if there's already an empty line after current position
+      // Check if there's already an empty line after current position
       const hasEmptyLineAfter = index + 1 < lines.length && lines[index + 1].trim() === '';
       
       if (hasEmptyLineAfter) {
         // Don't create new line, just move to the existing empty line
-        focusLineAggressively(index + 1);
+        focusLine(index + 1);
       } else if (canCreateNewLine(index)) {
         // Create new line only if one doesn't exist
         const newLines = [...lines];
@@ -415,22 +429,18 @@ export default function UserInput({
         setLines(newLines);
         onChange(newLines);
         
-        // Use aggressive focus for better reliability
         setTimeout(() => {
-          focusLineAggressively(index + 1);
-        }, 20); // Slightly longer delay
+          focusLine(index + 1);
+        }, 20);
       } else {
         // Check if we've reached step limit
         const stepLimit = expectedSteps?.length || maxLines;
         if (lines.length >= stepLimit && expectedSteps) {
-          console.log(`📋 Step limit reached: ${stepLimit}/${expectedSteps.length} steps`);
-          // Don't create new line, just check if answer is ready for submission
           const status = getCompletionStatus(lines);
           if (status.completedSteps >= status.totalSteps && !status.allCorrect) {
             onSuggestSubmission?.(lines);
           }
         } else {
-          // Original logic for other limits
           const status = getCompletionStatus(lines);
           if (status.completedSteps >= status.totalSteps && !status.allCorrect) {
             onSuggestSubmission?.(lines);
@@ -442,13 +452,13 @@ export default function UserInput({
       const newLines = lines.filter((_, i) => i !== index);
       setLines(newLines);
       onChange(newLines);
-      focusLineAggressively(index - 1);
+      focusLine(index - 1);
     } else if (event.key === 'ArrowUp' && index > 0) {
       event.preventDefault();
-      focusLineAggressively(index - 1);
+      focusLine(index - 1);
     } else if (event.key === 'ArrowDown' && index < lines.length - 1) {
       event.preventDefault();
-      focusLineAggressively(index + 1);
+      focusLine(index + 1);
     }
   };
 
@@ -457,8 +467,6 @@ export default function UserInput({
     const hasContent = lines[currentIndex].trim().length > 0;
     const withinLimit = lines.length < maxLines;
     const notLastAndEmpty = !(currentIndex === lines.length - 1 && lines[currentIndex] === '');
-    
-    // NEW: Restrict to the number of expected steps
     const withinStepLimit = !expectedSteps || lines.length < expectedSteps.length;
     
     return hasContent && withinLimit && notLastAndEmpty && withinStepLimit;
@@ -466,7 +474,6 @@ export default function UserInput({
 
   // Focus management with scroll
   const focusLine = (index: number) => {
-    // Use requestAnimationFrame for more reliable DOM timing
     requestAnimationFrame(() => {
       const input = inputRefs.current[index];
       if (input) {
@@ -481,7 +488,6 @@ export default function UserInput({
           scrollToFocusedInput(index);
         }
       } else {
-        // If input doesn't exist yet, try again after a short delay
         setTimeout(() => {
           const retryInput = inputRefs.current[index];
           if (retryInput) {
@@ -496,77 +502,28 @@ export default function UserInput({
               scrollToFocusedInput(index);
             }
           }
-        }, 100); // Longer delay for element creation
+        }, 100);
       }
-    });
-  };
-
-  // More aggressive focus approach - add this as a backup
-  const focusLineAggressively = (index: number) => {
-    const attemptFocus = (attempt: number = 0) => {
-      if (attempt > 15) { // Increased attempts
-        console.warn(`Failed to focus line ${index} after ${attempt} attempts`);
-        return;
-      }
-      
-      const input = inputRefs.current[index];
-      if (input && document.contains(input)) {
-        try {
-          input.focus();
-          if (input instanceof HTMLInputElement) {
-            input.setSelectionRange(input.value.length, input.value.length);
-          }
-          console.log(`Successfully focused line ${index} on attempt ${attempt + 1}`);
-          
-          // Update the focused index state
-          setFocusedIndex(index);
-        } catch (error) {
-          console.warn(`Focus attempt ${attempt + 1} failed:`, error);
-          setTimeout(() => attemptFocus(attempt + 1), 30);
-        }
-      } else {
-        console.log(`Attempt ${attempt + 1}: Input not ready for index ${index}, retrying...`);
-        setTimeout(() => attemptFocus(attempt + 1), 30);
-      }
-    };
-    
-    // Use requestAnimationFrame for better timing
-    requestAnimationFrame(() => {
-      setTimeout(() => attemptFocus(), 10);
     });
   };
 
   // Ensure we have at least one empty line
   useEffect(() => {
     if (lines.length === 0) {
-      // Always ensure at least one line exists
       const newLines = [''];
       setLines(newLines);
       onChange(newLines);
-    } else if (lines.every(line => line.trim().length > 0)) {
-      // Only add empty line if we haven't reached the step limit AND no empty line exists
-      const stepLimit = expectedSteps?.length || maxLines;
-      const hasEmptyLine = lines.some(line => line.trim() === '');
-      
-      if (lines.length < stepLimit && !hasEmptyLine) {
-        const newLines = [...lines, ''];
-        setLines(newLines);
-        onChange(newLines);
-      }
-    }
+    } 
   }, [lines, onChange, expectedSteps, maxLines]);
 
   // Set up input refs
   const setInputRef = (index: number) => (el: HTMLInputElement | HTMLTextAreaElement | null) => {
-    // Ensure the refs array is large enough
     while (inputRefs.current.length <= index) {
       inputRefs.current.push(null as any);
     }
     
     if (el) {
       inputRefs.current[index] = el;
-      // Debug log to track ref assignments
-      console.log(`Input ref set for index ${index}:`, !!el);
     } else {
       inputRefs.current[index] = null as any;
     }
@@ -595,81 +552,86 @@ export default function UserInput({
             scrollBehavior: 'smooth'
           }}
         >
-          {lines.map((line, index) => (
-            <div key={index} className="relative group" style={{ minHeight: '50px' }}>
-              <div className={cn(
-                "flex items-center transition-colors duration-200",
-                focusedIndex === index && "bg-blue-50",
-                !line.trim() && index < status.totalSteps && "border-l-4 border-l-gray-300",
-                // TWO-PHASE: Use two-phase validation for line styling
-                line.trim() && index < status.totalSteps && 
+          {lines.map((line, index) => {
+            const individualValidation = lineValidationStates.get(index);
+            const validationTrigger = validationTriggers.get(index);
+            
+            return (
+              <div key={index} className="relative group" style={{ minHeight: '50px' }}>
+                <div className={cn(
+                  "flex items-center transition-colors duration-200",
+                  focusedIndex === index && "bg-blue-50",
                   (() => {
-                    if (!expectedSteps?.[index]) return "";
+                    // No content - gray border
+                    if (!line.trim() && index < status.totalSteps) {
+                      return "border-l-4 border-l-gray-300";
+                    }
                     
-                    const validation = validateStepWithTwoPhase(
-                      line.trim(),
-                      expectedSteps[index].answer,
-                      expectedSteps[index].label,
-                      index,
-                      expectedSteps
-                    );
+                    // Has content and validation result
+                    if (line.trim() && individualValidation && validationTrigger) {
+                      // PRIORITY 1: If step is correct, always show green
+                      if (individualValidation.isCurrentStepCorrect === true) {
+                        return "border-l-4 border-l-green-400 bg-green-50";
+                      }
+                      
+                      // PRIORITY 2: If wrong but final answer detected, show orange
+                      if (individualValidation.finalAnswerDetected === true) {
+                        return "border-l-4 border-l-orange-400 bg-orange-50";
+                      }
+                      
+                      // PRIORITY 3: Otherwise wrong, show red
+                      return "border-l-4 border-l-red-400 bg-red-50";
+                    }
                     
-                    return validation.isCurrentStepCorrect
-                      ? "border-l-4 border-l-green-400 bg-green-50"
-                      : "border-l-4 border-l-red-400 bg-red-50";
+                    // Default: no special styling
+                    return "";
                   })()
-              )}>
-                {/* Line number indicator */}
-                <div className="w-8 flex-shrink-0 text-center text-xs text-gray-400 font-mono">
-                  {index + 1}
-                </div>
-                
-                {/* Input field */}
-                <input
-                  ref={setInputRef(index)}
-                  type="text"
-                  value={line}
-                  onChange={(e) => handleLineChange(index, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(index, e)}
-                  onFocus={() => setFocusedIndex(index)}
-                  onBlur={() => setFocusedIndex(null)}
-                  disabled={disabled}
-                  placeholder={index === 0 ? placeholder : `Step ${index + 1}...`}
-                  className={cn(
-                    "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-3 px-3",
-                    "placeholder-gray-400 text-gray-900",
-                    disabled && "bg-gray-50 text-gray-500"
-                  )}
-                />
+                )}>
+                  {/* Line number indicator */}
+                  <div className="w-8 flex-shrink-0 text-center text-xs text-gray-400 font-mono">
+                    {index + 1}
+                  </div>
+                  
+                  {/* Input field */}
+                  <input
+                    ref={setInputRef(index)}
+                    type="text"
+                    value={line}
+                    onChange={(e) => handleLineChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onFocus={() => setFocusedIndex(index)}
+                    onBlur={() => setFocusedIndex(null)}
+                    disabled={disabled}
+                    placeholder={index === 0 ? placeholder : `Step ${index + 1}...`}
+                    className={cn(
+                      "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-3 px-3",
+                      "placeholder-gray-400 text-gray-900",
+                      disabled && "bg-gray-50 text-gray-500"
+                    )}
+                  />
 
-                {/* TWO-PHASE: Step status indicator using two-phase validation */}
-                {expectedSteps && index < expectedSteps.length && (
-                  <div className="w-6 flex-shrink-0 text-center text-sm">
-                    {!line.trim() ? (
-                      <span className="text-gray-300">○</span>
-                    ) : (() => {
-                        const validation = validateStepWithTwoPhase(
-                          line.trim(),
-                          expectedSteps[index].answer,
-                          expectedSteps[index].label,
-                          index,
-                          expectedSteps
-                        );
-                        
-                        return validation.isCurrentStepCorrect ? (
-                          <span className="text-green-500">✅</span>
-                        ) : validation.mathematicallyCorrect && validation.finalAnswerDetected && index === 0 ? (
+                  {/* Individual line status indicator */}
+                  {expectedSteps && index < expectedSteps.length && (
+                    <div className="w-6 flex-shrink-0 text-center text-sm">
+                      {!line.trim() ? (
+                        <span className="text-gray-300">○</span>
+                      ) : individualValidation && validationTrigger ? (
+                        individualValidation.isCurrentStepCorrect === true ? (
+                          <span className="text-green-500" title={`Correct (validated on ${validationTrigger})`}>✅</span>
+                        ) : individualValidation.finalAnswerDetected === true ? (
                           <span className="text-orange-500" title="Final answer in wrong position">⚠️</span>
                         ) : (
-                          <span className="text-red-500">❌</span>
-                        );
-                      })()
-                    }
-                  </div>
-                )}
+                          <span className="text-red-500" title={`Incorrect (validated on ${validationTrigger})`}>❌</span>
+                        )
+                      ) : (
+                        <span className="text-gray-300" title="Not yet validated">⏳</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Scroll indicators */}
@@ -693,7 +655,7 @@ export default function UserInput({
       {/* Progress bar indicator */}
       {expectedSteps && expectedSteps.length > 0 && (
         <div className="bg-gray-50 border-t px-3 py-2 space-y-1">
-          {/* Minimal Progress bar */}
+          {/* Progress bar */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500 min-w-[50px]">
               Progress:
@@ -726,33 +688,6 @@ export default function UserInput({
             </span>
           </div>
 
-          {/* Compact Status message */}
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1">
-              {status.allCorrect && status.percentage === 100 ? (
-                <span className="text-green-600">🎯 Complete!</span>
-              ) : status.finalAnswerDetected && status.percentage >= 80 ? (
-                <span className="text-emerald-600">
-                  🎉 Final answer found!
-                </span>
-              ) : status.percentage >= 20 ? (
-                <span className="text-blue-600">Keep going...</span>
-              ) : (
-                <span className="text-gray-500">Begin solving...</span>
-              )}
-            </div>
-
-            <div className="text-right">
-              {status.allCorrect ? (
-                <span className="text-green-600 font-medium">Press Enter ↵</span>
-              ) : (
-                <span className="text-gray-400">
-                  {status.correctSteps+1} Steps Created
-                </span>
-              )}
-            </div>
-          </div>
-
           {/* Short Hints Component */}
           <ShortHints 
             isVisible={showHints}
@@ -761,33 +696,6 @@ export default function UserInput({
           />
         </div>
       )}
-
-      {/* ENHANCED: Debug info showing two-phase validation results */}
-      {/* {process.env.NODE_ENV === 'development' && (
-        <div className="text-xs bg-yellow-50 border-t px-3 py-1 text-yellow-800">
-          Debug: {status.completedSteps}/{status.totalSteps} steps, {status.correctSteps} correct, 
-          {status.percentage}% complete, Lines: {lines.length}
-          <br />
-          Final Answer: {status.finalAnswerDetected ? `Yes (line ${status.finalAnswerPosition + 1})` : 'No'}
-          <br />
-          Two-Phase Validation: {status.stepCorrectness?.map((correct, i) => {
-            if (!expectedSteps?.[i] || i >= lines.filter(l => l.trim()).length) return '';
-            const userLine = lines.filter(l => l.trim())[i];
-            const validation = validateStepWithTwoPhase(
-              userLine?.trim() || '',
-              expectedSteps[i].answer,
-              expectedSteps[i].label,
-              i,
-              expectedSteps
-            );
-            return `Step ${i + 1}(${expectedSteps[i].label}): ${correct ? '✅' : '❌'} [Math:${validation.mathematicallyCorrect ? '✅' : '❌'}, Pos:${validation.positionallyValid ? '✅' : '❌'}, Final:${validation.finalAnswerDetected ? '⚠️' : '➖'}]`;
-          }).filter(Boolean).join(', ')}
-          <br />
-          Expected: {expectedSteps?.map((step, i) => 
-            `${i + 1}:"${step.answer}" (${step.label})`
-          ).join(' | ')}
-        </div>
-      )} */}
     </div>
   );
 }
