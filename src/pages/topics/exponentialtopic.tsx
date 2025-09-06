@@ -42,7 +42,7 @@ function Exponentialtopic() {
       answer: 1,
     },
     {
-      question: "What is the base of the exponential function f(x) = 5^x",
+      question: "What is the base of the exponential function f(x) = 5^x?",
       options: [
         "5",
         "x",
@@ -51,7 +51,7 @@ function Exponentialtopic() {
       answer: 0,
     },
     {
-      question: "Evaluate f(x) = 2^x when x = -2?",
+      question: "Evaluate f(x) = 2^x when x = -2.",
       options: [
         "2",
         "1/2",

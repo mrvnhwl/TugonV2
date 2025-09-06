@@ -93,7 +93,7 @@ function Compositiontopic() {
       answer: 0, 
     },
     {
-      question: "If f(x) = 2x , find(f ∘ g)(x)?",
+      question: "If f(x) = 2x , find(f ∘ g)(x).",
       options: [
         "2x²",
         "4x", 

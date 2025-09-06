@@ -22,9 +22,9 @@ type LottieAny = any;
 
 const features = [
   { title: "Interactive Practice", description: "Master concepts through step-by-step problems that adapt to your pace.", icon: BookOpen, animation: createAnimation, link: "/studentDashboard" },
-  { title: "Bite-Sized Quizzes", description: "Short, focused challenges that build intuition without the overwhelm.", icon: Play, animation: quizAnimation, link: "/studentDashboard" },
+  { title: "Bite-Sized Quizzes", description: "Short, focused challenges that build intuition without the overwhelm.", icon: Play, animation: quizAnimation, link: "/challenge" },
   { title: "Progress You Can See", description: "Track streaks, XP, and goals—stay motivated with visible momentum.", icon: BarChart, animation: progressAnimation, link: "/studentDashboard" },
-  { title: "Friendly Competition", description: "Climb leaderboards and challenge friends to sharpen your skills.", icon: Trophy, animation: competeAnimation, link: "/studentDashboard" },
+  { title: "Friendly Competition", description: "Climb leaderboards and challenge friends to sharpen your skills.", icon: Trophy, animation: competeAnimation, link: "/leaderboards" },
 ];
 
 // 👇 Topic chips now point to real routes from App.tsx

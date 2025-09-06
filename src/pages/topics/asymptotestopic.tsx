@@ -59,7 +59,7 @@ function Asymptotestopic() {
       answer: 1,
     },
 {
-      question: "The horizontal asymptote of f(x) = 5x^2-3x+1 / x^+7x-4 is",
+      question: "The horizontal asymptote of f(x) = 5x^2-3x+1 / x^+7x-4 is?",
       options: [
         "y = 0",
         "y = 1",
@@ -79,7 +79,7 @@ function Asymptotestopic() {
       answer: 0,
     },
     {
-      question: "Find the oblique asymptote of f(x) = x^2+1 / x-2?",
+      question: "Find the oblique asymptote of f(x) = x^2+1 / x-2.",
       options: [
         "y = x - 2",
         "y = x + 2",
@@ -98,7 +98,7 @@ function Asymptotestopic() {
       answer: 1,
     },
     {
-      question: "Vertical asymptote of f(x) = x+1 / x^2-2x-8 are",
+      question: "Vertical asymptote of f(x) = x+1 / x^2-2x-8 are:",
       options: [
         "x = 4 only", 
         "x = -2 only", 
