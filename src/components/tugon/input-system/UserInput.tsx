@@ -4,7 +4,18 @@ import InputValidator from "./UserInputValidator";
 import type { TwoPhaseValidationResult, CompletionStatus } from "./UserInputValidator";
 import type { Step } from "@/components/data/answers";
 import ShortHints from "../hint-system/shortHints";
-type StepProgression = [string, string, boolean, string]; // [stepLabel, userInput, isCorrect, expectedAnswer]
+type StepProgression = [string, string, boolean, string, number]; 
+// [stepLabel, userInput, isCorrect, expectedAnswer, totalProgress]
+type UserAttempt = {
+  attempt_id: number;
+  stepIndex: number;
+  stepLabel: string;
+  userInput: string;
+  isCorrect: boolean;
+  expectedAnswer: string;
+  cumulativeProgress: number;
+};
+
 export interface UserInputProps {
   value: string[];
   onChange: (lines: string[]) => void;
@@ -44,6 +55,10 @@ export default function UserInput({
   
    // ADD: User progression tracking array
   const [userProgressionArray, setUserProgressionArray] = useState<StepProgression[]>([]);
+
+const [userAttempt, setUserAttempt] = useState<UserAttempt[]>([]);
+const [attemptCounter, setAttemptCounter] = useState<number>(0);
+  
   // Scrolling refs and state
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -105,7 +120,55 @@ export default function UserInput({
       scrollToFocusedInput(focusedIndex);
     }
   }, [focusedIndex, isScrollable, scrollToFocusedInput]);
+  const lastProcessedStep = useRef<{stepIndex: number, input: string, timestamp: number} | null>(null);
 
+  const storeStepProgressionToAttempt = useCallback((stepProgression: StepProgression, stepIndex: number) => {
+    const currentInput = stepProgression[1];
+    const now = Date.now();
+    
+    // ⭐ PREVENT DUPLICATE CALLS: Check if we just processed this exact step/input
+    if (lastProcessedStep.current && 
+        lastProcessedStep.current.stepIndex === stepIndex &&
+        lastProcessedStep.current.input === currentInput &&
+        (now - lastProcessedStep.current.timestamp) < 100) { // Within 100ms
+      console.log('🚫 DUPLICATE CALL DETECTED - IGNORING');
+      return;
+    }
+    
+    // Update the last processed step
+    lastProcessedStep.current = { stepIndex, input: currentInput, timestamp: now };
+    
+    setAttemptCounter(prev => {
+      const newId = prev + 1;
+      
+      const newUserAttempt: UserAttempt = {
+        attempt_id: newId,
+        stepIndex,
+        stepLabel: stepProgression[0],      
+        userInput: stepProgression[1],      
+        isCorrect: stepProgression[2],      
+        expectedAnswer: stepProgression[3], 
+        cumulativeProgress: stepProgression[4] 
+      };
+
+      setUserAttempt(prevAttempts => {
+        const newAttempts = [...prevAttempts, newUserAttempt];
+        
+        console.log('📝 NEW USER ATTEMPT STORED:');
+        console.log(`   Attempt ID: ${newUserAttempt.attempt_id}`);
+        console.log(`   Step: ${newUserAttempt.stepIndex + 1} (${newUserAttempt.stepLabel})`);
+        console.log(`   Input: "${newUserAttempt.userInput}"`);
+        console.log(`   Correct: ${newUserAttempt.isCorrect}`);
+        console.log(`   Cumulative Progress: ${newUserAttempt.cumulativeProgress}%`);
+        console.log(`   Total Attempts: ${newAttempts.length}`);
+        console.log('🗃️  Complete userAttempt array:', newAttempts);
+        
+        return newAttempts;
+      });
+      
+      return newId;
+    });
+  }, []);
   // Function to validate individual line and update its state
   const validateIndividualLine = useCallback((lineIndex: number, trigger: 'enter') => {
     const line = lines[lineIndex];
@@ -125,7 +188,7 @@ export default function UserInput({
       expectedSteps
     );
 
-    // Update validation states
+    // Update validation states FIRST
     setLineValidationStates(prev => {
       const newMap = new Map(prev);
       newMap.set(lineIndex, validation);
@@ -137,37 +200,103 @@ export default function UserInput({
       newMap.set(lineIndex, trigger);
       return newMap;
     });
-     const stepProgression: StepProgression = [
-      expectedStep.label,              // stepLabel
-      line.trim(),                     // userInput
-      validation.isCurrentStepCorrect, // right or wrong (boolean)
-      expectedStep.answer              // expectedAnswer (predefinedAnswer)
-    ];
+
+    // THEN get completion status with ALL validation states (not just current one)
+    const updatedValidationStates = new Map(lineValidationStates);
+    updatedValidationStates.set(lineIndex, validation);
+
+    const updatedValidationTriggers = new Map(validationTriggers);
+    updatedValidationTriggers.set(lineIndex, trigger);
+
+    const completionStatus = InputValidator.getCompletionStatus(
+      lines, 
+      expectedSteps, 
+      updatedValidationStates,    // ✅ ALL validation states
+      updatedValidationTriggers   // ✅ ALL triggers
+    );
+    
     setUserProgressionArray(prev => {
       const newArray = [...prev];
       
       // Update existing step or add new step
       while (newArray.length <= lineIndex) {
-        newArray.push(['', '', false, '']); // Fill gaps if necessary
+        newArray.push(['', '', false, '', 0]); // Fill gaps with 5 default values
       }
       
-      newArray[lineIndex] = stepProgression;
-      
-      // Console log the updated progression array
-      console.log('=== USER PROGRESSION ARRAY UPDATE ===');
-      console.log(`Step ${lineIndex + 1} (${expectedStep.label}) entered:`, stepProgression);
-      console.log('Complete userProgressionArray:', newArray);
-      console.log('Array breakdown:');
+      // Calculate individual step progress
+      const stepWeight = 100 / expectedSteps.length;
+      let individualStepProgress = 0;
+
+      if (validation.isCurrentStepCorrect) {
+        individualStepProgress = stepWeight;
+      } else if (line.trim().length > 0) {
+        const expectedLength = expectedStep.answer.trim().length;
+        const userLength = line.trim().length;
+        const excessCharacters = userLength - expectedLength;
+        
+        if (excessCharacters <= 3 && expectedLength > 0 && userLength > 0) {
+          const consolationPerChar = (stepWeight / expectedLength) / 2;
+          const cappedUserLength = Math.min(userLength, expectedLength);
+          individualStepProgress = cappedUserLength * consolationPerChar;
+        }
+      }
+
+      // Update current step
+      newArray[lineIndex] = [
+        expectedStep.label,              
+        line.trim(),                     
+        validation.isCurrentStepCorrect, 
+        expectedStep.answer,             
+        Math.round(individualStepProgress * 100) / 100
+      ];
+
+      // RECALCULATE CUMULATIVE PROGRESS for all steps
+      let cumulativeProgress = 0;
       newArray.forEach((step, index) => {
-        if (step[0]) { // Only log steps that have been filled
-          console.log(`  Step[${index}]: [${step[0]}, "${step[1]}", ${step[2]}, "${step[3]}"]`);
+        if (step[0]) { // If step has content
+          cumulativeProgress += step[4]; // Add this step's progress
+          // Update the step with cumulative progress
+          newArray[index] = [
+            step[0], // stepLabel
+            step[1], // userInput
+            step[2], // isCorrect
+            step[3], // expectedAnswer
+            Math.round(cumulativeProgress * 100) / 100 // CUMULATIVE progress
+          ];
         }
       });
-      console.log('=====================================');
       
+      // Enhanced console logging with validator data
+      console.log('=== USER PROGRESSION ARRAY UPDATE ===');
+      console.log(`Step ${lineIndex + 1} (${expectedStep.label}) entered:`, newArray[lineIndex]);
+      console.log('📊 Validator Completion Status:', {
+        totalProgress: completionStatus.percentage,
+        baseProgress: completionStatus.baseProgress,
+        consolationProgress: completionStatus.consolationProgress,
+        correctSteps: completionStatus.correctSteps,
+        totalSteps: completionStatus.totalSteps
+      });
+      console.log('📈 Step Breakdown:');
+      console.log(`   User Input: "${newArray[lineIndex][1]}"`);
+      console.log(`   Expected: "${newArray[lineIndex][3]}"`);
+      console.log(`   Correct: ${newArray[lineIndex][2]}`);
+      console.log(`   Individual Step Progress: ${Math.round(individualStepProgress * 100) / 100}%`);
+      console.log(`   Cumulative Progress: ${newArray[lineIndex][4]}%`);
+      console.log('Complete userProgressionArray:', newArray);
+      console.log('📈 Array breakdown:');
+      newArray.forEach((step, index) => {
+        if (step[0]) { // Only log steps that have been filled
+          console.log(`  Step[${index}]: [${step[0]}, "${step[1]}", ${step[2]}, "${step[3]}", cumulative:${step[4]}%]`);
+        }
+      });
+      
+      console.log(`🎯 Validator Total Progress: ${completionStatus.percentage}%`);
+      console.log(`   📊 Base: ${completionStatus.baseProgress}% | Consolation: ${completionStatus.consolationProgress}%`);
+      console.log('=====================================');
+       storeStepProgressionToAttempt(newArray[lineIndex], lineIndex);
       return newArray;
     });
-  }, [lines, expectedSteps]);
+  },  [lines, expectedSteps, storeStepProgressionToAttempt]);
 
   // Check if answer is complete using validator
   const isAnswerComplete = useCallback((currentLines: string[]): boolean => {
@@ -517,3 +646,4 @@ export default function UserInput({
     </div>
   );
 }
+export { type StepProgression, type UserAttempt };

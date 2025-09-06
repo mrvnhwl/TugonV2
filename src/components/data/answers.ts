@@ -19,7 +19,7 @@ export const Topic1_Category1_Answers: PredefinedAnswer[] = [
     type: "multiLine", 
     steps: [
       { label: "text", answer: "No" }, // Changed from "math" to "text"
-      { label: "text", answer: "The x-value 2 maps to both 3 and 5" } // Changed from "math" to "text"
+    
     ]
   },
   // Question 2: {(0,1),(1,2),(2,3),(3,4)}

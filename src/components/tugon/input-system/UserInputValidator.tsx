@@ -33,6 +33,8 @@ export type CompletionStatus = {
   finalAnswerDetected: boolean;
   finalAnswerPosition: number;
   stepCorrectness: boolean[];
+  consolationProgress: number;    // Progress from attempted but wrong steps
+  baseProgress: number;           // Progress from correct steps only
 };
 
 export interface InputValidatorProps {
@@ -265,7 +267,9 @@ public static getCompletionStatus = (
       percentage: 0,
       finalAnswerDetected: false,
       finalAnswerPosition: -1,
-      stepCorrectness: []
+      stepCorrectness: [],
+      consolationProgress: 0,  // ADD this missing property
+      baseProgress: 0          // ADD this missing property
     };
   }
 
@@ -303,30 +307,72 @@ public static getCompletionStatus = (
   const allCorrect = correctSteps === totalSteps && isComplete;
   
   // Percentage calculation based on VALIDATED steps only
-  const calculatePercentage = (): number => {
-  if (totalSteps === 0) return 0;
+const calculatePercentage = (): { total: number; base: number; consolation: number } => {
+  if (totalSteps === 0) return { total: 0, base: 0, consolation: 0 };
   
-  // EQUAL DIVISION APPROACH: Each step gets exactly equal percentage
-  const perStep = 100 / totalSteps;
-  let percentage = 0;
+  const perStep = 100 / totalSteps; // 33.33% for 3-step problem
+  let baseProgress = 0;
+  let consolationProgress = 0;
   
-  // Simply award percentage for each correct step - no special handling
+  // Loop through all steps to calculate progress
   for (let i = 0; i < totalSteps; i++) {
-    if (stepCorrectness[i]) {
-      percentage += perStep;
+    const validatedResult = lineValidationStates.get(i);
+    const isValidated = validationTriggers.get(i) === 'enter';
+    const userInput = currentLines[i] || '';
+    const expectedStep = expectedSteps[i];
+    
+    if (isValidated && expectedStep) {
+      if (stepCorrectness[i]) {
+        // CORRECT STEP: Full credit
+        baseProgress += perStep;
+      } else if (userInput.trim().length > 0) {
+        // WRONG BUT ATTEMPTED STEP: Check for consolation credit eligibility
+        const expectedLength = expectedStep.answer.trim().length;
+        const userLength = userInput.trim().length;
+        
+        // NEW CONDITION: No consolation if user exceeds expected length by more than 3 characters
+        const excessCharacters = userLength - expectedLength;
+        
+        if (excessCharacters > 3) {
+          // User typed way too much - no consolation progress
+          console.log(`🚫 No consolation progress for Step ${i + 1}:`);
+          console.log(`   User input length: ${userLength} characters`);
+          console.log(`   Expected length: ${expectedLength} characters`);
+          console.log(`   Excess characters: ${excessCharacters} (max allowed: 3)`);
+          console.log(`   Action: Skipping consolation progress for excessive input`);
+          
+          // Continue to next step without adding any consolation
+          continue;
+        }
+        
+        if (expectedLength > 0 && userLength > 0) {
+          // Consolation = (step weight ÷ expected length ÷ 2) × user length (capped at expected length)
+          const consolationPerChar = (perStep / expectedLength) / 2;
+          // Cap user length to expected length to prevent bonus for excess typing
+          const cappedUserLength = Math.min(userLength, expectedLength);
+          const stepConsolation = cappedUserLength * consolationPerChar;
+          consolationProgress += stepConsolation;
+          
+          console.log(`💡 Consolation progress awarded for Step ${i + 1}:`);
+          console.log(`   User input: "${userInput.trim()}" (${userLength} chars)`);
+          console.log(`   Expected: "${expectedStep.answer}" (${expectedLength} chars)`);
+          console.log(`   Excess: ${excessCharacters} chars (within limit)`);
+          console.log(`   Consolation: ${stepConsolation.toFixed(2)}%`);
+        }
+      }
     }
   }
   
-  // Only award exactly 100% if ALL steps are correct AND complete AND validated
-  if (allCorrect && isComplete) {
-    return 100;
-  }
+  const totalProgress = baseProgress + consolationProgress;
   
-  // Round to nearest integer, no artificial capping
-  return Math.round(percentage);
+  return {
+    total: Math.round(totalProgress * 100) / 100,
+    base: Math.round(baseProgress * 100) / 100,
+    consolation: Math.round(consolationProgress * 100) / 100
+  };
 };
 
-  const percentage = calculatePercentage();
+  const progressData = calculatePercentage();
 
   return {
     totalSteps,
@@ -334,11 +380,14 @@ public static getCompletionStatus = (
     correctSteps,
     isComplete,
     allCorrect,
-    percentage,
+    percentage: progressData.total,        // Total progress including consolation
     stepCorrectness,
     finalAnswerDetected,
-    finalAnswerPosition
-  };
+    finalAnswerPosition,
+    // ADD new fields:
+    consolationProgress: progressData.consolation,
+    baseProgress: progressData.base
+ };
 };
   // Keep the robust mathematical equivalence method
   public static isMathematicallyEquivalentRobust = (userExpression: string, expectedExpression: string): boolean => {
