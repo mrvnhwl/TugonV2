@@ -93,7 +93,7 @@ function Operationstopic() {
       answer: 0,
     },
     {
-      question: "Let f(x) = 3x - 4 and g(x) = x + 5. What is (2f-g)(x)",
+      question: "Let f(x) = 3x - 4 and g(x) = x + 5. What is (2f-g)(x)?",
       options: [
         "7x + 13", 
         "5x - 13", 

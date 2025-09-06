@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Facebook,
@@ -9,9 +9,42 @@ import {
   Globe,
   Mail,
 } from "lucide-react";
+import { supabase } from "../lib/supabase"; // adjust path if needed
 
 const Footer: React.FC = () => {
   const year = new Date().getFullYear();
+
+  const [role, setRole] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const getUserRole = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        setIsLoggedIn(true);
+
+        // check if user is in profiles table
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.role === "teacher") {
+          setRole("teacher");
+        } else {
+          setRole("student"); // fallback if no teacher role
+        }
+      } else {
+        setIsLoggedIn(false);
+      }
+    };
+
+    getUserRole();
+  }, []);
 
   const nav = {
     product: [
@@ -21,15 +54,15 @@ const Footer: React.FC = () => {
       { label: "Analytics", to: "/teacherDashboard" },
     ],
     teachers: [
-      { label: "Create a Quiz", to: "/teacherDashboard" },
-      { label: "Class Reports", to: "/teacherDashboard" },
-      { label: "Export Grades", to: "/teacherDashboard" },
+      { label: "Create a Quiz", to: "/create-quiz" },
+      { label: "Class Reports", to: "/student-progress" },
+      { label: "Export Grades", to: "/student-progress" },
       { label: "Invite Students", to: "/teacherDashboard" },
     ],
     students: [
       { label: "Popular Topics", to: "/studentDashboard" },
       { label: "Daily Streak", to: "/studentDashboard" },
-      { label: "Leaderboards", to: "/studentDashboard" },
+      { label: "Leaderboards", to: "/leaderboards" },
       { label: "Syllabus", to: "/studentDashboard" },
     ],
     resources: [
@@ -71,7 +104,7 @@ const Footer: React.FC = () => {
             </p>
           </div>
 
-          {/* Simple newsletter sign-up (non-functional stub) */}
+          {/* Simple newsletter sign-up */}
           <form
             className="w-full max-w-md rounded-2xl border border-gray-200 bg-white/70 p-2 shadow-sm backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/40"
             onSubmit={(e) => e.preventDefault()}
@@ -105,14 +138,24 @@ const Footer: React.FC = () => {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-10">
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:grid-cols-5">
           <NavGroup title="Product" links={nav.product} />
-          <NavGroup title="For Teachers" links={nav.teachers} />
-          <NavGroup title="For Students" links={nav.students} />
+
+          {/* Show role-based sections */}
+          {/* Show teacher links only if logged in + role = teacher */}
+          {isLoggedIn && role === "teacher" && (
+            <NavGroup title="For Teachers" links={nav.teachers} />
+          )}
+
+          {/* Show student links only if logged in + NOT teacher */}
+          {isLoggedIn && role !== "teacher" && (
+            <NavGroup title="For Students" links={nav.students} />
+          )}
+          
           <NavGroup title="Resources" links={nav.resources} />
           <NavGroup title="Company" links={nav.company} />
         </div>
       </div>
 
-      {/* Bottom bar */}
+      {/* Bottom bar (unchanged) */}
       <div className="border-t border-gray-200/70 dark:border-gray-800">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 sm:flex-row sm:px-6 lg:px-8">
           {/* Legal */}

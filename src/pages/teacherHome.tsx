@@ -31,7 +31,7 @@ const features = [
 const quickLinks: { label: string; to: string }[] = [
   { label: "Create a Quiz", to: "/create-quiz" },
   { label: "Start Live Quiz", to: "/host" },
-  { label: "Class Reports", to: "/teacherDashboard" },
+  { label: "Class Reports", to: "/student-progress" },
   { label: "Student Progress", to: "/student-progress" },
   { label: "Manage Sections", to: "/teacherHome" },
 ];

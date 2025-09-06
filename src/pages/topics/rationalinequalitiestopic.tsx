@@ -83,7 +83,7 @@ function RationalEquationsInequalities() {
       answer: 1,
     },
     {
-      question: "Which of the following is a rational inequality",
+      question: "Which of the following is a rational inequality?",
       options: [
         "x²  + 5x > 10",
         "x+2 / x-1 ≤ 0",
