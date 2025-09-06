@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "../../cn";
 import InputValidator from "./UserInputValidator";
+import type { TwoPhaseValidationResult, CompletionStatus } from "./UserInputValidator";
 import type { Step } from "@/components/data/answers";
 import ShortHints from "../hint-system/shortHints";
-
+type StepProgression = [string, string, boolean, string]; // [stepLabel, userInput, isCorrect, expectedAnswer]
 export interface UserInputProps {
   value: string[];
   onChange: (lines: string[]) => void;
@@ -20,13 +21,6 @@ export interface UserInputProps {
   hintText?: string;
   onRequestHint?: () => void;
 }
-
-type TwoPhaseValidationResult = {
-  mathematicallyCorrect: boolean;
-  positionallyValid: boolean;
-  finalAnswerDetected: boolean;
-  isCurrentStepCorrect: boolean;
-};
 
 export default function UserInput({
   value = [''],
@@ -48,6 +42,8 @@ export default function UserInput({
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement)[]>([]);
   
+   // ADD: User progression tracking array
+  const [userProgressionArray, setUserProgressionArray] = useState<StepProgression[]>([]);
   // Scrolling refs and state
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -110,97 +106,6 @@ export default function UserInput({
     }
   }, [focusedIndex, isScrollable, scrollToFocusedInput]);
 
-  // TWO-PHASE VALIDATION: Mathematical equivalence + positional validation
-  const validateStepWithTwoPhase = useCallback((
-    userInput: string,
-    expectedAnswer: string,
-    stepLabel: string,
-    currentStepIndex: number,
-    allExpectedSteps: Step[]
-  ): TwoPhaseValidationResult => {
-    
-    // Phase 1: Mathematical equivalence check (flexible)
-    const mathematicallyCorrect = InputValidator.isMathematicallyEquivalentRobust(
-      userInput.trim(), 
-      expectedAnswer.trim()
-    );
-    
-    // Initialize result
-    let positionallyValid = mathematicallyCorrect;
-    let finalAnswerDetected = false;
-    let isCurrentStepCorrect = mathematicallyCorrect;
-    
-    // If user got the current step mathematically right, ALWAYS accept it
-    if (mathematicallyCorrect) {
-      // PRIMARY RULE: Mathematical correctness for current step takes precedence
-      isCurrentStepCorrect = true;
-      positionallyValid = true;
-      
-      // SECONDARY: Check for final answer detection (for tracking only, not blocking)
-      if (allExpectedSteps.length > 0) {
-        const finalStep = allExpectedSteps[allExpectedSteps.length - 1];
-        
-        const isFinalAnswerMathematically = InputValidator.isMathematicallyEquivalentRobust(
-          userInput.trim(),
-          finalStep.answer.trim()
-        );
-        
-        if (isFinalAnswerMathematically && stepLabel !== "final") {
-          finalAnswerDetected = true;
-          
-          // ONLY block if user literally typed the exact final answer in step 1
-          const isExactFinalAnswer = userInput.trim() === finalStep.answer.trim();
-          
-          if (isExactFinalAnswer && currentStepIndex === 0) {
-            // Example: User typed "40" in step 1 - block this
-            positionallyValid = false;
-            isCurrentStepCorrect = false;
-          }
-        }
-      }
-    } else {
-      // Phase 2: Only check for step confusion if current step is mathematically wrong
-      if (allExpectedSteps.length > 0) {
-        for (let i = 0; i < allExpectedSteps.length; i++) {
-          if (i === currentStepIndex) continue;
-          
-          const otherStep = allExpectedSteps[i];
-          const matchesOtherStep = InputValidator.isMathematicallyEquivalentRobust(
-            userInput.trim(),
-            otherStep.answer.trim()
-          );
-          
-          if (matchesOtherStep) {
-            if (otherStep.label === "final") {
-              finalAnswerDetected = true;
-              if (currentStepIndex === 0) {
-                // Final answer in step 1 when current step is wrong - block it
-                positionallyValid = false;
-                isCurrentStepCorrect = false;
-              } else {
-                // Final answer in step 2+ - allow for 80% progression
-                positionallyValid = true;
-                isCurrentStepCorrect = true;
-              }
-            } else {
-              // Other step confusion
-              positionallyValid = false;
-              isCurrentStepCorrect = false;
-            }
-            break;
-          }
-        }
-      }
-    }
-    
-    return { 
-      mathematicallyCorrect, 
-      positionallyValid, 
-      finalAnswerDetected,
-      isCurrentStepCorrect
-    };
-  }, []);
-
   // Function to validate individual line and update its state
   const validateIndividualLine = useCallback((lineIndex: number, trigger: 'enter') => {
     const line = lines[lineIndex];
@@ -212,7 +117,7 @@ export default function UserInput({
 
     const expectedStep = expectedSteps[lineIndex];
     
-    const validation = validateStepWithTwoPhase(
+    const validation = InputValidator.validateStepWithTwoPhase(
       line.trim(),
       expectedStep.answer,
       expectedStep.label,
@@ -232,138 +137,51 @@ export default function UserInput({
       newMap.set(lineIndex, trigger);
       return newMap;
     });
-  }, [lines, expectedSteps, validateStepWithTwoPhase]);
+     const stepProgression: StepProgression = [
+      expectedStep.label,              // stepLabel
+      line.trim(),                     // userInput
+      validation.isCurrentStepCorrect, // right or wrong (boolean)
+      expectedStep.answer              // expectedAnswer (predefinedAnswer)
+    ];
+    setUserProgressionArray(prev => {
+      const newArray = [...prev];
+      
+      // Update existing step or add new step
+      while (newArray.length <= lineIndex) {
+        newArray.push(['', '', false, '']); // Fill gaps if necessary
+      }
+      
+      newArray[lineIndex] = stepProgression;
+      
+      // Console log the updated progression array
+      console.log('=== USER PROGRESSION ARRAY UPDATE ===');
+      console.log(`Step ${lineIndex + 1} (${expectedStep.label}) entered:`, stepProgression);
+      console.log('Complete userProgressionArray:', newArray);
+      console.log('Array breakdown:');
+      newArray.forEach((step, index) => {
+        if (step[0]) { // Only log steps that have been filled
+          console.log(`  Step[${index}]: [${step[0]}, "${step[1]}", ${step[2]}, "${step[3]}"]`);
+        }
+      });
+      console.log('=====================================');
+      
+      return newArray;
+    });
+  }, [lines, expectedSteps]);
 
-  // Check if answer is complete using two-phase validation
+  // Check if answer is complete using validator
   const isAnswerComplete = useCallback((currentLines: string[]): boolean => {
-    if (!expectedSteps || expectedSteps.length === 0) return false;
-    
-    const nonEmptyLines = currentLines.filter(line => line.trim().length > 0);
-    
-    if (nonEmptyLines.length < expectedSteps.length) return false;
-    
-    // Check each step with two-phase validation
-    for (let i = 0; i < Math.min(nonEmptyLines.length, expectedSteps.length); i++) {
-      const userLine = nonEmptyLines[i];
-      const expectedStep = expectedSteps[i];
-      
-      const validation = validateStepWithTwoPhase(
-        userLine,
-        expectedStep.answer,
-        expectedStep.label,
-        i,
-        expectedSteps
-      );
-      
-      if (!validation.isCurrentStepCorrect) {
-        return false;
-      }
-    }
-    
-    return true;
-  }, [expectedSteps, validateStepWithTwoPhase]);
+    if (!expectedSteps) return false;
+    return InputValidator.isAnswerComplete(currentLines, expectedSteps);
+  }, [expectedSteps]);
 
-  // Get completion status with two-phase validation approach
+  // Get completion status using validator
   const getCompletionStatus = useCallback((currentLines: string[]) => {
-    if (!expectedSteps || expectedSteps.length === 0) {
-      return {
-        totalSteps: 1,
-        completedSteps: currentLines.filter(line => line.trim().length > 0).length,
-        correctSteps: 0,
-        isComplete: false,
-        allCorrect: false,
-        percentage: 0,
-        finalAnswerDetected: false,
-        finalAnswerPosition: -1,
-        stepCorrectness: []
-      };
+    if (!expectedSteps) {
+      return InputValidator.getCompletionStatus(currentLines, [], lineValidationStates, validationTriggers);
     }
-
-    const nonEmptyLines = currentLines.filter(line => line.trim().length > 0);
-    const totalSteps = expectedSteps.length;
-    let correctSteps = 0;
-    const stepCorrectness: boolean[] = [];
-    
-    // Track final answer detection
-    let finalAnswerDetected = false;
-    let finalAnswerPosition = -1;
-    const finalStepIndex = totalSteps - 1;
-
-    // FIXED: Use validated states instead of real-time validation
-    for (let i = 0; i < Math.min(nonEmptyLines.length, expectedSteps.length); i++) {
-      // Only count as correct if it has been validated (Enter pressed)
-      const validatedResult = lineValidationStates.get(i);
-      const isValidated = validationTriggers.get(i) === 'enter';
-      
-      if (validatedResult && isValidated && validatedResult.isCurrentStepCorrect) {
-        stepCorrectness[i] = true;
-        correctSteps++;
-        
-        // Check for final answer detection from validated results
-        if (validatedResult.finalAnswerDetected && i > 0) {
-          finalAnswerDetected = true;
-          finalAnswerPosition = i;
-        }
-      } else {
-        stepCorrectness[i] = false;
-      }
-    }
-
-    const isComplete = nonEmptyLines.length >= totalSteps;
-    const allCorrect = correctSteps === totalSteps && isComplete;
-    
-    // Percentage calculation based on VALIDATED steps only
-    const calculatePercentage = (): number => {
-      if (totalSteps === 0) return 0;
-      
-      let percentage = 0;
-      
-      // Award 80% if final answer is detected in position 2+ (and validated)
-      if (finalAnswerDetected && finalAnswerPosition > 0) {
-        percentage += 80;
-      }
-      
-      // Step 1 gets 20%, must be substitution (and validated)
-      if (stepCorrectness[0]) {
-        percentage += 20;
-      }
-      
-      // Award remaining percentage for other intermediate steps (validated only)
-      for (let i = 1; i < totalSteps - 1; i++) {
-        if (stepCorrectness[i]) {
-          const stepValue = Math.max(15 - ((i - 1) * 5), 5);
-          percentage += stepValue;
-        }
-      }
-      
-      // Handle final step separately to avoid double counting
-      const finalStepCorrect = stepCorrectness[finalStepIndex];
-      if (finalStepCorrect && !finalAnswerDetected) {
-        percentage += Math.max(80 - (stepCorrectness.filter(Boolean).length - 1) * 20, 20);
-      }
-      
-      // Only award 100% if ALL steps are correct AND complete AND validated
-      if (allCorrect && isComplete) {
-        return 100;
-      }
-      
-      return Math.min(percentage, 99);
-    };
-
-    const percentage = calculatePercentage();
-
-    return {
-      totalSteps,
-      completedSteps: nonEmptyLines.length,
-      correctSteps,
-      isComplete,
-      allCorrect,
-      percentage,
-      stepCorrectness,
-      finalAnswerDetected,
-      finalAnswerPosition
-    };
-  }, [expectedSteps, lineValidationStates, validationTriggers]); // Added dependencies
+    return InputValidator.getCompletionStatus(currentLines, expectedSteps, lineValidationStates, validationTriggers);
+  }, [expectedSteps, lineValidationStates, validationTriggers]);
 
   // Handle line changes with spam detection
   const handleLineChange = (index: number, newValue: string) => {

@@ -47,7 +47,28 @@ type AnswerWizardProps = {
   onSpamDetected?: () => void;
   onValidationResult?: (type: "correct" | "wrong" | "aiHint" | "spam") => void;
 };
+type MessagePrompt = {
+  id: string;
+  type: 'hint' | 'feedback' | 'guidance';
+  content: string;
+  timestamp: Date;
+  source: 'shortHints' | 'expandedHints' | 'system';
+};
 
+type UserBehavior = {
+  action: 'input' | 'hint_request' | 'submit' | 'validation' | 'spam_detected';
+  timestamp: Date;
+  stepIndex: number;
+  details?: any;
+};
+
+type ConversationHistoryEntry = {
+  messagePrompt: MessagePrompt[];
+  userInput: string;
+  userBehavior: UserBehavior;
+  stepIndex: number;
+  timestamp: Date;
+};
 export default function AnswerWizard({ 
   steps: _initialSteps = [], 
   onSubmit, 
@@ -93,7 +114,55 @@ export default function AnswerWizard({
     text: "",
     requestCount: 0
   });
+  const [userConversationHistory, setUserConversationHistory] = useState<ConversationHistoryEntry[]>([]);
+  const addToConversationHistory = (
+    messagePrompts: MessagePrompt[],
+    userInput: string,
+    userBehavior: UserBehavior,
+    stepIndex: number
+  ) => {
+    const entry: ConversationHistoryEntry = {
+      messagePrompt: messagePrompts,
+      userInput,
+      userBehavior,
+      stepIndex,
+      timestamp: new Date()
+    };
 
+    setUserConversationHistory(prev => {
+      const newHistory = [...prev, entry];
+      
+      // Console log the updated conversation history
+      console.log('=== USER CONVERSATION HISTORY UPDATE ===');
+      console.log(`New entry added for Step ${stepIndex + 1}:`, entry);
+      console.log('Complete userConversationHistory:', newHistory);
+      console.log('History breakdown:');
+      newHistory.forEach((historyEntry, index) => {
+        console.log(`  Entry[${index}]:`, {
+          step: historyEntry.stepIndex + 1,
+          userInput: historyEntry.userInput,
+          behavior: historyEntry.userBehavior.action,
+          messagePrompts: historyEntry.messagePrompt.length,
+          timestamp: historyEntry.timestamp.toISOString()
+        });
+      });
+      console.log('===========================================');
+      
+      return newHistory;
+    });
+  };
+
+  const createMessagePrompt = (
+    type: MessagePrompt['type'],
+    content: string,
+    source: MessagePrompt['source']
+  ): MessagePrompt => ({
+    id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    type,
+    content,
+    timestamp: new Date(),
+    source
+  });
   // Sample hints for testing (30-50 words each)
   const sampleHints = [
     "Start by identifying what you need to substitute. Look for the variable in your function and replace it with the given value.",
@@ -103,13 +172,31 @@ export default function AnswerWizard({
   ];
 
   // Function to trigger hints for testing
-  const triggerTestHint = () => {
+   const triggerTestHint = () => {
     const hintIndex = hintState.requestCount % sampleHints.length;
+    const hintContent = sampleHints[hintIndex];
+    
     setHintState({
       show: true,
-      text: sampleHints[hintIndex],
+      text: hintContent,
       requestCount: hintState.requestCount + 1
     });
+
+    // Track hint request in conversation history
+    const messagePrompts = [createMessagePrompt('hint', hintContent, 'system')];
+    const userBehavior: UserBehavior = {
+      action: 'hint_request',
+      timestamp: new Date(),
+      stepIndex: index,
+      details: { hintIndex, requestCount: hintState.requestCount + 1 }
+    };
+
+    addToConversationHistory(
+      messagePrompts,
+      getCurrentUserInput().join('\n'),
+      userBehavior,
+      index
+    );
   };
 
   // Function to hide hints
@@ -139,6 +226,22 @@ export default function AnswerWizard({
     
     // Use your existing submit logic
     const validationResult = InputValidator.validateAllSteps([lines], answersSource ? [answersSource[index]] : []);
+    
+    // Track submission in conversation history
+    const userBehavior: UserBehavior = {
+      action: 'submit',
+      timestamp: new Date(),
+      stepIndex: index,
+      details: { validationResult, submissionMethod: 'enter_key' }
+    };
+
+    addToConversationHistory(
+      [], // No message prompts for submissions
+      lines.join('\n'),
+      userBehavior,
+      index
+    );
+
     onSubmit(steps, validationResult);
   };
 
@@ -148,7 +251,7 @@ export default function AnswerWizard({
   };
 
   // Handle input changes from UserInput
-  const handleInputChange = (lines: string[]) => {
+   const handleInputChange = (lines: string[]) => {
     const expectedSteps = answersSource?.[index]?.steps;
     
     InputValidator.logValidation(lines, expectedSteps, index);
@@ -163,7 +266,7 @@ export default function AnswerWizard({
     // Update userInputs array for external access
     setUserInputs((prev) => {
       const next = [...prev];
-      next[index] = [...lines]; // Store copy of lines array
+      next[index] = [...lines];
       return next;
     });
     
@@ -172,6 +275,21 @@ export default function AnswerWizard({
     
     // Notify parent with individual lines array
     onLinesChange?.(index, lines);
+
+    // Track input change in conversation history
+    const userBehavior: UserBehavior = {
+      action: 'input',
+      timestamp: new Date(),
+      stepIndex: index,
+      details: { linesCount: lines.length, hasContent: lines.some(line => line.trim()) }
+    };
+
+    addToConversationHistory(
+      [], // No message prompts for regular input changes
+      lines.join('\n'),
+      userBehavior,
+      index
+    );
   };
 
   // Handle submission manually if needed
@@ -187,6 +305,39 @@ export default function AnswerWizard({
   };
 
   const handleValidationResult = (result: "correct" | "wrong" | "aiHint" | "spam") => {
+    // Create appropriate message prompts based on validation result
+    let messagePrompts: MessagePrompt[] = [];
+    
+    switch (result) {
+      case 'correct':
+        messagePrompts = [createMessagePrompt('feedback', 'Correct! Well done.', 'system')];
+        break;
+      case 'wrong':
+        messagePrompts = [createMessagePrompt('feedback', 'That\'s not quite right. Try again.', 'system')];
+        break;
+      case 'aiHint':
+        messagePrompts = [createMessagePrompt('hint', 'AI hint would be provided here', 'system')];
+        break;
+      case 'spam':
+        messagePrompts = [createMessagePrompt('feedback', 'Please slow down and think through your answer.', 'system')];
+        break;
+    }
+
+    // Track validation result in conversation history
+    const userBehavior: UserBehavior = {
+      action: 'validation',
+      timestamp: new Date(),
+      stepIndex: index,
+      details: { result }
+    };
+
+    addToConversationHistory(
+      messagePrompts,
+      getCurrentUserInput().join('\n'),
+      userBehavior,
+      index
+    );
+
     onValidationResult?.(result);
   };
 
@@ -195,6 +346,26 @@ export default function AnswerWizard({
     return userInputs[index] || [''];
   };
 
+  //To be handled later because of validation logic in UserInputValidator
+  const handleSpamDetected = () => {
+    const messagePrompts = [createMessagePrompt('feedback', 'Spam detected: Please take your time to provide thoughtful answers.', 'system')];
+    const userBehavior: UserBehavior = {
+      action: 'spam_detected',
+      timestamp: new Date(),
+      stepIndex: index,
+      details: { detectionTime: new Date() }
+    };
+
+    addToConversationHistory(
+      messagePrompts,
+      getCurrentUserInput().join('\n'),
+      userBehavior,
+      index
+    );
+
+    onSpamDetected?.();
+    handleValidationResult("spam");
+  };
   // Function to get userInput for any step (for external access)
   const getUserInputForStep = (stepIndex: number): string[] => {
     return userInputs[stepIndex] || [''];
@@ -264,10 +435,7 @@ export default function AnswerWizard({
                   expectedSteps={expectedSteps}
                   onSubmit={handleEnterSubmission}
                   onSuggestSubmission={handleSuggestSubmission}
-                  onSpamDetected={() => {
-                    onSpamDetected?.();
-                    handleValidationResult("spam");
-                  }}
+                  onSpamDetected={handleSpamDetected} 
                   onResetSpamFlag={() => {
                     // Reset any spam flags if needed
                   }}
