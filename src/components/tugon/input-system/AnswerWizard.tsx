@@ -8,6 +8,7 @@ import { CheckCircle } from "lucide-react";
 import { Small } from "../../Typography";
 import { UserAttempt } from './UserInput';
 
+
 // Missing type definitions - ADD these
 interface MessagePrompt {
   id: string;
@@ -65,6 +66,9 @@ export interface AnswerWizardProps {
   onAttemptUpdate?: (attempts: UserAttempt[]) => void;
   className?: string; // ADD: Missing className prop
   disabled?: boolean; // ADD: Missing disabled prop
+  topicId?: number;
+  categoryId?: number;
+  questionId?: number;
 }
 
 export default function AnswerWizard({
@@ -77,6 +81,9 @@ export default function AnswerWizard({
   onAttemptUpdate,
   className, // ADD: Include className
   disabled = false, // ADD: Include disabled with default
+  topicId,
+  categoryId,
+  questionId
 }: AnswerWizardProps) {
   // Source answers
   const answersSource: PredefinedAnswer[] = expectedAnswers && expectedAnswers.length > 0
@@ -99,7 +106,7 @@ export default function AnswerWizard({
   const [correctness, setCorrectness] = useState<Array<boolean | null>>(
     Array.from({ length: fixedSteps.length }, () => null)
   );
-
+ const [showHints, setShowHints] = useState(false);
   // Store all user inputs as arrays of lines
   const [userInputs, setUserInputs] = useState<string[][]>(
     fixedSteps.map(() => [''])
@@ -220,11 +227,11 @@ export default function AnswerWizard({
   const arrayToString = (lines: string[]): string => {
     return lines.join('\n');
   };
-
+ 
   // Handle Enter key submission
   const handleEnterSubmission = (lines: string[]) => {
     console.log("🎯 Submitting via Enter key:", lines);
-    
+    setShowHints(false);
     // Use your existing submit logic
     const validationResult = InputValidator.validateAllSteps([lines], answersSource ? [answersSource[index]] : []);
     
@@ -245,6 +252,16 @@ export default function AnswerWizard({
 
     // FIXED: Use wizardSteps and match interface signature
     onSubmit(wizardSteps, validationResult);
+    setTimeout(() => {
+      console.log("🎯 Submitting via Enter key:", lines);
+  console.log("🔄 Current showHints state:", showHints);
+  
+  setShowHints(true); // Show hint after submission
+  console.log("🔄 Setting showHints to TRUE");
+  
+    setShowHints(true);
+    console.log("🔄 Setting showHints to true after delay");
+  }, 200);
   };
 
   const handleSuggestSubmission = (lines: string[]) => {
@@ -435,10 +452,13 @@ export default function AnswerWizard({
                   onSpamDetected={handleSpamDetected} 
                   onResetSpamFlag={() => {}}
                   // Add hint props
-                  showHints={hintState.show}
+                  showHints={showHints}
                   hintText={hintState.text}
                   onRequestHint={triggerTestHint}
                   onAttemptUpdate={onAttemptUpdate}
+                  topicId={topicId}
+                  categoryId={categoryId}
+                  questionId={questionId}
                 />
 
                 {correctness[index] === true && (

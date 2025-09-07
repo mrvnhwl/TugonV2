@@ -6,6 +6,8 @@ import type { Step } from "@/components/data/answers";
 import ShortHints from "../hint-system/shortHints";
 import UserBehaviorClassifier from './UserBehaviorClassifier';
 import type { UserBehaviorProfile } from './UserBehaviorClassifier';
+import LongHints from "../hint-system/longHints";
+
 type StepProgression = [string, string, boolean, string, number]; 
 // [stepLabel, userInput, isCorrect, expectedAnswer, totalProgress]
 
@@ -38,6 +40,9 @@ export interface UserInputProps {
   maxLines?: number;
   disabled?: boolean;
   className?: string;
+   topicId?: number;
+  categoryId?: number;
+  questionId?: number;
   onSpamDetected?: () => void;
   onResetSpamFlag?: () => void;
   expectedSteps?: Step[];
@@ -56,6 +61,9 @@ export default function UserInput({
   maxLines = 10,
   disabled = false,
   className,
+  topicId,
+  categoryId,
+  questionId,
   onSpamDetected,
   onResetSpamFlag,
   expectedSteps,
@@ -69,7 +77,7 @@ export default function UserInput({
   const [lines, setLines] = useState<string[]>(value);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement)[]>([]);
-
+  const [localShowHints, setLocalShowHints] = useState<boolean>(false);
   // Add to your component state 
   const [behaviorProfile, setBehaviorProfile] = useState<UserBehaviorProfile | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
@@ -107,6 +115,8 @@ export default function UserInput({
     setLines(value);
   }, [value]);
 
+
+   const [showAIModal, setShowAIModal] = useState<boolean>(false)
   // Check if scrolling is needed
   const checkScrollNeeded = useCallback(() => {
     const needsScrolling = lines.length > 2;
@@ -318,7 +328,7 @@ export default function UserInput({
           // ANALYZE BEHAVIOR AFTER EACH ATTEMPT
   setTimeout(() => {
     analyzeBehaviorAndUpdateHints(newAttempts);
-  }, 100); // Small delay to ensure state is updated
+  }, 150); // Small delay to ensure state is updated
         return newAttempts;
       });
       
@@ -589,7 +599,12 @@ export default function UserInput({
   const handleKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      
+      console.log('🎯 Enter key pressed in UserInput');
+    
+    // SET LOCAL SHOW HINTS TO TRUE WHEN ENTER IS PRESSED
+    setLocalShowHints(true);
+    console.log('🔄 Setting localShowHints to TRUE');
+    
       // Validate current line immediately on Enter
       if (lines[index].trim() && expectedSteps && index < expectedSteps.length) {
         validateIndividualLine(index, 'enter');
@@ -693,9 +708,11 @@ export default function UserInput({
   console.log('🧠 BEHAVIOR ANALYSIS UPDATED:', {
     currentBehavior: profile.currentBehavior,
     currentStep,
-    activeTriggers: profile.activeTriggers.length
+    activeTriggers: profile.activeTriggers.length,
+    showHints,
+     profileSet: !!profile
   });
-}, [lines, expectedSteps, lineValidationStates]);
+}, [lines, expectedSteps, lineValidationStates, showHints]);
 
   const status = getCompletionStatus(lines);
   
@@ -898,20 +915,29 @@ export default function UserInput({
               </div>
             );
           })()}
-
+        
           {/* Short Hints Component */}
           <ShortHints 
             userAttempts={userAttempt}
             behaviorProfile={behaviorProfile}
             currentStepIndex={currentStepIndex}
-            isVisible={showHints}
+            topicId={topicId}
+            categoryId={categoryId}
+            questionId={questionId}
+            isVisible={localShowHints}
             hintText={hintText}
             onRequestHint={onRequestHint}
+            onRequestAIHelp={() => setShowAIModal(true)}
+   
           />
+
+          {/* AI Help Modal */}
         </div>
       )}
     </div>
+      
   );
+  
 }
 
 export { type StepProgression, type UserAttempt };
