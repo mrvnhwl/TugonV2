@@ -1,12 +1,17 @@
 import { UserAttempt } from './UserInput';
 
+// Update BehaviorType to include new behaviors
 export type BehaviorType = 
   | 'normal' 
   | 'struggling' 
   | 'struggling-high' 
   | 'guessing' 
   | 'persistent'
-  | 'learning';
+  | 'learning'
+  | 'self-correction'   // NEW: Good behavior
+  | 'excellent'        // NEW: Good behavior
+  | 'repeating'        // NEW: Bad behavior
+  | 'inactive';        // NEW: Bad behavior
 
 export interface BehaviorTrigger {
   type: BehaviorType;
@@ -149,7 +154,11 @@ export class UserBehaviorClassifier {
       'struggling-high': 0,
       'guessing': 0,
       'persistent': 0,
-      'learning': 0
+      'learning': 0,
+      'self-correction': 0,
+      'excellent': 0,
+      'repeating': 0,
+      'inactive': 0
     };
 
     // STRUGGLING SCORES (based on difficulty indicators)
@@ -212,6 +221,22 @@ export class UserBehaviorClassifier {
     
     scores['normal'] = Math.max(0, 1.0 - maxOtherScore * 1.2);
 
+    // NEW BEHAVIOR DETECTION
+
+    // SELF-CORRECTION: User makes wrong attempts, then corrects after hint or thinking
+    const selfCorrectionScore = this.detectSelfCorrection(stepAttempts);
+    scores['self-correction'] = selfCorrectionScore;
+
+    // EXCELLENT: User solves correctly on first try
+    const excellentScore = this.detectExcellentPerformance(stepAttempts);
+    scores['excellent'] = excellentScore;
+
+    // REPEATING: User repeats exact same input multiple times
+    const repeatingScore = this.detectRepeatingBehavior(stepAttempts);
+    scores['repeating'] = repeatingScore;
+
+ 
+
     // Resolve conflicts by reducing overlapping scores
     this.resolveScoreConflicts(scores);
 
@@ -234,6 +259,37 @@ export class UserBehaviorClassifier {
     scores['guessing'] *= 0.2; // Very low guessing if being persistent
   }
 
+  // NEW CONFLICT RULES
+
+  // Rule 4: Excellent and any struggling behavior conflict
+  if (scores['excellent'] > 0.5) {
+    scores['struggling'] *= 0.1;
+    scores['struggling-high'] *= 0.1;
+    scores['guessing'] *= 0.3;
+  }
+
+  // Rule 5: Self-correction and excellent conflict (can't be both)
+  if (scores['self-correction'] > 0.5 && scores['excellent'] > 0.5) {
+    if (scores['self-correction'] > scores['excellent']) {
+      scores['excellent'] *= 0.2;
+    } else {
+      scores['self-correction'] *= 0.2;
+    }
+  }
+
+  // Rule 6: Inactive behavior overrides most others except struggling-high
+  if (scores['inactive'] > 0.6) {
+    scores['normal'] *= 0.1;
+    scores['excellent'] *= 0.1;
+    scores['self-correction'] *= 0.2;
+    scores['guessing'] *= 0.3;
+  }
+
+  // Rule 7: Repeating and guessing can coexist but reduce normal
+  if (scores['repeating'] > 0.5) {
+    scores['normal'] *= 0.3;
+    scores['excellent'] *= 0.1;
+  }
   }
 
   private static selectPrimaryBehaviorFromScores(scores: Record<BehaviorType, number>): BehaviorType {
@@ -315,7 +371,11 @@ export class UserBehaviorClassifier {
     
       'persistent': `Persistent effort on ${stepData.stepLabel}: ${stepData.wrongAttempts + 1} attempts over ${(stepData.totalTime/1000).toFixed(1)}s`,
       'normal': `Normal progress on ${stepData.stepLabel}`,
-      'learning': `Learning pattern on ${stepData.stepLabel}`
+      'learning': `Learning pattern on ${stepData.stepLabel}`,
+      'self-correction': `Self-correction on ${stepData.stepLabel}: improved after initial attempts`,
+      'excellent': `Excellent performance on ${stepData.stepLabel}: correct on first try`,
+      'repeating': `Repeating behavior on ${stepData.stepLabel}: same input multiple times`,
+      'inactive': `Inactive behavior on ${stepData.stepLabel}: idle timeout triggered`
     };
     
     return descriptions[behavior] || `${behavior} behavior on ${stepData.stepLabel}`;
@@ -337,11 +397,29 @@ export class UserBehaviorClassifier {
         evidence.push(`Score: ${(stepData.behaviorScores.guessing * 100).toFixed(0)}% confidence`);
         break;
         
-     
-        
       case 'persistent':
         evidence.push(`${stepData.wrongAttempts + 1} total attempts`);
         evidence.push(`${(stepData.totalTime / 1000).toFixed(1)}s of sustained effort`);
+        break;
+        
+      case 'self-correction':
+        evidence.push(`Eventually corrected after ${stepData.wrongAttempts} wrong attempts`);
+        evidence.push(`Showed improvement pattern`);
+        break;
+        
+      case 'excellent':
+        evidence.push(`Solved correctly on first attempt`);
+        evidence.push(`Quick and accurate response`);
+        break;
+        
+      case 'repeating':
+        evidence.push(`Repeated same input multiple times`);
+        evidence.push(`Showing repetitive pattern`);
+        break;
+        
+      case 'inactive':
+        evidence.push(`Idle timeout triggered`);
+        evidence.push(`No activity for extended period`);
         break;
     }
     
@@ -357,8 +435,16 @@ export class UserBehaviorClassifier {
     // Weight recent steps more heavily
     const recentSteps = Object.values(stepBehaviors).slice(-3);
     const behaviorCounts: Record<BehaviorType, number> = {
-      'normal': 0, 'struggling': 0, 'struggling-high': 0,
-      'guessing': 0, 'persistent': 0, 'learning': 0
+        'normal': 0,
+        'struggling': 0,
+        'struggling-high': 0,
+        'guessing': 0,
+        'persistent': 0,
+        'learning': 0,
+        'self-correction': 0,
+        'excellent': 0,
+        'repeating': 0,
+        'inactive': 0
     };
     
     // Count behaviors from recent steps with higher weight
@@ -499,7 +585,11 @@ export class UserBehaviorClassifier {
       'guessing': 'Making rapid, seemingly random attempts',
    
       'persistent': 'Making many attempts but showing determination',
-      'learning': 'Showing improvement over time'
+      'learning': 'Showing improvement over time',
+      'self-correction': 'Learning from mistakes and improving',
+      'excellent': 'Performing exceptionally well',
+      'repeating': 'Repeating the same attempts',
+      'inactive': 'Showing inactivity or disengagement'
     };
     
     return descriptions[behavior] || 'Unknown behavior pattern';
@@ -512,11 +602,95 @@ export class UserBehaviorClassifier {
       'struggling-high': 'text-red-600',
       'guessing': 'text-orange-600',
       'persistent': 'text-purple-600',
-      'learning': 'text-emerald-600'
+      'learning': 'text-emerald-600',
+      'self-correction': 'text-emerald-600',
+      'excellent': 'text-green-600',
+      'repeating': 'text-amber-600',
+      'inactive': 'text-gray-600'
     };
     
     return colors[behavior] || 'text-gray-600';
   }
+
+  private static detectSelfCorrection(stepAttempts: UserAttempt[]): number {
+    if (stepAttempts.length < 2) return 0;
+    
+    // Look for pattern: wrong attempt(s) followed by correct attempt
+    const hasWrongAttempts = stepAttempts.some(a => !a.isCorrect);
+    const lastAttemptCorrect = stepAttempts[stepAttempts.length - 1]?.isCorrect;
+    
+    if (!hasWrongAttempts || !lastAttemptCorrect) return 0;
+    
+    // Check if there's a time gap indicating reflection/thinking
+    let reflectionGap = 0;
+    for (let i = 1; i < stepAttempts.length; i++) {
+      const timeDiff = stepAttempts[i].attemptTime - stepAttempts[i-1].attemptTime;
+      if (timeDiff > 5000) { // 5+ seconds indicates thinking
+        reflectionGap++;
+      }
+    }
+    
+    // Score higher if there are wrong attempts but user eventually corrects
+    const wrongCount = stepAttempts.filter(a => !a.isCorrect).length;
+    const baseScore = Math.min(0.8, wrongCount * 0.3);
+    const reflectionBonus = Math.min(0.3, reflectionGap * 0.15);
+    
+    return Math.min(1.0, baseScore + reflectionBonus);
+  }
+
+  private static detectExcellentPerformance(stepAttempts: UserAttempt[]): number {
+    if (stepAttempts.length === 0) return 0;
+    
+    // Perfect: Correct on first try
+    if (stepAttempts.length === 1 && stepAttempts[0].isCorrect) {
+      return 1.0;
+    }
+    
+    // Very good: Correct on first or second try with reasonable time
+    if (stepAttempts.length <= 2 && stepAttempts[stepAttempts.length - 1].isCorrect) {
+      const totalTime = stepAttempts[stepAttempts.length - 1].attemptTime - stepAttempts[0].stepStartTime;
+      if (totalTime < 30000) { // Under 30 seconds
+        return stepAttempts.length === 1 ? 1.0 : 0.8;
+      }
+    }
+    
+    return 0;
+  }
+
+  private static detectRepeatingBehavior(stepAttempts: UserAttempt[]): number {
+    if (stepAttempts.length < 3) return 0;
+    
+    const inputCounts = new Map<string, number>();
+    let totalRepeats = 0;
+    
+    stepAttempts.forEach(attempt => {
+      const input = attempt.userInput.trim().toLowerCase();
+      if (input) {
+        const count = inputCounts.get(input) || 0;
+        inputCounts.set(input, count + 1);
+        if (count >= 1) { // Already seen this input
+          totalRepeats++;
+        }
+      }
+    });
+    
+    // Check for consecutive identical inputs (stronger indicator)
+    let consecutiveRepeats = 0;
+    for (let i = 1; i < stepAttempts.length; i++) {
+      const current = stepAttempts[i].userInput.trim().toLowerCase();
+      const previous = stepAttempts[i-1].userInput.trim().toLowerCase();
+      if (current === previous && current) {
+        consecutiveRepeats++;
+      }
+    }
+    
+    const repeatRatio = totalRepeats / stepAttempts.length;
+    const consecutiveBonus = consecutiveRepeats > 0 ? 0.4 : 0;
+    
+    return Math.min(1.0, repeatRatio * 0.8 + consecutiveBonus);
+  }
+
+
 }
 
 export default UserBehaviorClassifier;

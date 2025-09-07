@@ -27,7 +27,11 @@ const behaviorHintMessages: Record<BehaviorType, string> = {
   guessing: "You're submitting answers very quickly or randomly. Take a moment to think through your approach.",
   persistent: "Great persistence! Try to reflect on what might help you solve this step.",
   normal: "Keep going! You're making steady progress.",
-  learning: "You're improving! Keep practicing and reviewing your steps."
+  learning: "You're improving! Keep practicing and reviewing your steps.",
+  'self-correction': "You're on the right track! Try to identify and correct your mistakes.",
+  'excellent': "Outstanding work! Keep it up!",
+  'repeating': "It seems you're stuck in a loop. Try a different approach.",
+  'inactive': "You've been inactive for a while. Consider revisiting the material."
 };
 
 export default function ShortHints({

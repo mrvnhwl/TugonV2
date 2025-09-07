@@ -73,7 +73,8 @@ export default function UserInput({
   // Add to your component state 
   const [behaviorProfile, setBehaviorProfile] = useState<UserBehaviorProfile | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
-
+  
+  
   // User progression tracking array
   const [userProgressionArray, setUserProgressionArray] = useState<StepProgression[]>([]);
   const [userAttempt, setUserAttempt] = useState<UserAttempt[]>([]);
