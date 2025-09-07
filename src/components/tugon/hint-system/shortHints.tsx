@@ -1,45 +1,132 @@
+import React from 'react';
+import type { UserAttempt } from '../input-system/UserInput';
+import UserBehaviorClassifier, { 
+  UserBehaviorProfile, 
+  BehaviorTrigger, 
+  StepBehaviorAnalysis,
+  BehaviorType 
+} from '../input-system/UserBehaviorClassifier';
+
 export interface ShortHintsProps {
+  // Behavior-based props
+  userAttempts?: UserAttempt[];
+  behaviorProfile?: UserBehaviorProfile|null;
+  currentStepIndex?: number;
+  
+  // Manual hint props (fallback)
   hintText?: string;
   isVisible?: boolean;
   onRequestHint?: () => void;
   className?: string;
 }
 
+// Behavior-specific hint messages
+const behaviorHintMessages: Record<BehaviorType, string> = {
+  struggling: "It looks like you're having trouble. Try breaking the problem into smaller parts or reviewing the previous step.",
+  "struggling-high": "You're experiencing significant difficulty. Consider asking for help or reviewing related concepts.",
+  guessing: "You're submitting answers very quickly or randomly. Take a moment to think through your approach.",
+  persistent: "Great persistence! Try to reflect on what might help you solve this step.",
+  normal: "Keep going! You're making steady progress.",
+  learning: "You're improving! Keep practicing and reviewing your steps."
+};
+
 export default function ShortHints({
+  userAttempts,
+  behaviorProfile,
+  currentStepIndex,
   hintText,
   isVisible = false,
   onRequestHint,
   className = ""
 }: ShortHintsProps) {
-  if (!isVisible || !hintText) {
+  // Determine behavior-based hint
+  let behaviorHint: string | undefined;
+  let detectedBehavior: BehaviorType | undefined;
+  
+  if (
+    behaviorProfile &&
+    typeof currentStepIndex === "number" &&
+    behaviorProfile.stepBehaviors[currentStepIndex]
+  ) {
+    const stepAnalysis = behaviorProfile.stepBehaviors[currentStepIndex];
+    detectedBehavior = stepAnalysis.primaryBehavior;
+    
+    // Only show hint for non-normal behaviors
+    if (detectedBehavior !== 'normal') {
+      behaviorHint = behaviorHintMessages[detectedBehavior];
+    }
+  }
+
+  // Priority: behavior-based hint > manual hint
+  const finalHintText = behaviorHint || hintText;
+  const shouldShow = isVisible || !!behaviorHint;
+
+  if (!shouldShow || !finalHintText) {
     return null;
   }
 
+  // Get behavior styling
+  const getBehaviorStyling = (behavior?: BehaviorType) => {
+    switch (behavior) {
+      case 'struggling-high':
+        return {
+          bgClass: 'bg-gradient-to-r from-red-50 to-red-100 border-red-200',
+          iconClass: 'text-red-600',
+          textClass: 'text-red-800',
+          icon: '🚨'
+        };
+      case 'struggling':
+        return {
+          bgClass: 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-yellow-200',
+          iconClass: 'text-yellow-600',
+          textClass: 'text-yellow-800',
+          icon: '⚠️'
+        };
+      case 'guessing':
+        return {
+          bgClass: 'bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200',
+          iconClass: 'text-orange-600',
+          textClass: 'text-orange-800',
+          icon: '🎲'
+        };
+      case 'persistent':
+        return {
+          bgClass: 'bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200',
+          iconClass: 'text-purple-600',
+          textClass: 'text-purple-800',
+          icon: '🔄'
+        };
+      default:
+        return {
+          bgClass: 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200',
+          iconClass: 'text-yellow-600',
+          textClass: 'text-yellow-800',
+          icon: '💡'
+        };
+    }
+  };
+
+  const styling = getBehaviorStyling(detectedBehavior);
+
   return (
-    <div className={`mt-2 p-3 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border border-yellow-200 dark:border-yellow-700/30 rounded-lg ${className}`}>
+    <div className={`mt-2 p-3 ${styling.bgClass} border rounded-lg ${className}`}>
       <div className="flex items-start space-x-3">
-        {/* Hint Icon */}
+        {/* Behavior Icon */}
         <div className="flex-shrink-0 w-5 h-5 mt-0.5">
-          <svg 
-            className="w-5 h-5 text-yellow-600 dark:text-yellow-400" 
-            fill="currentColor" 
-            viewBox="0 0 20 20"
-          >
-            <path fillRule="evenodd" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" clipRule="evenodd" />
-          </svg>
+          <span className={`text-lg ${styling.iconClass}`}>{styling.icon}</span>
         </div>
 
         <div className="flex-1 min-w-0">
           {/* Hint Header */}
           <div className="flex items-center justify-between mb-1">
-            <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-              💡 Hint
+            <h4 className={`text-sm font-medium ${styling.textClass}`}>
+              {detectedBehavior ? `${detectedBehavior.replace('-', ' ').toUpperCase()} Detected` : 'Hint'}
             </h4>
           </div>
 
           {/* Hint Content */}
-          <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed">
-            {hintText}
+          <p className={`text-sm ${styling.textClass.replace('800', '700')} leading-relaxed`}>
+            {finalHintText}
           </p>
 
           {/* Request Hint Button */}
@@ -47,7 +134,7 @@ export default function ShortHints({
             <div className="mt-2">
               <button
                 onClick={onRequestHint}
-                className="text-sm text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200 hover:underline transition-colors duration-200"
+                className={`text-sm ${styling.iconClass} hover:${styling.textClass} hover:underline transition-colors duration-200`}
               >
                 Need another hint? →
               </button>

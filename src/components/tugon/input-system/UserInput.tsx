@@ -4,7 +4,8 @@ import InputValidator from "./UserInputValidator";
 import type { TwoPhaseValidationResult, CompletionStatus } from "./UserInputValidator";
 import type { Step } from "@/components/data/answers";
 import ShortHints from "../hint-system/shortHints";
-
+import UserBehaviorClassifier from './UserBehaviorClassifier';
+import type { UserBehaviorProfile } from './UserBehaviorClassifier';
 type StepProgression = [string, string, boolean, string, number]; 
 // [stepLabel, userInput, isCorrect, expectedAnswer, totalProgress]
 
@@ -68,7 +69,11 @@ export default function UserInput({
   const [lines, setLines] = useState<string[]>(value);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement)[]>([]);
-  
+
+  // Add to your component state 
+  const [behaviorProfile, setBehaviorProfile] = useState<UserBehaviorProfile | null>(null);
+  const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+
   // User progression tracking array
   const [userProgressionArray, setUserProgressionArray] = useState<StepProgression[]>([]);
   const [userAttempt, setUserAttempt] = useState<UserAttempt[]>([]);
@@ -170,7 +175,7 @@ export default function UserInput({
     
     console.log(`⏱️ STEP TIMER STARTED: Step ${stepIndex + 1} (${stepLabel})`);
   }, [expectedSteps, stepTimings]);
-
+  
   const completeStepTimer = useCallback((stepIndex: number) => {
     const now = Date.now();
     const existingTiming = stepTimings.get(stepIndex);
@@ -284,7 +289,7 @@ export default function UserInput({
         cumulativeProgress: stepProgression[4],
         stepStartTime,           // When step timing started
         attemptTime: now,        // When this attempt was made
-        timeSpentOnStep         // Total time if step completed
+        timeSpentOnStep,         // Total time if step completed
       };
 
       setUserAttempt(prevAttempts => {
@@ -309,7 +314,10 @@ export default function UserInput({
         console.log(`   Total Attempts: ${newAttempts.length}`);
         console.log('🗃️ Complete userAttempt array:', newAttempts);
         onAttemptUpdate?.(newAttempts);
-        
+          // ANALYZE BEHAVIOR AFTER EACH ATTEMPT
+  setTimeout(() => {
+    analyzeBehaviorAndUpdateHints(newAttempts);
+  }, 100); // Small delay to ensure state is updated
         return newAttempts;
       });
       
@@ -325,7 +333,7 @@ export default function UserInput({
     if (!line.trim() || !expectedSteps || lineIndex >= expectedSteps.length) {
       return;
     }
-
+   
     const expectedStep = expectedSteps[lineIndex];
     
     const validation = InputValidator.validateStepWithTwoPhase(
@@ -445,7 +453,7 @@ export default function UserInput({
       return newArray;
     });
   }, [lines, expectedSteps, storeStepProgressionToAttempt, lineValidationStates, validationTriggers]);
-
+  
   // Check if answer is complete using validator
   const isAnswerComplete = useCallback((currentLines: string[]): boolean => {
     if (!expectedSteps) return false;
@@ -666,8 +674,30 @@ export default function UserInput({
     }
   };
 
-  const status = getCompletionStatus(lines);
+  const analyzeBehaviorAndUpdateHints = useCallback((attempts: UserAttempt[]) => {
+  if (attempts.length === 0) return;
+  
+  // Analyze behavior using the classifier
+  const profile = UserBehaviorClassifier.analyzeUserBehavior(attempts);
+  setBehaviorProfile(profile);
+  
+  // Get current step index (find first incomplete step)
+  const currentStep = lines.findIndex((line, index) => 
+    index < (expectedSteps?.length || 0) && 
+    !lineValidationStates.get(index)?.isCurrentStepCorrect
+  );
+  
+  setCurrentStepIndex(Math.max(0, currentStep));
+  
+  console.log('🧠 BEHAVIOR ANALYSIS UPDATED:', {
+    currentBehavior: profile.currentBehavior,
+    currentStep,
+    activeTriggers: profile.activeTriggers.length
+  });
+}, [lines, expectedSteps, lineValidationStates]);
 
+  const status = getCompletionStatus(lines);
+  
   return (
     <div className={cn("border rounded-lg overflow-hidden bg-white", className)}>
       {/* Container with fixed height when scrollable */}
@@ -870,6 +900,9 @@ export default function UserInput({
 
           {/* Short Hints Component */}
           <ShortHints 
+            userAttempts={userAttempt}
+            behaviorProfile={behaviorProfile}
+            currentStepIndex={currentStepIndex}
             isVisible={showHints}
             hintText={hintText}
             onRequestHint={onRequestHint}
