@@ -4,8 +4,10 @@ import InputValidator from "./UserInputValidator";
 import type { TwoPhaseValidationResult, CompletionStatus } from "./UserInputValidator";
 import type { Step } from "@/components/data/answers";
 import ShortHints from "../hint-system/shortHints";
+
 type StepProgression = [string, string, boolean, string, number]; 
 // [stepLabel, userInput, isCorrect, expectedAnswer, totalProgress]
+
 type UserAttempt = {
   attempt_id: number;
   stepIndex: number;
@@ -14,6 +16,18 @@ type UserAttempt = {
   isCorrect: boolean;
   expectedAnswer: string;
   cumulativeProgress: number;
+  stepStartTime: number; // When step was started
+  attemptTime: number;   // When this specific attempt was made
+  timeSpentOnStep?: number; // Total time spent on step when completed
+};
+
+type StepTiming = {
+  stepIndex: number;
+  stepLabel: string;
+  startTime: number;
+  endTime?: number;
+  duration?: number; // in milliseconds
+  isCompleted: boolean;
 };
 
 export interface UserInputProps {
@@ -31,6 +45,7 @@ export interface UserInputProps {
   showHints?: boolean;
   hintText?: string;
   onRequestHint?: () => void;
+  onAttemptUpdate?: (attempts: UserAttempt[]) => void;
 }
 
 export default function UserInput({
@@ -48,16 +63,16 @@ export default function UserInput({
   showHints = false,
   hintText,
   onRequestHint,
+  onAttemptUpdate
 }: UserInputProps) {
   const [lines, setLines] = useState<string[]>(value);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement)[]>([]);
   
-   // ADD: User progression tracking array
+  // User progression tracking array
   const [userProgressionArray, setUserProgressionArray] = useState<StepProgression[]>([]);
-
-const [userAttempt, setUserAttempt] = useState<UserAttempt[]>([]);
-const [attemptCounter, setAttemptCounter] = useState<number>(0);
+  const [userAttempt, setUserAttempt] = useState<UserAttempt[]>([]);
+  const [attemptCounter, setAttemptCounter] = useState<number>(0);
   
   // Scrolling refs and state
   const containerRef = useRef<HTMLDivElement>(null);
@@ -74,6 +89,12 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
   // Individual line validation state for immediate feedback
   const [lineValidationStates, setLineValidationStates] = useState<Map<number, TwoPhaseValidationResult | null>>(new Map());
   const [validationTriggers, setValidationTriggers] = useState<Map<number, 'enter' | null>>(new Map());
+
+  // State for error feedback and timing
+  const [stepErrorFeedback, setStepErrorFeedback] = useState<Map<number, boolean>>(new Map());
+  const [stepTimings, setStepTimings] = useState<Map<number, StepTiming>>(new Map());
+  const [currentStepStartTime, setCurrentStepStartTime] = useState<number | null>(null);
+  const [pendingLineCreation, setPendingLineCreation] = useState<number | null>(null);
 
   // Sync with prop changes
   useEffect(() => {
@@ -120,13 +141,115 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
       scrollToFocusedInput(focusedIndex);
     }
   }, [focusedIndex, isScrollable, scrollToFocusedInput]);
+
+  // Timing functions
+  const startStepTimer = useCallback((stepIndex: number) => {
+    const now = Date.now();
+    
+    // Don't restart timer if step is already being timed
+    if (stepTimings.has(stepIndex) && stepTimings.get(stepIndex)?.isCompleted === false) {
+      return;
+    }
+    
+    const stepLabel = expectedSteps?.[stepIndex]?.label || `Step ${stepIndex + 1}`;
+    
+    const newTiming: StepTiming = {
+      stepIndex,
+      stepLabel,
+      startTime: now,
+      isCompleted: false
+    };
+    
+    setStepTimings(prev => {
+      const newMap = new Map(prev);
+      newMap.set(stepIndex, newTiming);
+      return newMap;
+    });
+    
+    setCurrentStepStartTime(now);
+    
+    console.log(`⏱️ STEP TIMER STARTED: Step ${stepIndex + 1} (${stepLabel})`);
+  }, [expectedSteps, stepTimings]);
+
+  const completeStepTimer = useCallback((stepIndex: number) => {
+    const now = Date.now();
+    const existingTiming = stepTimings.get(stepIndex);
+    
+    if (!existingTiming || existingTiming.isCompleted) {
+      return 0; // Return 0 if no timing found or already completed
+    }
+    
+    const duration = now - existingTiming.startTime;
+    
+    const completedTiming: StepTiming = {
+      ...existingTiming,
+      endTime: now,
+      duration,
+      isCompleted: true
+    };
+    
+    setStepTimings(prev => {
+      const newMap = new Map(prev);
+      newMap.set(stepIndex, completedTiming);
+      return newMap;
+    });
+    
+    console.log(`⏱️ STEP TIMER COMPLETED:`);
+    console.log(`   Step ${stepIndex + 1} (${existingTiming.stepLabel})`);
+    console.log(`   Duration: ${(duration / 1000).toFixed(2)} seconds`);
+    console.log(`   Start: ${new Date(existingTiming.startTime).toLocaleTimeString()}`);
+    console.log(`   End: ${new Date(now).toLocaleTimeString()}`);
+    
+    return duration;
+  }, [stepTimings]);
+
+  const getTimingStatistics = useCallback(() => {
+    const completedSteps = Array.from(stepTimings.values()).filter(timing => timing.isCompleted);
+    
+    if (completedSteps.length === 0) {
+      return {
+        totalStepsCompleted: 0,
+        averageTimePerStep: 0,
+        fastestStep: null,
+        slowestStep: null,
+        totalTimeSpent: 0
+      };
+    }
+    
+    const durations = completedSteps.map(step => step.duration!);
+    const totalTime = durations.reduce((sum, duration) => sum + duration, 0);
+    const averageTime = totalTime / durations.length;
+    
+    const fastestTime = Math.min(...durations);
+    const slowestTime = Math.max(...durations);
+    
+    const fastestStep = completedSteps.find(step => step.duration === fastestTime);
+    const slowestStep = completedSteps.find(step => step.duration === slowestTime);
+    
+    return {
+      totalStepsCompleted: completedSteps.length,
+      averageTimePerStep: averageTime,
+      fastestStep: fastestStep ? {
+        stepIndex: fastestStep.stepIndex,
+        stepLabel: fastestStep.stepLabel,
+        duration: fastestTime
+      } : null,
+      slowestStep: slowestStep ? {
+        stepIndex: slowestStep.stepIndex,
+        stepLabel: slowestStep.stepLabel,
+        duration: slowestTime
+      } : null,
+      totalTimeSpent: totalTime
+    };
+  }, [stepTimings]);
+
   const lastProcessedStep = useRef<{stepIndex: number, input: string, timestamp: number} | null>(null);
 
   const storeStepProgressionToAttempt = useCallback((stepProgression: StepProgression, stepIndex: number) => {
     const currentInput = stepProgression[1];
     const now = Date.now();
     
-    // ⭐ PREVENT DUPLICATE CALLS: Check if we just processed this exact step/input
+    // PREVENT DUPLICATE CALLS: Check if we just processed this exact step/input
     if (lastProcessedStep.current && 
         lastProcessedStep.current.stepIndex === stepIndex &&
         lastProcessedStep.current.input === currentInput &&
@@ -138,6 +261,16 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
     // Update the last processed step
     lastProcessedStep.current = { stepIndex, input: currentInput, timestamp: now };
     
+    // Get step timing info
+    const stepTiming = stepTimings.get(stepIndex);
+    const stepStartTime = stepTiming?.startTime || now;
+    let timeSpentOnStep: number | undefined = undefined;
+    
+    // If this attempt is correct, complete the timer
+    if (stepProgression[2] === true) { // isCorrect
+      timeSpentOnStep = completeStepTimer(stepIndex);
+    }
+    
     setAttemptCounter(prev => {
       const newId = prev + 1;
       
@@ -148,27 +281,42 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
         userInput: stepProgression[1],      
         isCorrect: stepProgression[2],      
         expectedAnswer: stepProgression[3], 
-        cumulativeProgress: stepProgression[4] 
+        cumulativeProgress: stepProgression[4],
+        stepStartTime,           // When step timing started
+        attemptTime: now,        // When this attempt was made
+        timeSpentOnStep         // Total time if step completed
       };
 
       setUserAttempt(prevAttempts => {
         const newAttempts = [...prevAttempts, newUserAttempt];
         
-        console.log('📝 NEW USER ATTEMPT STORED:');
+        console.log('📝 NEW USER ATTEMPT STORED (WITH TIMING):');
         console.log(`   Attempt ID: ${newUserAttempt.attempt_id}`);
         console.log(`   Step: ${newUserAttempt.stepIndex + 1} (${newUserAttempt.stepLabel})`);
         console.log(`   Input: "${newUserAttempt.userInput}"`);
         console.log(`   Correct: ${newUserAttempt.isCorrect}`);
         console.log(`   Cumulative Progress: ${newUserAttempt.cumulativeProgress}%`);
+        console.log(`   Step Start Time: ${new Date(newUserAttempt.stepStartTime).toLocaleTimeString()}`);
+        console.log(`   Attempt Time: ${new Date(newUserAttempt.attemptTime).toLocaleTimeString()}`);
+        
+        if (newUserAttempt.timeSpentOnStep) {
+          console.log(`   ⏱️ Time Spent on Step: ${(newUserAttempt.timeSpentOnStep / 1000).toFixed(2)} seconds`);
+        } else {
+          const currentDuration = now - stepStartTime;
+          console.log(`   ⏱️ Current Time on Step: ${(currentDuration / 1000).toFixed(2)} seconds (ongoing)`);
+        }
+        
         console.log(`   Total Attempts: ${newAttempts.length}`);
-        console.log('🗃️  Complete userAttempt array:', newAttempts);
+        console.log('🗃️ Complete userAttempt array:', newAttempts);
+        onAttemptUpdate?.(newAttempts);
         
         return newAttempts;
       });
       
       return newId;
     });
-  }, []);
+  }, [stepTimings, completeStepTimer, onAttemptUpdate]);
+
   // Function to validate individual line and update its state
   const validateIndividualLine = useCallback((lineIndex: number, trigger: 'enter') => {
     const line = lines[lineIndex];
@@ -211,8 +359,8 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
     const completionStatus = InputValidator.getCompletionStatus(
       lines, 
       expectedSteps, 
-      updatedValidationStates,    // ✅ ALL validation states
-      updatedValidationTriggers   // ✅ ALL triggers
+      updatedValidationStates,    // ALL validation states
+      updatedValidationTriggers   // ALL triggers
     );
     
     setUserProgressionArray(prev => {
@@ -296,7 +444,7 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
        storeStepProgressionToAttempt(newArray[lineIndex], lineIndex);
       return newArray;
     });
-  },  [lines, expectedSteps, storeStepProgressionToAttempt]);
+  }, [lines, expectedSteps, storeStepProgressionToAttempt, lineValidationStates, validationTriggers]);
 
   // Check if answer is complete using validator
   const isAnswerComplete = useCallback((currentLines: string[]): boolean => {
@@ -312,9 +460,91 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
     return InputValidator.getCompletionStatus(currentLines, expectedSteps, lineValidationStates, validationTriggers);
   }, [expectedSteps, lineValidationStates, validationTriggers]);
 
+  const canCreateNewLine = useCallback((currentIndex: number): boolean => {
+    const hasContent = lines[currentIndex].trim().length > 0;
+    const withinLimit = lines.length < maxLines;
+    const notLastAndEmpty = !(currentIndex === lines.length - 1 && lines[currentIndex] === '');
+    const withinStepLimit = !expectedSteps || lines.length < expectedSteps.length;
+    
+    // Check if current step is correct (NO EXCEPTIONS - applies to ALL steps)
+    const currentStepValidation = lineValidationStates.get(currentIndex);
+    const isCurrentStepCorrect = currentStepValidation?.isCurrentStepCorrect === true;
+    
+    return hasContent && withinLimit && notLastAndEmpty && withinStepLimit && isCurrentStepCorrect;
+  }, [lines, maxLines, expectedSteps, lineValidationStates]);
+
+  const showStepRequiredFeedback = useCallback((index: number) => {
+    // Set error state
+    setStepErrorFeedback(prev => {
+      const newMap = new Map(prev);
+      newMap.set(index, true);
+      return newMap;
+    });
+    
+    // Clear error state after animation
+    setTimeout(() => {
+      setStepErrorFeedback(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(index);
+        return newMap;
+      });
+    }, 2000);
+    
+    const inputElement = inputRefs.current[index];
+    if (inputElement) {
+      inputElement.style.animation = 'shake 0.5s';
+      inputElement.style.borderColor = '#ef4444'; // Red border
+    
+      setTimeout(() => {
+        inputElement.style.animation = '';
+        inputElement.style.borderColor = '';
+      }, 500);
+    }
+  }, []);
+
+  // useEffect to watch for validation state changes and handle line creation
+  useEffect(() => {
+    if (pendingLineCreation !== null) {
+      const currentStepValidation = lineValidationStates.get(pendingLineCreation);
+      const isCurrentStepCorrect = currentStepValidation?.isCurrentStepCorrect === true;
+      
+      if (isCurrentStepCorrect) {
+        // Check if there's already an empty line after current position
+        const hasEmptyLineAfter = pendingLineCreation + 1 < lines.length && lines[pendingLineCreation + 1].trim() === '';
+        
+        if (hasEmptyLineAfter) {
+          // Don't create new line, just move to the existing empty line
+          focusLine(pendingLineCreation + 1);
+        } else if (canCreateNewLine(pendingLineCreation)) {
+          // Create new line only if one doesn't exist
+          const newLines = [...lines];
+          newLines.splice(pendingLineCreation + 1, 0, '');
+          setLines(newLines);
+          onChange(newLines);
+          
+          setTimeout(() => {
+            focusLine(pendingLineCreation + 1);
+          }, 20);
+        }
+      } else {
+        // Show feedback for incorrect step
+        console.log(`❌ Step ${pendingLineCreation + 1} must be correct before proceeding to the next step.`);
+        showStepRequiredFeedback(pendingLineCreation);
+      }
+      
+      // Clear pending line creation
+      setPendingLineCreation(null);
+    }
+  }, [lineValidationStates, pendingLineCreation, lines, onChange, canCreateNewLine, showStepRequiredFeedback]);
+
   // Handle line changes with spam detection
   const handleLineChange = (index: number, newValue: string) => {
     const now = Date.now();
+    
+    // START TIMER: When user starts typing on a new step
+    if (newValue.trim() && !stepTimings.has(index)) {
+      startStepTimer(index);
+    }
     
     if (now - lastInputTime < spamTimeWindow) {
       setRapidInputCount(prev => prev + 1);
@@ -354,44 +584,14 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
       // Validate current line immediately on Enter
       if (lines[index].trim() && expectedSteps && index < expectedSteps.length) {
         validateIndividualLine(index, 'enter');
-      }
-      
-      const isComplete = isAnswerComplete(lines);
-      
-      if (isComplete) {
-        onSubmit?.(lines);
-        return;
-      }
-      
-      // Check if there's already an empty line after current position
-      const hasEmptyLineAfter = index + 1 < lines.length && lines[index + 1].trim() === '';
-      
-      if (hasEmptyLineAfter) {
-        // Don't create new line, just move to the existing empty line
-        focusLine(index + 1);
-      } else if (canCreateNewLine(index)) {
-        // Create new line only if one doesn't exist
-        const newLines = [...lines];
-        newLines.splice(index + 1, 0, '');
-        setLines(newLines);
-        onChange(newLines);
         
-        setTimeout(() => {
-          focusLine(index + 1);
-        }, 20);
-      } else {
-        // Check if we've reached step limit
-        const stepLimit = expectedSteps?.length || maxLines;
-        if (lines.length >= stepLimit && expectedSteps) {
-          const status = getCompletionStatus(lines);
-          if (status.completedSteps >= status.totalSteps && !status.allCorrect) {
-            onSuggestSubmission?.(lines);
-          }
-        } else {
-          const status = getCompletionStatus(lines);
-          if (status.completedSteps >= status.totalSteps && !status.allCorrect) {
-            onSuggestSubmission?.(lines);
-          }
+        // Set pending line creation to be handled by useEffect
+        setPendingLineCreation(index);
+        
+        const isComplete = isAnswerComplete(lines);
+        if (isComplete) {
+          onSubmit?.(lines);
+          return;
         }
       }
     } else if (event.key === 'Backspace' && lines[index] === '' && index > 0) {
@@ -407,16 +607,6 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
       event.preventDefault();
       focusLine(index + 1);
     }
-  };
-
-  // Check if we can create a new line
-  const canCreateNewLine = (currentIndex: number): boolean => {
-    const hasContent = lines[currentIndex].trim().length > 0;
-    const withinLimit = lines.length < maxLines;
-    const notLastAndEmpty = !(currentIndex === lines.length - 1 && lines[currentIndex] === '');
-    const withinStepLimit = !expectedSteps || lines.length < expectedSteps.length;
-    
-    return hasContent && withinLimit && notLastAndEmpty && withinStepLimit;
   };
 
   // Focus management with scroll
@@ -575,6 +765,13 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
                       )}
                     </div>
                   )}
+
+                  {/* Error message for feedback */}
+                  {stepErrorFeedback.get(index) && (
+                    <div className="absolute -bottom-6 left-8 text-xs text-red-500 bg-red-50 px-2 py-1 rounded shadow-sm z-10">
+                      Complete this step correctly first
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -635,6 +832,42 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
             </span>
           </div>
 
+          {/* Timing Information Display */}
+          {(() => {
+            const currentStep = lines.findIndex((line, index) => 
+              index < expectedSteps.length && !lineValidationStates.get(index)?.isCurrentStepCorrect
+            );
+            const currentStepTiming = currentStep >= 0 ? stepTimings.get(currentStep) : null;
+            const stats = getTimingStatistics();
+            
+            return (
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                {/* Current Step Timer */}
+                {currentStepTiming && !currentStepTiming.isCompleted && (
+                  <div className="flex items-center gap-1">
+                    <span>⏱️</span>
+                    <span>
+                      Step {currentStep + 1}: {
+                        Math.floor((Date.now() - currentStepTiming.startTime) / 1000)
+                      }s
+                    </span>
+                  </div>
+                )}
+                
+                {/* Completed Steps Stats */}
+                {stats.totalStepsCompleted > 0 && (
+                  <div className="flex items-center gap-3">
+                    <span>✅ {stats.totalStepsCompleted} completed</span>
+                    <span>⏱️ Avg: {(stats.averageTimePerStep / 1000).toFixed(1)}s</span>
+                    {stats.fastestStep && (
+                      <span>🏃 Fastest: {(stats.fastestStep.duration / 1000).toFixed(1)}s</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Short Hints Component */}
           <ShortHints 
             isVisible={showHints}
@@ -646,4 +879,5 @@ const [attemptCounter, setAttemptCounter] = useState<number>(0);
     </div>
   );
 }
+
 export { type StepProgression, type UserAttempt };

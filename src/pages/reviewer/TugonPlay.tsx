@@ -8,6 +8,8 @@ import AnswerWizard, { Step, WizardStep } from "../../components/tugon/input-sys
 import HintBubble from "../../components/tugon/hint-system/HintBubble";
 import Character from "../../components/tugon/hint-system/Character";
 import { Heading,SubHeading,Text, Small } from "../../components/Typography";
+import AttemptVisualizer from "../../components/tugon/AttemptVisualizer";
+import { UserAttempt } from "../../components/tugon/input-system/UserInput";
 
 const FALLBACK_HINT_TEXT = "Try isolating y. Start by substituting x = 2.";
 
@@ -16,6 +18,7 @@ export default function TugonPlay() {
   const [searchParams] = useSearchParams();
   const [attempts, setAttempts] = useState(0);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [userAttempts, setUserAttempts] = useState<UserAttempt[]>([]);
   const idleTimer = useRef<number | null>(null);
 
   // Extract URL parameters
@@ -115,6 +118,11 @@ export default function TugonPlay() {
     // Handle step changes if needed
   };
 
+  const handleAttemptUpdate = (attempts: UserAttempt[]) => {
+    setUserAttempts(attempts);
+    console.log('🎯 TugonPlay received attempts:', attempts);
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-white">
       {/* Navbar - Responsive */}
@@ -162,6 +170,7 @@ export default function TugonPlay() {
                 handleAttempt({ correct: type === "correct" });
               }}
               onAnswerChange={resetIdle}
+              onAttemptUpdate={handleAttemptUpdate}
             />
           </div>
           
@@ -171,6 +180,12 @@ export default function TugonPlay() {
           </div>*/}
         </div>
       </div>
+
+      {/* Attempt Visualizer - Floating Panel */}
+      <AttemptVisualizer 
+        attempts={userAttempts} 
+        className="animate-in slide-in-from-right duration-300"
+      />
 
       {/* Character - Responsive positioning and sizing */}
       <div className="fixed bottom-2 right-2 sm:bottom-4 sm:right-4 z-50">

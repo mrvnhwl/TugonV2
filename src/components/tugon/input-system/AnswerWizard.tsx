@@ -1,11 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers";
 import type { PredefinedAnswer, Step as AnswerStep } from "@/components/data/answers";
 import { cn } from "../../cn";
 import UserInput from './UserInput';
 import InputValidator from './UserInputValidator';
 import { CheckCircle } from "lucide-react";
-import { Text, Small } from "../../Typography";
+import { Small } from "../../Typography";
+import { UserAttempt } from './UserInput';
+
+// Missing type definitions - ADD these
+interface MessagePrompt {
+  id: string;
+  type: 'hint' | 'feedback' | 'validation';
+  content: string;
+  timestamp: Date;
+  source: 'system' | 'ai' | 'user';
+}
+
+interface UserBehavior {
+  action: 'input' | 'submit' | 'hint_request' | 'validation' | 'spam_detected';
+  timestamp: Date;
+  stepIndex: number;
+  details?: any;
+}
+
+interface ConversationHistoryEntry {
+  messagePrompt: MessagePrompt[];
+  userInput: string;
+  userBehavior: UserBehavior;
+  stepIndex: number;
+  timestamp: Date;
+}
 
 // Simplified answer types - only text-based now
 export type AnswerType = "single" | "multi";
@@ -17,7 +42,6 @@ export type Step = {
   placeholder?: string;
   rows?: number;
   type?: AnswerType;
-  // Text-based answer value (string for single, string[] for multi)
   answerValue?: string | string[];
 };
 
@@ -28,93 +52,68 @@ export type WizardStep = {
   placeholder?: string;
   rows?: number;
   type: AnswerType;
-  // Unified answer content - always stored as string[] for consistency
   answerValue: string[];
 };
 
-type AnswerWizardProps = {
-  steps?: Step[]; // treated as initial/hydration
-  onSubmit: (steps: WizardStep[], result?: { correct: boolean[]; allCorrect: boolean }) => void;
-  className?: string;
-  onIndexChange?: (index: number) => void;
-  // If provided, these expected answers will be used for step shapes and validation
+export interface AnswerWizardProps {
+  steps: Step[];
+  onSubmit: (finalSteps: WizardStep[], validationResult?: any) => void; // FIXED: Added optional validationResult
+  onIndexChange: (index: number) => void;
   expectedAnswers?: PredefinedAnswer[];
-  // Notify parent when the current step's unified answerValue changes
-  onAnswerChange?: (index: number, value: string) => void;
-  // New callback to expose individual lines array
-  onLinesChange?: (index: number, lines: string[]) => void;
-  inputDisabled?: boolean;
-  onSpamDetected?: () => void;
-  onValidationResult?: (type: "correct" | "wrong" | "aiHint" | "spam") => void;
-};
-type MessagePrompt = {
-  id: string;
-  type: 'hint' | 'feedback' | 'guidance';
-  content: string;
-  timestamp: Date;
-  source: 'shortHints' | 'expandedHints' | 'system';
-};
+  onValidationResult?: (type: 'correct' | 'incorrect' | 'partial', currentStep: number) => void;
+  onAnswerChange?: (index: number, value: string) => void; // FIXED: Added proper signature
+  onAttemptUpdate?: (attempts: UserAttempt[]) => void;
+  className?: string; // ADD: Missing className prop
+  disabled?: boolean; // ADD: Missing disabled prop
+}
 
-type UserBehavior = {
-  action: 'input' | 'hint_request' | 'submit' | 'validation' | 'spam_detected';
-  timestamp: Date;
-  stepIndex: number;
-  details?: any;
-};
-
-type ConversationHistoryEntry = {
-  messagePrompt: MessagePrompt[];
-  userInput: string;
-  userBehavior: UserBehavior;
-  stepIndex: number;
-  timestamp: Date;
-};
-export default function AnswerWizard({ 
-  steps: _initialSteps = [], 
-  onSubmit, 
-  className, 
-  onIndexChange, 
-  expectedAnswers, 
-  onAnswerChange, 
-  onLinesChange, // New prop
-  inputDisabled, 
-  onSpamDetected, 
-  onValidationResult 
+export default function AnswerWizard({
+  steps: inputSteps,
+  onSubmit,
+  onIndexChange,
+  expectedAnswers,
+  onValidationResult,
+  onAnswerChange,
+  onAttemptUpdate,
+  className, // ADD: Include className
+  disabled = false, // ADD: Include disabled with default
 }: AnswerWizardProps) {
-  // Source answers: prefer per-question answers if provided; otherwise fall back to global sample
+  // Source answers
   const answersSource: PredefinedAnswer[] = expectedAnswers && expectedAnswers.length > 0
     ? expectedAnswers
     : (predefinedAnswersData || []);
  
-  // Fixed steps derived strictly from the selected answers source
+  // Fixed steps derived from answers source
   const fixedSteps: WizardStep[] = (answersSource || []).map((_, i) => {
-    // Default to multi-line format for all steps to allow expansion
     const t: AnswerType = "multi";
     return {
       id: `s${i + 1}`,
       type: t,
-      answerValue: [''], // Always start with empty array
+      answerValue: [''],
     } as WizardStep;
   });
 
-  const [steps, setSteps] = useState<WizardStep[]>(fixedSteps);
+  // FIXED: Rename to avoid conflict with props
+  const [wizardSteps, setWizardSteps] = useState<WizardStep[]>(fixedSteps);
   const [index, setIndex] = useState(0);
   const [correctness, setCorrectness] = useState<Array<boolean | null>>(
     Array.from({ length: fixedSteps.length }, () => null)
   );
 
-  // Store all user inputs as arrays of lines for external access
+  // Store all user inputs as arrays of lines
   const [userInputs, setUserInputs] = useState<string[][]>(
     fixedSteps.map(() => [''])
   );
 
-  // Add hint state for testing
+  // Hint state
   const [hintState, setHintState] = useState({
     show: false,
     text: "",
     requestCount: 0
   });
+
   const [userConversationHistory, setUserConversationHistory] = useState<ConversationHistoryEntry[]>([]);
+
   const addToConversationHistory = (
     messagePrompts: MessagePrompt[],
     userInput: string,
@@ -137,8 +136,8 @@ export default function AnswerWizard({
       console.log(`New entry added for Step ${stepIndex + 1}:`, entry);
       console.log('Complete userConversationHistory:', newHistory);
       console.log('History breakdown:');
-      newHistory.forEach((historyEntry, index) => {
-        console.log(`  Entry[${index}]:`, {
+      newHistory.forEach((historyEntry, histIndex) => {
+        console.log(`  Entry[${histIndex}]:`, {
           step: historyEntry.stepIndex + 1,
           userInput: historyEntry.userInput,
           behavior: historyEntry.userBehavior.action,
@@ -163,6 +162,7 @@ export default function AnswerWizard({
     timestamp: new Date(),
     source
   });
+
   // Sample hints for testing (30-50 words each)
   const sampleHints = [
     "Start by identifying what you need to substitute. Look for the variable in your function and replace it with the given value.",
@@ -207,8 +207,9 @@ export default function AnswerWizard({
     }));
   };
 
-  const total = steps.length;
-  const current = steps[index];
+  // FIXED: Use wizardSteps instead of steps
+  const total = wizardSteps.length;
+  const current = wizardSteps[index];
 
   // Notify parent when the active index changes
   useEffect(() => {
@@ -242,7 +243,8 @@ export default function AnswerWizard({
       index
     );
 
-    onSubmit(steps, validationResult);
+    // FIXED: Use wizardSteps and match interface signature
+    onSubmit(wizardSteps, validationResult);
   };
 
   const handleSuggestSubmission = (lines: string[]) => {
@@ -256,27 +258,22 @@ export default function AnswerWizard({
     
     InputValidator.logValidation(lines, expectedSteps, index);
     
-    // Update internal steps state
-    setSteps((prev) => {
+    // FIXED: Update wizardSteps instead of steps
+    setWizardSteps((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], answerValue: lines } as WizardStep;
       return next;
     });
     
-    // Update userInputs array for external access
     setUserInputs((prev) => {
       const next = [...prev];
       next[index] = [...lines];
       return next;
     });
     
-    // Notify parent with string representation
+    // FIXED: Call with correct parameters
     onAnswerChange?.(index, arrayToString(lines));
-    
-    // Notify parent with individual lines array
-    onLinesChange?.(index, lines);
 
-    // Track input change in conversation history
     const userBehavior: UserBehavior = {
       action: 'input',
       timestamp: new Date(),
@@ -297,8 +294,8 @@ export default function AnswerWizard({
     // Use InputValidator for final validation
     const validationResult = InputValidator.validateAllSteps(userInputs, answersSource);
     
-    // Submit with both steps and userInputs for external access
-    onSubmit(steps, validationResult);
+    // FIXED: Use wizardSteps
+    onSubmit(wizardSteps, validationResult);
     
     // Log userInputs for debugging/access
     console.log("Final userInputs array:", userInputs);
@@ -338,7 +335,8 @@ export default function AnswerWizard({
       index
     );
 
-    onValidationResult?.(result);
+    // FIXED: Match expected signature
+    onValidationResult?.(result === 'correct' ? 'correct' : 'incorrect', index);
   };
 
   // Get current userInput array for the active step
@@ -363,7 +361,6 @@ export default function AnswerWizard({
       index
     );
 
-    onSpamDetected?.();
     handleValidationResult("spam");
   };
   // Function to get userInput for any step (for external access)
@@ -430,19 +427,18 @@ export default function AnswerWizard({
                   onChange={handleInputChange}
                   placeholder="Enter your answer..."
                   maxLines={8}
-                  disabled={Boolean(inputDisabled || (correctness[index] === true))}
+                  disabled={Boolean(disabled || (correctness[index] === true))} // FIXED: Use disabled prop
                   className={inputClasses}
                   expectedSteps={expectedSteps}
                   onSubmit={handleEnterSubmission}
                   onSuggestSubmission={handleSuggestSubmission}
                   onSpamDetected={handleSpamDetected} 
-                  onResetSpamFlag={() => {
-                    // Reset any spam flags if needed
-                  }}
+                  onResetSpamFlag={() => {}}
                   // Add hint props
                   showHints={hintState.show}
                   hintText={hintState.text}
                   onRequestHint={triggerTestHint}
+                  onAttemptUpdate={onAttemptUpdate}
                 />
 
                 {correctness[index] === true && (

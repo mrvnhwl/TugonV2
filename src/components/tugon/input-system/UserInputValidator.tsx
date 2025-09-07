@@ -912,3 +912,38 @@ export function useInputValidator(
 }
 
 export default InputValidator;
+
+// Add to AttemptVisualizer.tsx - calculate timing on demand:
+function StepGroup({ stepIndex, attempts }: StepGroupProps) {
+  const stepAttempts = attempts.filter(a => a.stepIndex === stepIndex);
+  
+  // Calculate timing data
+  const calculateAttemptDuration = (attempt: UserAttempt, index: number) => {
+    if (index === 0) {
+      return attempt.attemptTime - attempt.stepStartTime;
+    }
+    return attempt.attemptTime - stepAttempts[index - 1].attemptTime;
+  };
+  
+  const totalTimeOnStep = stepAttempts.length > 0 
+    ? stepAttempts[stepAttempts.length - 1].attemptTime - stepAttempts[0].stepStartTime
+    : 0;
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      {/* Show calculated timing in the UI */}
+      <div className="text-xs text-gray-500 p-2">
+        Total time on step: {(totalTimeOnStep / 1000).toFixed(1)}s
+      </div>
+      
+      {stepAttempts.map((attempt, index) => (
+        <div key={attempt.attempt_id}>
+          {/* Show individual attempt duration */}
+          <div className="text-xs">
+            Attempt duration: {(calculateAttemptDuration(attempt, index) / 1000).toFixed(1)}s
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
