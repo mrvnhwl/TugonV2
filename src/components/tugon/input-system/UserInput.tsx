@@ -5,7 +5,7 @@ import type { TwoPhaseValidationResult, CompletionStatus } from "./UserInputVali
 import type { Step } from "@/components/data/answers";
 import ShortHints from "../hint-system/shortHints";
 import UserBehaviorClassifier from './UserBehaviorClassifier';
-import type { UserBehaviorProfile } from './UserBehaviorClassifier';
+import type { UserBehaviorProfile, BehaviorType } from './UserBehaviorClassifier';
 import LongHints from "../hint-system/longHints";
 
 type StepProgression = [string, string, boolean, string, number]; 
@@ -78,9 +78,11 @@ export default function UserInput({
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement)[]>([]);
   const [localShowHints, setLocalShowHints] = useState<boolean>(false);
+  
   // Add to your component state 
   const [behaviorProfile, setBehaviorProfile] = useState<UserBehaviorProfile | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+  
   
   
   // User progression tracking array
@@ -109,7 +111,13 @@ export default function UserInput({
   const [stepTimings, setStepTimings] = useState<Map<number, StepTiming>>(new Map());
   const [currentStepStartTime, setCurrentStepStartTime] = useState<number | null>(null);
   const [pendingLineCreation, setPendingLineCreation] = useState<number | null>(null);
+   
 
+  // NEW: Hint interval tracking
+  const [attemptsSinceLastHint, setAttemptsSinceLastHint] = useState<number>(0);
+  const [lastBehaviorClassification, setLastBehaviorClassification] = useState<BehaviorType | null>(null);
+  const [hintIntervalActive, setHintIntervalActive] = useState<boolean>(false);
+  
   // Sync with prop changes
   useEffect(() => {
     setLines(value);
@@ -117,6 +125,9 @@ export default function UserInput({
 
 
    const [showAIModal, setShowAIModal] = useState<boolean>(false)
+   const [aiHintMessage, setAiHintMessage] = useState<string>('');
+  const [isLoadingAIHint, setIsLoadingAIHint] = useState<boolean>(false);
+
   // Check if scrolling is needed
   const checkScrollNeeded = useCallback(() => {
     const needsScrolling = lines.length > 2;
@@ -269,7 +280,7 @@ export default function UserInput({
     if (lastProcessedStep.current && 
         lastProcessedStep.current.stepIndex === stepIndex &&
         lastProcessedStep.current.input === currentInput &&
-        (now - lastProcessedStep.current.timestamp) < 100) { // Within 100ms
+        (now - lastProcessedStep.current.timestamp) < 100) {
       console.log('🚫 DUPLICATE CALL DETECTED - IGNORING');
       return;
     }
@@ -303,38 +314,59 @@ export default function UserInput({
         timeSpentOnStep,         // Total time if step completed
       };
 
-      setUserAttempt(prevAttempts => {
-        const newAttempts = [...prevAttempts, newUserAttempt];
-        
-        console.log('📝 NEW USER ATTEMPT STORED (WITH TIMING):');
-        console.log(`   Attempt ID: ${newUserAttempt.attempt_id}`);
-        console.log(`   Step: ${newUserAttempt.stepIndex + 1} (${newUserAttempt.stepLabel})`);
-        console.log(`   Input: "${newUserAttempt.userInput}"`);
-        console.log(`   Correct: ${newUserAttempt.isCorrect}`);
-        console.log(`   Cumulative Progress: ${newUserAttempt.cumulativeProgress}%`);
-        console.log(`   Step Start Time: ${new Date(newUserAttempt.stepStartTime).toLocaleTimeString()}`);
-        console.log(`   Attempt Time: ${new Date(newUserAttempt.attemptTime).toLocaleTimeString()}`);
-        
-        if (newUserAttempt.timeSpentOnStep) {
-          console.log(`   ⏱️ Time Spent on Step: ${(newUserAttempt.timeSpentOnStep / 1000).toFixed(2)} seconds`);
-        } else {
-          const currentDuration = now - stepStartTime;
-          console.log(`   ⏱️ Current Time on Step: ${(currentDuration / 1000).toFixed(2)} seconds (ongoing)`);
+    setUserAttempt(prevAttempts => {
+      const newAttempts = [...prevAttempts, newUserAttempt];
+      
+      // FIXED: Only increment if we haven't triggered interval yet
+      setAttemptsSinceLastHint(prevCount => {
+        // Don't increment if interval is already active (prevents double counting)
+        if (hintIntervalActive) {
+          console.log(`📊 HINT INTERVAL: Already active, not incrementing count`);
+          return prevCount;
         }
         
-        console.log(`   Total Attempts: ${newAttempts.length}`);
-        console.log('🗃️ Complete userAttempt array:', newAttempts);
-        onAttemptUpdate?.(newAttempts);
-          // ANALYZE BEHAVIOR AFTER EACH ATTEMPT
-  setTimeout(() => {
-    analyzeBehaviorAndUpdateHints(newAttempts);
-  }, 150); // Small delay to ensure state is updated
-        return newAttempts;
+        const newCount = prevCount + 1;
+        console.log(`📊 HINT INTERVAL TRACKING:`);
+        console.log(`   Attempts since last hint: ${newCount}`);
+        console.log(`   Hint interval threshold: 3`);
+        
+        // FIXED: Set hint interval active when threshold reached
+        if (newCount >= 3) {
+          console.log(`🎯 HINT INTERVAL REACHED - ${newCount} attempts made`);
+          setHintIntervalActive(true);
+          console.log(`🤖 Hint interval will trigger AI Modal`);
+        }
+        
+        return newCount;
       });
+      
+      console.log('📝 NEW USER ATTEMPT STORED (WITH TIMING):');
+      console.log(`   Attempt ID: ${newUserAttempt.attempt_id}`);
+      console.log(`   Step: ${newUserAttempt.stepIndex + 1} (${newUserAttempt.stepLabel})`);
+      console.log(`   Input: "${newUserAttempt.userInput}"`);
+      console.log(`   Correct: ${newUserAttempt.isCorrect}`);
+      console.log(`   Cumulative Progress: ${newUserAttempt.cumulativeProgress}%`);
+      
+      if (newUserAttempt.timeSpentOnStep) {
+        console.log(`   ⏱️ Time Spent on Step: ${(newUserAttempt.timeSpentOnStep / 1000).toFixed(2)} seconds`);
+      }
+
+      console.log(`   Total Attempts: ${newAttempts.length}`);
+      onAttemptUpdate?.(newAttempts);
+      
+      // ANALYZE BEHAVIOR AFTER EACH ATTEMPT
+      setTimeout(() => {
+        console.log('⏰ TIMEOUT TRIGGERED - Calling analyzeBehaviorAndUpdateHints');
+        console.log('📊 Attempts being analyzed:', newAttempts.length);
+        analyzeBehaviorAndUpdateHints(newAttempts);
+      }, 150);
+      
+      return newAttempts;
+    });
       
       return newId;
     });
-  }, [stepTimings, completeStepTimer, onAttemptUpdate]);
+  }, [stepTimings, completeStepTimer, onAttemptUpdate, hintIntervalActive]);
 
   // Function to validate individual line and update its state
   const validateIndividualLine = useCallback((lineIndex: number, trigger: 'enter') => {
@@ -690,29 +722,164 @@ export default function UserInput({
     }
   };
 
-  const analyzeBehaviorAndUpdateHints = useCallback((attempts: UserAttempt[]) => {
-  if (attempts.length === 0) return;
+  const handleAIHintRequest = useCallback(async () => {
+
+    console.log('🔥 handleAIHintRequest CALLED');
+    console.log('📋 Request context:', {
+      topicId,
+      categoryId,
+      questionId,
+      behaviorProfile: !!behaviorProfile,
+      userAttemptCount: userAttempt.length
+    });
+    if (!topicId || !categoryId || !questionId || !behaviorProfile) {
+      console.log('❌ Missing required data for AI hint request');
+      console.log('   - topicId:', topicId);
+    console.log('   - categoryId:', categoryId);  
+    console.log('   - questionId:', questionId);
+    console.log('   - behaviorProfile:', behaviorProfile);
+      return;
+    }
+      console.log('✅ All required data present, proceeding with AI request');
+    setIsLoadingAIHint(true);
+    setShowAIModal(true);
+    
+    try {
+      console.log('📦 Importing hints.ts...');
+      // Import hints.ts functions
+      const { getAIHint } = await import('../../data/hints');
+       console.log('✅ hints.ts imported successfully');
+      // Create step context
+      const stepContext = {
+        topicId,
+        categoryId,
+        questionId,
+        userAttempts: userAttempt,
+        currentStepIndex,
+        behaviorProfile
+      };
+      
+      console.log('🚀 Requesting AI hint with context:', stepContext);
+       console.log('📊 Step Context Details:');
+    console.log('   - topicId:', stepContext.topicId);
+    console.log('   - categoryId:', stepContext.categoryId);
+    console.log('   - questionId:', stepContext.questionId);
+    console.log('   - currentStepIndex:', stepContext.currentStepIndex);
+    console.log('   - userAttempts count:', stepContext.userAttempts.length);
+    console.log('   - behaviorProfile.currentBehavior:', stepContext.behaviorProfile?.currentBehavior);
+      // Fetch AI hint
+          console.log('🔄 Calling getAIHint with behavior:', behaviorProfile.currentBehavior);
+      const aiMessage = await getAIHint(stepContext, behaviorProfile.currentBehavior!);
+      
+
+        console.log('✅ AI hint received:');
+    console.log('   - Message length:', aiMessage?.length || 0);
+    console.log('   - Message content:', aiMessage);
+    console.log('   - Message type:', typeof aiMessage);
+
+      setAiHintMessage(aiMessage);
+      console.log('✅ AI hint received:', aiMessage);
+      
+    } catch (error) {
+      console.error('❌ Error fetching AI hint:', error);
+      console.error('   - topicId:', topicId);
+      //console.error('   - Error type:', error.constructor.name);
+      //console.error('   - Full error:', error);
+      //console.error('   - Error stack:', error.stack);
+      setAiHintMessage('Sorry, I encountered an error while generating your hint. Please try again.');
+    } finally {
+      console.log('🏁 AI hint request completed');
+      setIsLoadingAIHint(false);
+    }
+  }, [topicId, categoryId, questionId, behaviorProfile, userAttempt, currentStepIndex]);
+
+  // Manual AI hint request (for button clicks)
+  const handleManualAIRequest = useCallback(() => {
+    console.log('🔘 Manual AI hint request triggered');
+    handleAIHintRequest();
+  }, [handleAIHintRequest]);
+
+  // Close AI modal
+  const handleCloseAIModal = useCallback(() => {
+    setShowAIModal(false);
+    setAiHintMessage('');
+  }, []);
+                                                  //check async later for any problem
+  const analyzeBehaviorAndUpdateHints = useCallback(async(attempts: UserAttempt[]) => {
+    if (attempts.length === 0) return;
+    
+    console.log('🔍 ANALYZING BEHAVIOR - Input attempts:', attempts.length);
+    
+    // Analyze behavior using the classifier
+    const profile = UserBehaviorClassifier.analyzeUserBehavior(attempts);
+    setBehaviorProfile(profile);
+    
+    // Check if behavior has changed (new classification)
+    const behaviorChanged = lastBehaviorClassification !== profile.currentBehavior;
+    if (behaviorChanged) {
+      console.log(`🔄 BEHAVIOR CLASSIFICATION CHANGED:`);
+      console.log(`   Previous: ${lastBehaviorClassification || 'none'}`);
+       console.log(`   Current: ${profile.currentBehavior || 'none'}`);
+      
+       // FIXED: Reset attempt count for ANY behavior change (not just problematic ones)
+        if (profile.currentBehavior) {
+          setAttemptsSinceLastHint(0);
+          setHintIntervalActive(false);
+          console.log(`🔄 HINT INTERVAL RESET due to behavior classification: ${profile.currentBehavior}`);
+        }
+         setLastBehaviorClassification(profile.currentBehavior);
+    }
+    
+    // Get current step index
+    const currentStep = lines.findIndex((line, index) => 
+      index < (expectedSteps?.length || 0) && 
+      !lineValidationStates.get(index)?.isCurrentStepCorrect
+    );
+    
+    setCurrentStepIndex(Math.max(0, currentStep));
+    
+     // FIXED: Check for both behavior triggers AND hint interval
+  const behaviorsNeedingAI = ['struggling', 'guessing', 'repeating'];
+  const shouldShowAIModalForBehavior = profile.currentBehavior && 
+    behaviorsNeedingAI.includes(profile.currentBehavior);
   
-  // Analyze behavior using the classifier
-  const profile = UserBehaviorClassifier.analyzeUserBehavior(attempts);
-  setBehaviorProfile(profile);
-  
-  // Get current step index (find first incomplete step)
-  const currentStep = lines.findIndex((line, index) => 
-    index < (expectedSteps?.length || 0) && 
-    !lineValidationStates.get(index)?.isCurrentStepCorrect
-  );
-  
-  setCurrentStepIndex(Math.max(0, currentStep));
-  
-  console.log('🧠 BEHAVIOR ANALYSIS UPDATED:', {
-    currentBehavior: profile.currentBehavior,
-    currentStep,
-    activeTriggers: profile.activeTriggers.length,
-    showHints,
-     profileSet: !!profile
-  });
-}, [lines, expectedSteps, lineValidationStates, showHints]);
+  const shouldShowAIModalForInterval = hintIntervalActive;
+
+   // Show AI modal if EITHER condition is true
+  const shouldShowAIModal = shouldShowAIModalForBehavior || shouldShowAIModalForInterval;
+    console.log('🧠 BEHAVIOR ANALYSIS UPDATED:', {
+      currentBehavior: profile.currentBehavior,
+      currentStep,
+      activeTriggers: profile.activeTriggers.length,
+      showHints,
+      profileSet: !!profile,
+      shouldShowAIModal,
+      behaviorChanged,
+      attemptsSinceLastHint,
+      hintIntervalActive
+    });
+    
+    // TRIGGER AI MODAL FOR SPECIFIC BEHAVIORS OR HINT INTERVAL
+    if (shouldShowAIModal && topicId && categoryId && questionId) {
+    const triggerReason = shouldShowAIModalForBehavior ? 'behavior detection' : 'hint interval';
+    console.log(`🤖 Triggering AI Modal for ${triggerReason}:`, profile.currentBehavior || 'interval reached');
+    
+    await handleAIHintRequest();
+    
+    // RESET HINT INTERVAL after showing AI hint
+    if (shouldShowAIModalForInterval) {
+      setHintIntervalActive(false);
+      setAttemptsSinceLastHint(0);
+      console.log(`🔄 HINT INTERVAL RESET after showing AI hint`);
+    }
+    } else {
+      console.log('❌ AI MODAL NOT TRIGGERED - Reasons:');
+      console.log('   - shouldShowAIModal:', shouldShowAIModal);
+      console.log('   - hintIntervalActive:', hintIntervalActive);
+      console.log('   - currentBehavior:', profile.currentBehavior);
+      console.log('   - attemptsSinceLastHint:', attemptsSinceLastHint);
+    }
+  }, [lines, expectedSteps, lineValidationStates, showHints, handleAIHintRequest, topicId, categoryId, questionId, lastBehaviorClassification, hintIntervalActive]);
 
   const status = getCompletionStatus(lines);
   
@@ -845,77 +1012,113 @@ export default function UserInput({
       </div>
 
       {/* Progress bar indicator */}
-      {expectedSteps && expectedSteps.length > 0 && (
-        <div className="bg-gray-50 border-t px-3 py-2 space-y-1">
-          {/* Progress bar */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 min-w-[50px]">
-              Progress:
-            </span>
-            
-            <div className="flex-1 relative">
-              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <div 
-                  className={cn(
-                    "h-full transition-all duration-300 ease-out rounded-full",
-                    status.percentage === 100 
-                      ? "bg-green-500"           
-                      : status.percentage >= 80  
-                      ? "bg-emerald-500"         
-                      : status.percentage >= 50  
-                      ? "bg-blue-500"            
-                      : status.percentage >= 20  
-                      ? "bg-orange-500"          
-                      : status.percentage > 0    
-                      ? "bg-yellow-500"          
-                      : "bg-gray-300"            
-                  )}
-                  style={{ width: `${status.percentage}%` }}
-                />
-              </div>
-            </div>
-            
-            <span className="text-xs text-gray-400 min-w-[35px] text-right">
-              {status.percentage}%
-            </span>
-          </div>
+       {expectedSteps && expectedSteps.length > 0 && (
+  <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-t border-gray-200 px-4 py-3 space-y-3">
+    {/* Main Progress Section */}
+    <div className="flex items-center gap-4">
+      {/* Progress Label with Icon */}
+      <div className="flex items-center gap-2 min-w-[80px]">
+        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+        <span className="text-sm font-medium text-gray-700">
+          Progress
+        </span>
+      </div>
 
-          {/* Timing Information Display */}
-          {(() => {
-            const currentStep = lines.findIndex((line, index) => 
-              index < expectedSteps.length && !lineValidationStates.get(index)?.isCurrentStepCorrect
-            );
-            const currentStepTiming = currentStep >= 0 ? stepTimings.get(currentStep) : null;
-            const stats = getTimingStatistics();
-            
+      {/* Enhanced Progress Bar */}
+      <div className="flex-1 relative bg-white rounded-full p-1 shadow-inner">
+        <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
+          {/* Background gradient */}
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-150 to-gray-200"></div>
+          
+          {/* Progress fill with enhanced styling */}
+          <div 
+            className={cn(
+              "h-full transition-all duration-500 ease-out rounded-full relative overflow-hidden",
+              "shadow-sm",
+              status.percentage === 100 
+                ? "bg-gradient-to-r from-green-400 to-green-600 shadow-green-200"
+                : status.percentage >= 80  
+                ? "bg-gradient-to-r from-emerald-400 to-emerald-600 shadow-emerald-200"
+                : status.percentage >= 60  
+                ? "bg-gradient-to-r from-blue-400 to-blue-600 shadow-blue-200"
+                : status.percentage >= 40  
+                ? "bg-gradient-to-r from-indigo-400 to-indigo-600 shadow-indigo-200"
+                : status.percentage >= 20  
+                ? "bg-gradient-to-r from-orange-400 to-orange-600 shadow-orange-200"
+                : status.percentage > 0    
+                ? "bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-yellow-200"
+                : "bg-gray-300"
+            )}
+            style={{ width: `${status.percentage}%` }}
+          >
+            {/* Shine effect */}
+            {status.percentage > 0 && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+            )}
+          </div>
+          
+          {/* Progress markers */}
+          {expectedSteps.map((_, index) => {
+            const markerPosition = ((index + 1) / expectedSteps.length) * 100;
+            const isCompleted = status.percentage >= markerPosition;
             return (
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                {/* Current Step Timer */}
-                {currentStepTiming && !currentStepTiming.isCompleted && (
-                  <div className="flex items-center gap-1">
-                    <span>⏱️</span>
-                    <span>
-                      Step {currentStep + 1}: {
-                        Math.floor((Date.now() - currentStepTiming.startTime) / 1000)
-                      }s
-                    </span>
-                  </div>
+              <div
+                key={index}
+                className={cn(
+                  "absolute top-0 w-0.5 h-full transition-colors duration-300",
+                  isCompleted ? "bg-white/50" : "bg-gray-300"
                 )}
-                
-                {/* Completed Steps Stats */}
-                {stats.totalStepsCompleted > 0 && (
-                  <div className="flex items-center gap-3">
-                    <span>✅ {stats.totalStepsCompleted} completed</span>
-                    <span>⏱️ Avg: {(stats.averageTimePerStep / 1000).toFixed(1)}s</span>
-                    {stats.fastestStep && (
-                      <span>🏃 Fastest: {(stats.fastestStep.duration / 1000).toFixed(1)}s</span>
-                    )}
-                  </div>
-                )}
-              </div>
+                style={{ left: `${markerPosition}%` }}
+              />
             );
-          })()}
+          })}
+        </div>
+      </div>
+
+      {/* Enhanced Progress Percentage */}
+      <div className="flex items-center gap-2 min-w-[60px]">
+        <span className={cn(
+          "text-sm font-bold transition-colors duration-300",
+          status.percentage === 100 
+            ? "text-green-600"
+            : status.percentage >= 80
+            ? "text-emerald-600"
+            : status.percentage >= 60
+            ? "text-blue-600"
+            : status.percentage >= 40
+            ? "text-indigo-600"
+            : status.percentage >= 20
+            ? "text-orange-600"
+            : status.percentage > 0
+            ? "text-yellow-600"
+            : "text-gray-500"
+        )}>
+          {status.percentage}%
+        </span>
         
+        {/* Progress status icon */}
+        <div className="text-lg">
+          {status.percentage === 100 
+            ? "🎉"
+            : status.percentage >= 80
+            ? "🔥"
+            : status.percentage >= 60
+            ? "💪"
+            : status.percentage >= 40
+            ? "📈"
+            : status.percentage >= 20
+            ? "🎯"
+            : status.percentage > 0
+            ? "🚀"
+            : "⭐"
+          }
+        </div>
+      </div>
+        {/* TUTOR MOOD INDICATOR */}
+      
+    </div>
+
+            
           {/* Short Hints Component */}
           <ShortHints 
             userAttempts={userAttempt}
@@ -928,10 +1131,13 @@ export default function UserInput({
             hintText={hintText}
             onRequestHint={onRequestHint}
             onRequestAIHelp={() => setShowAIModal(true)}
-   
+            // FIXED: Add these missing props
+            attemptsSinceLastHint={attemptsSinceLastHint}
+            hintIntervalActive={hintIntervalActive}
+            hintIntervalThreshold={3}
           />
 
-          {/* AI Help Modal */}
+       
         </div>
       )}
     </div>

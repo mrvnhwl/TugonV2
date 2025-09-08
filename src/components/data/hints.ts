@@ -20,8 +20,9 @@ export interface StepContext {
 export interface HintResponse {
   guideText?: string;
   shortHints: string[];
+
   longHints?: string;
-  detectedBehavior?: BehaviorType;
+  detectedBehavior?: BehaviorType | null;
   contextUsed: {
     categoryQuestion?: string;
     questionText?: string;
@@ -30,8 +31,7 @@ export interface HintResponse {
 }
 
 // API configuration for AI hints
-const AI_HINT_ENDPOINT = '/api/hints/generate'; // Adjust based on your API setup
-const API_PATH = import.meta.env.DEV
+const AI_HINT_ENDPOINT = import.meta.env.DEV
   ? (import.meta.env.VITE_API_BASE
       ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, "")}/api/gemini-hint`
       : "/api/gemini-hint")
@@ -43,6 +43,10 @@ export async function getAIHint(
   stepContext: StepContext,
   detectedBehavior: BehaviorType
 ): Promise<string> {
+  console.log('🤖 getAIHint called with:');
+  console.log('   - stepContext:', stepContext);
+  console.log('   - detectedBehavior:', detectedBehavior);
+  
   try {
     // Get question context
     const questionContext = getQuestionContext(
@@ -51,9 +55,12 @@ export async function getAIHint(
       stepContext.questionId
     );
     
+    console.log('📋 Question context retrieved:', questionContext);
+    console.log('🌐 AI_HINT_ENDPOINT:', AI_HINT_ENDPOINT);
+    
     // Prepare the API request payload
     const payload = {
-      model: "gemini-1.5-flash", // or your preferred model
+      model: "gemini-1.5-flash",
       constraints: {
         maxTokens: 200,
         temperature: 0.7,
@@ -79,6 +86,9 @@ export async function getAIHint(
       prompt: generateAIPrompt(questionContext, detectedBehavior, stepContext.userAttempts)
     };
 
+    console.log('📤 Sending payload to AI endpoint:', payload);
+    console.log('📤 Payload size:', JSON.stringify(payload).length, 'characters');
+
     // Send POST request to AI service
     const response = await fetch(AI_HINT_ENDPOINT, {
       method: 'POST',
@@ -88,23 +98,69 @@ export async function getAIHint(
       body: JSON.stringify(payload)
     });
 
+    console.log('📥 Response status:', response.status);
+    console.log('📥 Response ok:', response.ok);
+    console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      throw new Error(`AI API request failed: ${response.status}`);
+      const errorText = await response.text();
+      console.error('❌ API Error Response:', errorText);
+      throw new Error(`AI API request failed: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
-    
+    console.log('✅ Raw API response:', result);
+    console.log('✅ Response type:', typeof result);
+    console.log('✅ Response keys:', Object.keys(result));
+    let hintText = null;
+    const possibleFields = ['hint', 'response', 'message', 'content', 'text', 'answer'];
+    for (const field of possibleFields) {
+      if (result[field] && typeof result[field] === 'string' && result[field].trim()) {
+        hintText = result[field].trim();
+        console.log(`✅ Found hint in field '${field}':`, hintText);
+        break;
+      }
+    }
+    if (!hintText && result.data && typeof result.data === 'object') {
+  for (const field of possibleFields) {
+    if (result.data[field] && typeof result.data[field] === 'string' && result.data[field].trim()) {
+      hintText = result.data[field].trim();
+      console.log(`✅ Found hint in nested field 'data.${field}':`, hintText);
+      break;
+    }
+  }
+}
+if (hintText) {
+  return hintText;
+}
     // Parse response and return hint
     if (result.hint && typeof result.hint === 'string' && result.hint.trim()) {
+      console.log('✅ Found hint in response:', result.hint);
       return result.hint.trim();
     }
     
+    console.log('⚠️ No hint found in response, using fallback');
+    console.log('   - result.hint exists:', !!result.hint);
+    console.log('   - result.hint type:', typeof result.hint);
+    console.log('   - result.hint content:', result.hint);
+    
     // Fallback if no hint in response
-    return getFallbackAIMessage(detectedBehavior);
+    const fallback = getFallbackAIMessage(detectedBehavior);
+    console.log('🔄 Using fallback message:', fallback);
+    return fallback;
     
   } catch (error) {
-    console.error('AI Hint Generation Error:', error);
-    return getFallbackAIMessage(detectedBehavior);
+    if (error instanceof Error) {
+    console.error('❌ AI Hint Generation Error:', error);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+  } else {
+    console.error('❌ AI Hint Generation Error:', error);
+  }
+  const fallback = getFallbackAIMessage(detectedBehavior);
+  console.log('🔄 Using error fallback message:', fallback);
+  return fallback;
   }
 }
 
@@ -136,15 +192,10 @@ Student's recent attempts:`;
     case 'struggling':
       prompt += `\nThe student is having difficulty. Provide a gentle, encouraging hint that breaks down the concept without giving away the answer.`;
       break;
-    case 'struggling-high':
-      prompt += `\nThe student is experiencing significant difficulty. Provide a more detailed explanation while still encouraging independent thinking.`;
-      break;
     case 'guessing':
       prompt += `\nThe student appears to be guessing rapidly. Help them slow down and think methodically about the problem.`;
       break;
-    case 'inactive':
-      prompt += `\nThe student has been inactive. Provide motivation and a clear starting point.`;
-      break;
+   
     case 'repeating':
       prompt += `\nThe student is repeating the same mistake. Help them identify what's wrong with their approach.`;
       break;
@@ -163,15 +214,13 @@ Student's recent attempts:`;
 function getFallbackAIMessage(behavior: BehaviorType): string {
   const fallbacks: Record<BehaviorType, string> = {
     'struggling': "Take your time to understand each step. Break down the problem and work through it systematically.",
-    'struggling-high': "It's okay to find this challenging. Consider reviewing the basic concepts and try a step-by-step approach.",
     'guessing': "Instead of guessing, take a moment to think about what the question is asking and what approach might work.",
-    'inactive': "Ready to get started? Take a look at the question and think about what information you're given.",
+   
     'repeating': "It looks like you're trying the same approach. Consider what might be different about this problem.",
-    'persistent': "Your persistence is admirable! Try approaching this from a different angle.",
-    'normal': "You're doing well. Keep applying the same systematic approach.",
-    'learning': "Great progress! Continue building on what you've learned.",
-    'self-correction': "Excellent self-awareness! Keep refining your understanding.",
-    'excellent': "Outstanding work! You're mastering this concept well."
+
+   
+    'self-correction': "Excellent self-awareness! Keep refining your understanding."
+   
   };
   
   return fallbacks[behavior] || "Keep working through this step by step. You've got this!";
@@ -202,10 +251,7 @@ function generateGuideText(
   behavior: BehaviorType,
   questionContext: ReturnType<typeof getQuestionContext>
 ): string {
-  if (behavior === 'inactive') {
-    return `Getting started with this problem: ${questionContext.guideText}`;
-  }
-  
+
   if (behavior === 'guessing') {
     return `Before guessing, remember: ${questionContext.guideText}`;
   }
@@ -245,50 +291,24 @@ behavior: BehaviorType,
       `Having difficulty with this step? Review what the question is asking about ${categoryQuestion}.`,
       `This part of ${categoryQuestion} can be tricky. Take it one step at a time.`
     ],
-    'struggling-high': [
-      `You're experiencing significant difficulty with ${categoryQuestion}. Consider asking for help or reviewing related concepts.`,
-      `This ${categoryQuestion} problem seems challenging. Let's break it down further.`,
-      `Don't worry about the complexity of ${categoryQuestion}. Focus on the basics first.`
-    ],
+
     'guessing': [
       `You're submitting answers very quickly. Take a moment to think through this ${categoryQuestion} problem.`,
       `Slow down and consider what ${categoryQuestion} is really asking.`,
       `Random attempts won't help with ${categoryQuestion}. Think systematically about your approach.`
     ],
-    'inactive': [
-      `Ready to work on ${categoryQuestion}? Start by reading the question carefully.`,
-      `Let's get started with this ${categoryQuestion} problem. What information are you given?`,
-      `Time to tackle ${categoryQuestion}. Begin by identifying what you need to find.`
-    ],
+    
     'repeating': [
       `You're repeating the same approach to ${categoryQuestion}. Try thinking about it differently.`,
       `The same method isn't working for ${categoryQuestion}. What could you try instead?`,
       `It seems you're stuck in a loop with ${categoryQuestion}. Consider a fresh perspective.`
     ],
-    'persistent': [
-      `Great persistence with ${categoryQuestion}! Try to reflect on what might help you solve this step.`,
-      `Your determination with ${categoryQuestion} is admirable. Consider what you've learned so far.`,
-      `Keep up the effort on ${categoryQuestion}. Think about what approach might work better.`
-    ],
-    'normal': [
-      `You're making steady progress with ${categoryQuestion}. Keep going!`,
-      `Good work on ${categoryQuestion}. Continue with your current approach.`,
-      `Nice progress with this ${categoryQuestion} problem. Stay focused.`
-    ],
-    'learning': [
-      `You're improving at ${categoryQuestion}! Keep practicing and reviewing your steps.`,
-      `Great learning progress with ${categoryQuestion}. Build on what you've discovered.`,
-      `Your understanding of ${categoryQuestion} is developing well. Keep it up!`
-    ],
+   
+    
     'self-correction': [
       `Excellent self-correction on ${categoryQuestion}! You're on the right track.`,
       `Great job identifying and fixing your approach to ${categoryQuestion}.`,
       `Perfect self-awareness with ${categoryQuestion}. Continue refining your method.`
-    ],
-    'excellent': [
-      `Outstanding work on ${categoryQuestion}! Keep up the excellent performance.`,
-      `Perfect execution of ${categoryQuestion}! You've mastered this concept.`,
-      `Excellent understanding of ${categoryQuestion}. Your approach is spot-on.`
     ]
   };
   
@@ -306,7 +326,8 @@ export async function getHints(stepContext: StepContext): Promise<HintResponse> 
     UserBehaviorClassifier.analyzeUserBehavior(stepContext.userAttempts);
   
   const currentStepBehavior = behaviorProfile.stepBehaviors[stepContext.currentStepIndex];
-  const detectedBehavior = currentStepBehavior?.primaryBehavior || 'normal';
+  // FIXED: Remove 'normal' fallback since it's not in BehaviorType anymore
+  const detectedBehavior = currentStepBehavior?.primaryBehavior || null;
   
   // Get question context
   const questionContext = getQuestionContext(
@@ -317,25 +338,20 @@ export async function getHints(stepContext: StepContext): Promise<HintResponse> 
   
   // Generate guide text (for inactive or guessing)
   let guideText: string | undefined;
-  if (detectedBehavior === 'inactive' || detectedBehavior === 'guessing') {
-    guideText = generateGuideText(detectedBehavior, questionContext);
-  }
   
-  // Generate short hints
-  const shortHints = generateShortHints(
-    detectedBehavior,
-    questionContext,
-    stepContext.userAttempts
-  );
+  // Generate short hints - only if we have a detected behavior
+  const shortHints = detectedBehavior 
+    ? generateShortHints(detectedBehavior, questionContext, stepContext.userAttempts)
+    : ["Keep working through this step by step."]; // Default hint for no behavior
   
   // Generate long hints (AI) for complex behaviors
   let longHints: string | undefined;
-  if (['struggling-high', 'persistent', 'repeating'].includes(detectedBehavior)) {
+  if (detectedBehavior && ['repeating'].includes(detectedBehavior)) { // Removed 'persistent' since it's not in BehaviorType
     try {
       longHints = await getAIHint(stepContext, detectedBehavior);
     } catch (error) {
       console.error('Failed to generate AI hints:', error);
-      longHints = getFallbackAIMessage(detectedBehavior);
+      longHints = detectedBehavior ? getFallbackAIMessage(detectedBehavior) : "Keep trying your best!";
     }
   }
   
@@ -378,14 +394,18 @@ export function getShortHint(stepContext: StepContext): string {
   }
   
   const currentStepBehavior = behaviorProfile.stepBehaviors[stepContext.currentStepIndex];
-  const detectedBehavior = currentStepBehavior?.primaryBehavior || 'normal';
+  const detectedBehavior = currentStepBehavior?.primaryBehavior || null;
   
   console.log('🎯 Detected behavior:', detectedBehavior);
   
-  const hints = generateShortHints(detectedBehavior, questionContext, stepContext.userAttempts);
-  console.log('💡 Generated hints:', hints);
+  if (detectedBehavior) {
+    const hints = generateShortHints(detectedBehavior, questionContext, stepContext.userAttempts);
+    console.log('💡 Generated hints:', hints);
+    return hints[0] || "Keep working through this step by step.";
+  }
   
-  return hints[0] || "Keep working through this step by step.";
+    console.log('💡 No behavior detected, using default hint');
+  return "Keep working through this step by step.";
 }
 
 export function getGuideText(stepContext: StepContext): string | undefined {
@@ -407,13 +427,13 @@ export function getGuideText(stepContext: StepContext): string | undefined {
   }
   
   const currentStepBehavior = behaviorProfile.stepBehaviors[stepContext.currentStepIndex];
-  const detectedBehavior = currentStepBehavior?.primaryBehavior || 'normal';
+    const detectedBehavior = currentStepBehavior?.primaryBehavior || null;
   
   console.log('🎯 Guide text behavior:', detectedBehavior);
-  
-  if (detectedBehavior === 'inactive' || detectedBehavior === 'guessing') {
+  if (detectedBehavior) {
     return generateGuideText(detectedBehavior, questionContext);
   }
+
   
   return undefined;
 }

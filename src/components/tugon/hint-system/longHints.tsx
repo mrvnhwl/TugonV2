@@ -1,208 +1,328 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import type { UserAttempt } from '../input-system/UserInput';
 import type { UserBehaviorProfile, BehaviorType } from '../input-system/UserBehaviorClassifier';
-import { getHints, getAIHint, type StepContext, type HintResponse } from '../../data/hints';
+
+// Import LaTeX rendering (assuming you have KaTeX or MathJax set up)
+import 'katex/dist/katex.min.css';
 
 export interface LongHintsProps {
-  // Required context for AI hints
-  topicId: number;
-  categoryId: number;
-  questionId: number;
+  // Required for context
   userAttempts: UserAttempt[];
+  behaviorProfile?: UserBehaviorProfile | null;
   currentStepIndex: number;
-  behaviorProfile?: UserBehaviorProfile|null;
+  topicId?: number;
+  categoryId?: number;
+  questionId?: number;
   
   // Modal control
-  isOpen: boolean;
-  onClose: () => void;
-  
-  // Styling
+  isVisible?: boolean;
+  aiMessage?: string;
+  isLoading?: boolean;
+  onClose?: () => void;
+  onRequestAI?: () => void;
   className?: string;
 }
 
+// Helper function to render LaTeX content
+const renderMathContent = (text: string) => {
+  // Split text by LaTeX delimiters and render accordingly
+  const parts = text.split(/(\$[^$]+\$|\\\([^)]+\\\)|\\\[[^\]]+\\\])/g);
+  
+  return parts.map((part, index) => {
+    // Check if it's LaTeX content
+    if (part.startsWith('$') && part.endsWith('$') && part.length > 2) {
+      // Inline math
+      const mathContent = part.slice(1, -1);
+      return (
+        <span 
+          key={index} 
+          className="inline-block mx-1 px-2 py-1 bg-blue-50 rounded font-mono text-blue-800 border"
+        >
+          {mathContent}
+        </span>
+      );
+    } else if (part.startsWith('\\(') && part.endsWith('\\)')) {
+      // Inline math alternative
+      const mathContent = part.slice(2, -2);
+      return (
+        <span 
+          key={index} 
+          className="inline-block mx-1 px-2 py-1 bg-blue-50 rounded font-mono text-blue-800 border"
+        >
+          {mathContent}
+        </span>
+      );
+    } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
+      // Block math
+      const mathContent = part.slice(2, -2);
+      return (
+        <div 
+          key={index} 
+          className="my-3 p-4 bg-blue-50 rounded-lg border border-blue-200 text-center"
+        >
+          <span className="text-lg font-mono text-blue-800">{mathContent}</span>
+        </div>
+      );
+    } else {
+      // Regular text
+      return <span key={index}>{part}</span>;
+    }
+  });
+};
+
+// Helper function to format hint content with better structure
+const formatHintContent = (content: string) => {
+  // Split by double asterisks for emphasis
+  const sections = content.split(/\*\*([^*]+)\*\*/g);
+  
+  return sections.map((section, index) => {
+    // Every odd index is emphasized content
+    if (index % 2 === 1) {
+      return (
+        <div key={index} className="mb-4">
+          <h4 className="font-semibold text-lg mb-2 text-blue-900 border-b border-blue-200 pb-1">
+            {section}
+          </h4>
+        </div>
+      );
+    } else {
+      // Regular content - render with LaTeX support
+      const paragraphs = section.split('\n\n').filter(p => p.trim());
+      return paragraphs.map((paragraph, pIndex) => (
+        <div key={`${index}-${pIndex}`} className="mb-3 leading-relaxed">
+          {renderMathContent(paragraph.trim())}
+        </div>
+      ));
+    }
+  });
+};
+
 export default function LongHints({
+  userAttempts,
+  behaviorProfile,
+  currentStepIndex,
   topicId,
   categoryId,
   questionId,
-  userAttempts,
-  currentStepIndex,
-  behaviorProfile,
-  isOpen,
+  isVisible = false,
+  aiMessage = '',
+  isLoading = false,
   onClose,
+  onRequestAI,
   className = ""
 }: LongHintsProps) {
-  const [hintResponse, setHintResponse] = useState<HintResponse | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
 
-  // Generate AI hint when modal opens
-  useEffect(() => {
-    if (isOpen && !hintResponse) {
-      generateLongHint();
-    }
-  }, [isOpen]);
+  // Don't render if not visible
+  if (!isVisible) {
+    return null;
+  }
 
-  const generateLongHint = async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const stepContext: StepContext = {
-        topicId,
-        categoryId,
-        questionId,
-        userAttempts,
-        currentStepIndex,
-        behaviorProfile
-      };
+  // Get detected behavior for styling
+  const detectedBehavior: BehaviorType | null | undefined = 
+    behaviorProfile?.stepBehaviors?.[currentStepIndex]?.primaryBehavior;
 
-      const response = await getHints(stepContext);
-      setHintResponse(response);
-      
-    } catch (err) {
-      console.error('Error generating long hint:', err);
-      setError('Failed to generate AI hint. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleClose = () => {
-    setHintResponse(null);
-    setError(null);
-    onClose();
-  };
-
-  const getBehaviorColor = (behavior?: BehaviorType) => {
+  const getBehaviorStyling = (behavior?: BehaviorType | null) => {
     switch (behavior) {
-      case 'struggling-high': return 'text-red-600';
-      case 'struggling': return 'text-yellow-600';
-      case 'guessing': return 'text-orange-600';
-      case 'persistent': return 'text-purple-600';
-      case 'repeating': return 'text-amber-600';
-      case 'inactive': return 'text-gray-600';
-      case 'excellent': return 'text-green-600';
-      case 'self-correction': return 'text-emerald-600';
-      default: return 'text-blue-600';
+      case 'struggling':
+        return { 
+          bgClass: 'bg-gradient-to-br from-red-50 to-red-100', 
+          borderClass: 'border-red-300',
+          textClass: 'text-red-800', 
+          headerClass: 'bg-gradient-to-r from-red-500 to-red-600 text-white',
+          icon: '🚨',
+          title: 'Struggling - AI Guidance',
+          accentColor: 'red'
+        };
+      
+      case 'guessing':
+        return { 
+          bgClass: 'bg-gradient-to-br from-orange-50 to-orange-100', 
+          borderClass: 'border-orange-300',
+          textClass: 'text-orange-800', 
+          headerClass: 'bg-gradient-to-r from-orange-500 to-orange-600 text-white',
+          icon: '🎲',
+          title: 'Guessing Pattern - AI Guidance',
+          accentColor: 'orange'
+        };
+    
+      case 'repeating':
+        return { 
+          bgClass: 'bg-gradient-to-br from-amber-50 to-amber-100', 
+          borderClass: 'border-amber-300',
+          textClass: 'text-amber-800',
+          headerClass: 'bg-gradient-to-r from-amber-500 to-amber-600 text-white', 
+          icon: '🔁',
+          title: 'Repeating Pattern - AI Guidance',
+          accentColor: 'amber'
+        };
+        
+      case 'self-correction':
+        return { 
+          bgClass: 'bg-gradient-to-br from-green-50 to-green-100', 
+          borderClass: 'border-green-300',
+          textClass: 'text-green-800',
+          headerClass: 'bg-gradient-to-r from-green-500 to-green-600 text-white', 
+          icon: '✅',
+          title: 'Learning Progress - AI Support',
+          accentColor: 'green'
+        };
+        
+      case null:
+      case undefined:
+      default:
+        return { 
+          bgClass: 'bg-gradient-to-br from-blue-50 to-blue-100', 
+          borderClass: 'border-blue-300',
+          textClass: 'text-blue-800',
+          headerClass: 'bg-gradient-to-r from-blue-500 to-blue-600 text-white', 
+          icon: '🤖',
+          title: 'AI Mathematical Guidance',
+          accentColor: 'blue'
+        };
     }
   };
 
-  if (!isOpen) return null;
+  const styling = getBehaviorStyling(detectedBehavior);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className={`bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto ${className}`}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-800">
-            🤖 AI Learning Assistant
-          </h2>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 space-y-4">
-          {isLoading && (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-gray-600">Generating personalized hint...</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-700">{error}</p>
-              <button
-                onClick={generateLongHint}
-                className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-              >
-                Try Again
-              </button>
-            </div>
-          )}
-
-          {hintResponse && !isLoading && (
-            <>
-              {/* Context Information */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-medium text-gray-800 mb-2">Problem Context</h3>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <p><strong>Category:</strong> {hintResponse.contextUsed.categoryQuestion}</p>
-                  <p><strong>Question:</strong> {hintResponse.contextUsed.questionText}</p>
-                  {hintResponse.detectedBehavior && (
-                    <p>
-                      <strong>Detected Behavior:</strong> 
-                      <span className={`ml-1 font-medium ${getBehaviorColor(hintResponse.detectedBehavior)}`}>
-                        {hintResponse.detectedBehavior.replace('-', ' ')}
-                      </span>
-                    </p>
-                  )}
+    <>
+      {/* Modal Backdrop */}
+      <div 
+        className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        {/* Modal Content */}
+        <div 
+          className={`w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl ${styling.bgClass} border-2 ${styling.borderClass} ${className}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Enhanced Modal Header */}
+          <div className={`px-8 py-6 ${styling.headerClass} border-b-2 border-white/20`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="text-4xl bg-white/20 rounded-full p-2">
+                  {styling.icon}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">{styling.title}</h2>
+                  <p className="text-white/80 text-sm">
+                    Step {currentStepIndex + 1} • {userAttempts.length} attempts • Personalized AI Help
+                  </p>
                 </div>
               </div>
-
-              {/* Guide Text (for inactive/guessing) */}
-              {hintResponse.guideText && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h3 className="font-medium text-blue-800 mb-2">🎯 Getting Started</h3>
-                  <p className="text-blue-700">{hintResponse.guideText}</p>
-                </div>
-              )}
-
-              {/* Short Hints */}
-              {hintResponse.shortHints.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <h3 className="font-medium text-yellow-800 mb-2">💡 Quick Tips</h3>
-                  <ul className="text-yellow-700 space-y-1">
-                    {hintResponse.shortHints.map((hint, index) => (
-                      <li key={index} className="flex items-start">
-                        <span className="text-yellow-600 mr-2">•</span>
-                        <span>{hint}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* AI Generated Long Hint */}
-              {hintResponse.longHints && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h3 className="font-medium text-green-800 mb-2">🤖 AI Analysis & Guidance</h3>
-                  <p className="text-green-700 leading-relaxed">{hintResponse.longHints}</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t bg-gray-50 flex justify-between items-center">
-          <div className="text-sm text-gray-500">
-            Personalized based on your learning behavior
+              
+              {/* Close Button */}
+              <button
+                onClick={onClose}
+                className="text-white/80 hover:text-white hover:bg-white/10 rounded-full w-10 h-10 flex items-center justify-center transition-all duration-200 text-xl"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-          <div className="space-x-2">
-            <button
-              onClick={generateLongHint}
-              disabled={isLoading}
-              className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
-            >
-              🔄 Generate New Hint
-            </button>
-            <button
-              onClick={handleClose}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Got it!
-            </button>
+
+          {/* Enhanced Modal Body */}
+          <div className="px-8 py-6 max-h-[60vh] overflow-y-auto">
+            {/* Loading State */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mb-4 mx-auto"></div>
+                  <p className="text-blue-600 text-lg font-medium">Analyzing your approach...</p>
+                  <p className="text-blue-500 text-sm">Generating personalized mathematical guidance</p>
+                </div>
+              </div>
+            )}
+
+            {/* AI Message Content - Enhanced */}
+            {!isLoading && aiMessage && (
+              <div className={`${styling.textClass} space-y-4`}>
+                <div className="prose prose-lg max-w-none">
+                  {formatHintContent(aiMessage)}
+                </div>
+              </div>
+            )}
+
+            {/* Error/Empty State - Enhanced */}
+            {!isLoading && !aiMessage && (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">🤔</div>
+                <h3 className={`text-xl font-semibold mb-4 ${styling.textClass}`}>
+                  No AI guidance available at the moment
+                </h3>
+                <p className={`${styling.textClass} mb-6 opacity-80`}>
+                  Let me analyze your current progress and generate personalized help.
+                </p>
+                <button
+                  onClick={onRequestAI}
+                  className={`px-6 py-3 bg-${styling.accentColor}-500 text-white rounded-lg hover:bg-${styling.accentColor}-600 transition-colors font-medium`}
+                >
+                  Generate AI Guidance
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Enhanced Modal Footer */}
+          <div className="px-8 py-6 bg-white/50 border-t border-white/30">
+            <div className="flex items-center justify-between">
+              {/* Progress Stats */}
+              <div className="flex items-center space-x-6 text-sm">
+                <div className="flex items-center space-x-2">
+                  <span className="text-2xl">📊</span>
+                  <div>
+                    <p className="font-medium text-gray-700">
+                      Progress: {Math.round((userAttempts.filter(a => a.isCorrect).length / userAttempts.length) * 100) || 0}%
+                    </p>
+                    <p className="text-gray-500 text-xs">
+                      {userAttempts.filter(a => a.isCorrect).length} of {userAttempts.length} correct
+                    </p>
+                  </div>
+                </div>
+                
+                {behaviorProfile && detectedBehavior && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-2xl">🧠</span>
+                    <div>
+                      <p className="font-medium text-gray-700">
+                        Behavior: {detectedBehavior.replace('-', ' ')}
+                      </p>
+                      <p className="text-gray-500 text-xs">AI-detected learning pattern</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-center space-x-2">
+                  <span className="text-2xl">⏱️</span>
+                  <div>
+                    <p className="font-medium text-gray-700">Step {currentStepIndex + 1}</p>
+                    <p className="text-gray-500 text-xs">Current focus</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-4">
+                {!isLoading && (
+                  <button
+                    onClick={onRequestAI}
+                    className={`px-6 py-2 text-${styling.accentColor}-600 bg-white hover:bg-${styling.accentColor}-50 border border-${styling.accentColor}-200 rounded-lg transition-colors font-medium`}
+                  >
+                    🔄 Get New Hint
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
+                >
+                  Continue Learning
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

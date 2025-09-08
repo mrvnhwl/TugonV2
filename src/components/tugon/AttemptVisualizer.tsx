@@ -465,7 +465,7 @@ function BehaviorAnalysisView({ profile, attempts }: { profile: UserBehaviorProf
                   Step {parseInt(stepIndex) + 1}: {stepData.stepLabel}
                 </span>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-              stepData.primaryBehavior === 'struggling-high' ? 'bg-red-100 text-red-700' :
+             
               stepData.primaryBehavior === 'struggling' ? 'bg-yellow-100 text-yellow-700' :
               stepData.primaryBehavior === 'guessing' ? 'bg-orange-100 text-orange-700' :
               stepData.primaryBehavior === 'normal' ? 'bg-green-100 text-green-700' :
@@ -529,7 +529,6 @@ function MobileStepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) 
   return (
     <div className={`bg-white border rounded-lg p-2 ${
       correctAttempt ? 'border-green-300' : 
-      behaviorData?.behavior === 'struggling-high' ? 'border-red-300' :
       behaviorData?.behavior === 'struggling' ? 'border-yellow-300' :
       behaviorData?.behavior === 'guessing' ? 'border-orange-300' :
       'border-red-300'

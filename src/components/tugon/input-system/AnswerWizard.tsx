@@ -415,28 +415,7 @@ export default function AnswerWizard({
 
             return (
               <div className="space-y-2">
-                {/* Test Button for Hints - Positioned on the side */}
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <Small className="text-gray-600">Step {index + 1}</Small>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={triggerTestHint}
-                      className="px-3 py-1 text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-md border border-yellow-300 transition-colors"
-                    >
-                      🧪 Test Hint
-                    </button>
-                    {hintState.show && (
-                      <button
-                        onClick={hideHints}
-                        className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md border border-gray-300 transition-colors"
-                      >
-                        ✕ Hide
-                      </button>
-                    )}
-                  </div>
-                </div>
+    
 
                 <UserInput
                   key={`user-input-${index}`}
@@ -461,12 +440,7 @@ export default function AnswerWizard({
                   questionId={questionId}
                 />
 
-                {correctness[index] === true && (
-                  <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 border border-green-200 rounded px-3 py-2">
-                    <CheckCircle className="h-4 w-4" />
-                    <span>Correct! Well done.</span>
-                  </div>
-                )}
+               
               </div>
             );
           })()}
