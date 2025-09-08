@@ -1,7 +1,6 @@
-// src/pages/CreateQuiz.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, Save } from "lucide-react";
+import { Plus, Trash2, Save, Keyboard } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { motion } from "framer-motion";
@@ -10,13 +9,22 @@ import { MathJax } from "better-react-mathjax";
 
 /* ----------------------------- Types & helpers ---------------------------- */
 
-interface Answer { answer: string; is_correct: boolean; }
-interface Question { question: string; time_limit: number; points: number; answers: Answer[]; }
+interface Answer {
+  answer: string;
+  is_correct: boolean;
+}
+interface Question {
+  question: string;
+  time_limit: number;
+  points: number;
+  answers: Answer[];
+}
 type PadTarget =
   | { type: "question"; qIndex: number }
   | { type: "answer"; qIndex: number; aIndex: number };
 
-const freshAnswers = () => Array.from({ length: 4 }, () => ({ answer: "", is_correct: false }));
+const freshAnswers = () =>
+  Array.from({ length: 4 }, () => ({ answer: "", is_correct: false }));
 
 // Quick check if caret is inside \( ... \)
 const isInsideInlineMath = (text: string, caret: number) => {
@@ -39,32 +47,49 @@ function smartFormat(text: string): string {
   let out = text;
 
   // Skip quick exit if there are no math-y triggers at all
-  if (!/[A-Za-z]\^|\bsqrt\s*\(|\b\d+\/\d+\b|\b(alpha|beta|theta|lambda|pi|Delta)\b|\b(sin|cos|tan)\s*\(/.test(out)) {
+  if (
+    !/[A-Za-z]\^|\bsqrt\s*\(|\b\d+\/\d+\b|\b(alpha|beta|theta|lambda|pi|Delta)\b|\b(sin|cos|tan)\s*\(/.test(
+      out
+    )
+  ) {
     return out;
   }
 
   // 1) sqrt(...) -> \sqrt{...}
-  out = out.replace(/\bsqrt\s*\(\s*([^()]+?)\s*\)/g, (_m, inner) => wrapInlineIfNeeded(`\\sqrt{${inner}}`));
+  out = out.replace(/\bsqrt\s*\(\s*([^()]+?)\s*\)/g, (_m, inner) =>
+    wrapInlineIfNeeded(`\\sqrt{${inner}}`)
+  );
 
   // 2) trig like sin(x) -> \sin(x)
-  out = out.replace(/\b(sin|cos|tan)\s*\(\s*([^()]+?)\s*\)/g, (_m, fn, inner) =>
-    wrapInlineIfNeeded(`\\${fn}(${inner})`)
+  out = out.replace(
+    /\b(sin|cos|tan)\s*\(\s*([^()]+?)\s*\)/g,
+    (_m, fn, inner) => wrapInlineIfNeeded(`\\${fn}(${inner})`)
   );
 
   // 3) simple exponents x^2 or (x+1)^3 -> ^{...}
   //    - If RHS is a single token/number, brace it.
-  out = out.replace(/(\w|\)|\])\^(\w)/g, (_m, base, power) => wrapInlineIfNeeded(`${base}^{${power}}`));
+  out = out.replace(
+    /(\w|\)|\])\^(\w)/g,
+    (_m, base, power) => wrapInlineIfNeeded(`${base}^{${power}}`)
+  );
 
   // 4) simple standalone a/b with small integers -> \frac{a}{b}
-  out = out.replace(/\b(\d{1,3})\s*\/\s*(\d{1,3})\b/g, (_m, a, b) => wrapInlineIfNeeded(`\\frac{${a}}{${b}}`));
+  out = out.replace(
+    /\b(\d{1,3})\s*\/\s*(\d{1,3})\b/g,
+    (_m, a, b) => wrapInlineIfNeeded(`\\frac{${a}}{${b}}`)
+  );
 
   // 5) common greek names -> \alpha etc. (only if not already escaped)
-  out = out.replace(/\b(alpha|beta|theta|lambda|pi|Delta)\b/g, (_m, name) => wrapInlineIfNeeded(`\\${name}`));
+  out = out.replace(
+    /\b(alpha|beta|theta|lambda|pi|Delta)\b/g,
+    (_m, name) => wrapInlineIfNeeded(`\\${name}`)
+  );
 
   // 6) inequalities
-  out = out.replace(/\s<=\s/g, () => wrapInlineIfNeeded(`\\le`))
-           .replace(/\s>=\s/g, () => wrapInlineIfNeeded(`\\ge`))
-           .replace(/\sto\s/g, () => wrapInlineIfNeeded(`\\to`));
+  out = out
+    .replace(/\s<=\s/g, () => wrapInlineIfNeeded(`\\le`))
+    .replace(/\s>=\s/g, () => wrapInlineIfNeeded(`\\ge`))
+    .replace(/\sto\s/g, () => wrapInlineIfNeeded(`\\to`));
 
   // Avoid nested \( \(x\) \) from repeated passes
   out = out.replace(/\\\(\s*\\\((.*?)\\\)\s*\\\)/g, (_m, inner) => `\\(${inner}\\)`);
@@ -88,26 +113,15 @@ function CreateQuiz() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdQuizId, setCreatedQuizId] = useState<string | null>(null);
 
+  // State for floating keyboard visibility
+  const [showMathPad, setShowMathPad] = useState(false);
+
   // math keyboard target
   const [padTarget, setPadTarget] = useState<PadTarget | null>(null);
-
-  // Mobile docking for keyboard
-  const [dockPad, setDockPad] = useState(true);
 
   // Refs for caret placement
   const questionRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const answerRefs = useRef<(HTMLInputElement | null)[][]>([]);
-
-  useEffect(() => {
-    // Default: dock on small screens
-    try {
-      const mq = window.matchMedia("(max-width: 640px)");
-      setDockPad(mq.matches);
-      const handler = (e: MediaQueryListEvent) => setDockPad(e.matches);
-      mq.addEventListener?.("change", handler);
-      return () => mq.removeEventListener?.("change", handler);
-    } catch {}
-  }, []);
 
   /* ----------------------------- Mutators (UI) ---------------------------- */
 
@@ -135,7 +149,9 @@ function CreateQuiz() {
     setQuestions((prev) => {
       const next = [...prev];
       const q = { ...next[qIndex] };
-      q.answers = q.answers.map((ans, i) => (i === aIndex ? { ...ans, [field]: value } : ans));
+      q.answers = q.answers.map((ans, i) =>
+        i === aIndex ? { ...ans, [field]: value } : ans
+      );
       next[qIndex] = q;
       return next;
     });
@@ -186,7 +202,9 @@ function CreateQuiz() {
       // Smart caret placement
       const basePos = before.length;
       let caretPos = basePos + inserted.length;
-      const searchTarget = inserted.startsWith("\\(") ? inserted.slice(2, -2) : inserted;
+      const searchTarget = inserted.startsWith("\\(")
+        ? inserted.slice(2, -2)
+        : inserted;
       const firstBrace = searchTarget.indexOf("{");
       if (firstBrace !== -1) {
         const offset = inserted.startsWith("\\(") ? 2 : 0;
@@ -207,7 +225,12 @@ function CreateQuiz() {
       const selEnd = el?.selectionEnd ?? selStart;
       const alreadyInMath = isInsideInlineMath(current, selStart);
 
-      const { newText, caretPos } = insertIntoText({ text: current, selStart, selEnd, alreadyInMath });
+      const { newText, caretPos } = insertIntoText({
+        text: current,
+        selStart,
+        selEnd,
+        alreadyInMath,
+      });
       const next = [...questions];
       next[qIndex] = { ...next[qIndex], question: newText };
       setQuestions(next);
@@ -225,7 +248,12 @@ function CreateQuiz() {
       const selEnd = el?.selectionEnd ?? selStart;
       const alreadyInMath = isInsideInlineMath(current, selStart);
 
-      const { newText, caretPos } = insertIntoText({ text: current, selStart, selEnd, alreadyInMath });
+      const { newText, caretPos } = insertIntoText({
+        text: current,
+        selStart,
+        selEnd,
+        alreadyInMath,
+      });
       updateAnswer(qIndex, aIndex, "answer", newText);
 
       requestAnimationFrame(() => {
@@ -264,8 +292,6 @@ function CreateQuiz() {
       if (!Number.isFinite(q.points) || q.points < 50 || q.points > 10000)
         return `Question ${i + 1}: points should be between 50 and 10000.`;
       if (q.answers.length !== 4) return `Question ${i + 1} must have 4 answers.`;
-      const empty = q.answers.findIndex((a) => !a.answer.trim());
-      if (empty !== -1) return `Question ${i + 1}: Answer ${empty + 1} is empty.`;
       const correctCount = q.answers.filter((a) => a.is_correct).length;
       if (correctCount !== 1) return `Question ${i + 1} must have exactly one correct answer.`;
     }
@@ -347,7 +373,9 @@ function CreateQuiz() {
         <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
           {/* Quiz meta */}
           <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Create New Quiz</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+              Create New Quiz
+            </h1>
             <input
               type="text"
               required
@@ -375,47 +403,11 @@ function CreateQuiz() {
             <div className="rounded-md bg-gray-50 border px-3 py-2">
               <div className="text-[11px] sm:text-xs text-gray-500 mb-1">Live Preview</div>
               <MathJax dynamic>
-                {previewText && previewText.trim() !== "" ? previewText : "\\(\\text{(empty)}\\)"}
+                {previewText && previewText.trim() !== ""
+                  ? previewText
+                  : "\\(\\text{(empty)}\\)"}
               </MathJax>
             </div>
-
-            {/* Docked/inline keyboard */}
-            <div
-              className={
-                dockPad
-                  ? "fixed bottom-0 left-0 right-0 z-40 border-t bg-white"
-                  : "pt-2"
-              }
-              style={dockPad ? { boxShadow: "0 -6px 16px rgba(0,0,0,0.06)" } : undefined}
-            >
-              {dockPad && (
-                <div className="flex items-center justify-between px-3 py-2 sm:hidden">
-                  <span className="text-xs font-medium text-gray-600">Math Keyboard</span>
-                  <button
-                    type="button"
-                    onClick={() => setDockPad(false)}
-                    className="text-xs px-2 py-1 rounded border bg-white hover:bg-gray-50"
-                  >
-                    Hide
-                  </button>
-                </div>
-              )}
-              <div className={dockPad ? "px-3 pb-3 sm:px-0 sm:pb-0" : ""}>
-                <MathSymbolPad open onInsert={insertFromPad} onClose={() => setDockPad(false)} />
-              </div>
-            </div>
-
-            {!dockPad && (
-              <div className="sm:hidden">
-                <button
-                  type="button"
-                  onClick={() => setDockPad(true)}
-                  className="mt-2 text-xs px-3 py-1 rounded border bg-white hover:bg-gray-50"
-                >
-                  Show Math Keyboard
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Questions */}
@@ -439,79 +431,153 @@ function CreateQuiz() {
                 </button>
               </div>
 
-              {/* QUESTION TEXTAREA */}
-              <textarea
-                ref={(el) => (questionRefs.current[qIndex] = el)}
-                onFocus={() => setPadTarget({ type: "question", qIndex })}
-                onBlur={() => onBlurFormatQuestion(qIndex)}
-                required
-                rows={3}
-                value={q.question}
-                onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
-                className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="Type your question. Examples: x^2, sqrt(x+1), 1/2, alpha, sin(x)."
-              />
+             {/* QUESTION with live render */}
+<div className="relative">
+  {/* MathJax Preview BELOW */}
+  <div
+    className={`absolute inset-0 
+              flex items-center 
+              font-mono pointer-events-none 
+              whitespace-pre-wrap z-0
+              px-2 py-1 leading-relaxed ${q.question.trim() === "" ? "text-gray-400" : "text-gray-900"}`}
+  >
+    <MathJax dynamic>
+      {q.question.trim() !== ""
+        ? `${q.question}`
+        : `\\(\\text{Question ${qIndex + 1}}\\)`}
+    </MathJax>
+  </div>
 
-              {/* Time & Points */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <input
-                  type="number"
-                  min={5}
-                  max={600}
-                  required
-                  value={q.time_limit}
-                  onChange={(e) =>
-                    updateQuestion(qIndex, "time_limit", parseInt(e.target.value || "0", 10))
-                  }
-                  className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  placeholder="Time Limit (sec)"
-                />
-                <input
-                  type="number"
-                  min={50}
-                  max={10000}
-                  step={50}
-                  required
-                  value={q.points}
-                  onChange={(e) =>
-                    updateQuestion(qIndex, "points", parseInt(e.target.value || "0", 10))
-                  }
-                  className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  placeholder="Points"
-                />
-              </div>
+  {/* Editable Textarea ABOVE */}
+  <textarea
+    ref={(el) => (questionRefs.current[qIndex] = el)}
+    onFocus={() => setPadTarget({ type: "question", qIndex })}
+    onBlur={() => onBlurFormatQuestion(qIndex)}
+    required
+    value={q.question}
+    onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
+    className="w-full rounded-md border-gray-300 shadow-sm 
+              focus:border-indigo-500 focus:ring-indigo-500
+              caret-black resize-none font-mono bg-transparent 
+              text-transparent placeholder-transparent relative z-10
+              px-2 py-1 leading-relaxed"
+    rows={2}
+    placeholder={`Question ${qIndex + 1}`}
+    style={{
+      WebkitTextFillColor: "transparent", // hides typed text in Chrome/Safari
+      color: "transparent",               // hides typed text in Firefox/Edge
+      fontFamily: "monospace",
+      letterSpacing: "normal",
+      lineHeight: "1.5",
+      padding: "0.5rem", // match preview
+    }}
+  />
+</div>
 
-              {/* Answers */}
-              <div className="space-y-2">
-                {q.answers.map((a, aIndex) => (
-                  <div key={aIndex} className="flex items-center gap-2 sm:gap-3">
-                    <input
-                      ref={(el) => {
-                        if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
-                        answerRefs.current[qIndex][aIndex] = el;
-                      }}
-                      onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex })}
-                      onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
-                      type="text"
-                      required
-                      value={a.answer}
-                      onChange={(e) => updateAnswer(qIndex, aIndex, "answer", e.target.value)}
-                      className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      placeholder={`Answer ${aIndex + 1} (e.g., 2x^2, sqrt(9), 3/4, theta)`}
-                    />
-                    <label className="flex items-center gap-1 text-sm">
-                      <input
-                        type="radio"
-                        name={`correct-${qIndex}`}
-                        checked={a.is_correct}
-                        onChange={() => setCorrectAnswer(qIndex, aIndex)}
-                        className="text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span>Correct</span>
-                    </label>
-                  </div>
-                ))}
-              </div>
+
+
+{/* Time & Points */}
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+  <input
+    type="number"
+    min={5}
+    max={600}
+    required
+    value={q.time_limit}
+    onChange={(e) =>
+      updateQuestion(qIndex, "time_limit", parseInt(e.target.value || "0", 10))
+    }
+    className="rounded-md border-gray-300 shadow-sm 
+              focus:border-indigo-500 focus:ring-indigo-500 font-mono"
+    placeholder="Time Limit (sec)"
+  />
+  <input
+    type="number"
+    min={50}
+    max={10000}
+    step={50}
+    required
+    value={q.points}
+    onChange={(e) =>
+      updateQuestion(qIndex, "points", parseInt(e.target.value || "0", 10))
+    }
+    className="rounded-md border-gray-300 shadow-sm 
+              focus:border-indigo-500 focus:ring-indigo-500 font-mono"
+    placeholder="Points"
+  />
+</div>
+
+
+
+{/* ANSWERS with live render */}
+<div className="space-y-2">
+  {q.answers.map((a, aIndex) => (
+    <div key={aIndex} className="flex items-center gap-2 sm:gap-3">
+      <div className="relative flex-1">
+        {/* MathJax Preview BELOW */}
+        <div
+          className={`absolute inset-0 
+                      flex items-center 
+                      font-mono pointer-events-none 
+                      whitespace-pre-wrap z-0
+                      px-2 py-1 leading-relaxed ${a.answer.trim() === "" ? "text-gray-400" : "text-gray-900"}`}
+        >
+          <MathJax dynamic>
+            {a.answer.trim() !== ""
+              ? `${a.answer}`
+              : `\\(\\text{Answer ${aIndex + 1}}\\)`}
+          </MathJax>
+        </div>
+
+        {/* Editable Input ABOVE */}
+        <input
+          ref={(el) => {
+            if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
+            answerRefs.current[qIndex][aIndex] = el;
+          }}
+          onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex })}
+          onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
+          type="text"
+          required
+          value={a.answer}
+          onChange={(e) =>
+            updateAnswer(qIndex, aIndex, "answer", e.target.value)
+          }
+          className="w-full rounded-md border-gray-300 shadow-sm 
+                      focus:border-indigo-500 focus:ring-indigo-500 
+                      caret-black font-mono bg-transparent 
+                      text-transparent placeholder-transparent relative z-10
+                      px-2 py-1 leading-relaxed"
+          placeholder={`Answer ${aIndex + 1}`}
+          style={{
+            WebkitTextFillColor: "transparent", // hides typed text in Chrome/Safari
+            color: "transparent",               // hides typed text in Firefox/Edge
+            fontFamily: "monospace",
+            letterSpacing: "normal",
+            lineHeight: "1.5",
+            padding: "0.5rem", // match preview
+          }}
+        />
+      </div>
+
+      {/* Correct Answer Selector */}
+      <label className="flex items-center gap-1 text-sm">
+        <input
+          type="radio"
+          name={`correct-${qIndex}`}
+          checked={a.is_correct}
+          onChange={() => setCorrectAnswer(qIndex, aIndex)}
+          className="text-indigo-600 focus:ring-indigo-500"
+        />
+        <span>Correct</span>
+      </label>
+    </div>
+  ))}
+</div>
+
+
+
+
             </motion.div>
           ))}
 
@@ -535,7 +601,10 @@ function CreateQuiz() {
                     prev.map((q) => ({
                       ...q,
                       question: smartFormat(q.question),
-                      answers: q.answers.map((a) => ({ ...a, answer: smartFormat(a.answer) })),
+                      answers: q.answers.map((a) => ({
+                        ...a,
+                        answer: smartFormat(a.answer),
+                      })),
                     }))
                   );
                 }}
@@ -557,11 +626,37 @@ function CreateQuiz() {
         </form>
       </motion.div>
 
+      {/* The floating button to open the math pad */}
+      <motion.button
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ type: "spring", stiffness: 260, damping: 20 }}
+        type="button"
+        // 1. Toggle the visibility of the math pad on click
+        onClick={() => setShowMathPad(!showMathPad)}
+        className="fixed bottom-4 left-4 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
+        aria-label="Toggle Math Keyboard"
+      >
+        <Keyboard className="h-6 w-6" />
+      </motion.button>
+
+      {/* Conditionally render the portable Math Pad */}
+      {showMathPad && (
+        <MathSymbolPad
+          onInsert={insertFromPad}
+          // 2. The onClose handler now only toggles the state
+          onClose={() => setShowMathPad(false)}
+          onPreventFocusLoss={(e) => e.preventDefault()}
+        />
+      )}
+
       {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-3">
           <div className="bg-white rounded-xl shadow-lg p-5 sm:p-6 w-full max-w-md space-y-4">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Quiz Created Successfully!</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
+              Quiz Created Successfully!
+            </h2>
             <p className="text-sm sm:text-base text-gray-600">
               Your quiz was saved with all questions and answers.
             </p>
@@ -577,7 +672,9 @@ function CreateQuiz() {
                   setShowSuccessModal(false);
                   setTitle("");
                   setDescription("");
-                  setQuestions([{ question: "", time_limit: 30, points: 1000, answers: freshAnswers() }]);
+                  setQuestions([
+                    { question: "", time_limit: 30, points: 1000, answers: freshAnswers() },
+                  ]);
                   setCreatedQuizId(null);
                 }}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
