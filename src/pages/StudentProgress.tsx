@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import color from "../styles/color";
-import { useAuth } from "../hooks/useAuth"; // <-- added
+import { useAuth } from "../hooks/useAuth";
 
 type ProgressRow = {
   id: string;
@@ -33,12 +33,12 @@ type StudentGroup = {
   latest: ProgressRow;
 };
 
-type Section = { id: string; name: string }; // <-- added
+type Section = { id: string; name: string };
 
 const PAGE_SIZE_OPTIONS = [15, 30, 50];
 
 function StudentProgress() {
-  const { user } = useAuth(); // <-- added
+  const { user } = useAuth();
   const email = user?.email ?? "";
 
   const [loading, setLoading] = useState(true);
@@ -50,7 +50,7 @@ function StudentProgress() {
   const [search, setSearch] = useState("");
   const [quizFilter, setQuizFilter] = useState<string>("");
 
-  // NEW: sections + selected section
+  // sections + selected section
   const [sections, setSections] = useState<Section[]>([]);
   const [selectedSection, setSelectedSection] = useState<string>("");
 
@@ -96,7 +96,7 @@ function StudentProgress() {
         .order("title", { ascending: true });
       if (!error) setQuizzes(data ?? []);
 
-      // NEW: load teacher sections (by id or email)
+      // load teacher sections (by id or email)
       const { data: secRows, error: secErr } = await supabase
         .from("sections")
         .select("id, name")
@@ -139,7 +139,7 @@ function StudentProgress() {
 
         let fetched = (data ?? []) as ProgressRow[];
 
-        // NEW: filter by section membership (via student_email)
+        // filter by section membership (via student_email)
         if (selectedSection) {
           const { data: members, error: mErr } = await supabase
             .from("section_students")
@@ -186,7 +186,7 @@ function StudentProgress() {
         r.quizzes?.title ?? "",
         String(r.score ?? ""),
         r.completed_at ?? "",
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`); // safer than replaceAll for older envs
+      ].map((v) => `"${String(v).replace(/"/g, '""')}"`);
       lines.push(vals.join(","));
     });
 
@@ -224,7 +224,7 @@ function StudentProgress() {
               </p>
             </div>
 
-            {/* Controls: stack on mobile, inline on sm+ */}
+            {/* Controls */}
             <div className="grid grid-cols-1 sm:auto-cols-fr sm:grid-flow-col gap-2 sm:gap-3 w-full md:w-auto">
               <div
                 className="flex items-center gap-2 rounded-xl border px-3 py-2 w-full"
@@ -260,7 +260,7 @@ function StudentProgress() {
                 </select>
               </div>
 
-              {/* NEW: section dropdown */}
+              {/* Section dropdown */}
               <div
                 className="flex items-center gap-2 rounded-xl border px-3 py-2 w-full"
                 style={{ borderColor: color.mist, background: "#fff" }}
@@ -348,7 +348,7 @@ function StudentProgress() {
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-bold" style={{ color: color.teal }}>
-                            {latest.score ?? 0}%
+                            {latest.score ?? 0}
                           </div>
                         </div>
                       </div>
@@ -376,7 +376,7 @@ function StudentProgress() {
                             {g.rows.map((r) => (
                               <div key={r.id} className="p-3 text-sm">
                                 <div className="font-medium truncate" style={{ color: color.deep }}>
-                                  {r.quizzes?.title || "(Untitled)"} — {r.score ?? 0}%
+                                  {r.quizzes?.title || "(Untitled)"} — {r.score ?? 0}
                                 </div>
                                 <div className="text-xs" style={{ color: color.steel }}>
                                   {safeDate(r.completed_at)}
@@ -432,7 +432,7 @@ function StudentProgress() {
                                 <span className="truncate block">{latest.quizzes?.title || "(Untitled)"}</span>
                               </td>
                               <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm" style={{ color: color.deep }}>
-                                {latest.score ?? 0}%
+                                {latest.score ?? 0}
                               </td>
                               <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm" style={{ color: color.steel }}>
                                 {safeDate(latest.completed_at)}
@@ -480,7 +480,7 @@ function StudentProgress() {
                                               <span className="truncate block">{r.quizzes?.title || "(Untitled)"}</span>
                                             </td>
                                             <td className="px-3 sm:px-4 py-2 whitespace-nowrap text-sm" style={{ color: color.deep }}>
-                                              {r.score ?? 0}%
+                                              {r.score ?? 0}
                                             </td>
                                             <td className="px-3 sm:px-4 py-2 whitespace-nowrap text-sm" style={{ color: color.steel }}>
                                               {safeDate(r.completed_at)}

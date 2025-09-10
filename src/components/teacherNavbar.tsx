@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import color from "../styles/color"; // centralized palette
+import color from "../styles/color";
 
-// Reusable Tugon logo (gradient badge + white "T")
+// Tugon logo (gradient badge + white "T")
 function TugonLogo({ size = 32 }: { size?: number }) {
   const id = "tugonGradTeacher";
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" role="img" aria-label="Tugon logo">
       <defs>
-        <linearGradient id={id} x1="0" y="0" x2="1" y2="1">
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor={color.teal} />
           <stop offset="100%" stopColor={color.aqua} />
         </linearGradient>
@@ -21,23 +21,90 @@ function TugonLogo({ size = 32 }: { size?: number }) {
   );
 }
 
+function Initials({ email, size = 28 }: { email?: string | null; size?: number }) {
+  const initials = useMemo(() => {
+    if (!email) return "U";
+    const base = email.split("@")[0] || "U";
+    return base
+      .split(/[._-]/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((s) => s[0]?.toUpperCase())
+      .join("");
+  }, [email]);
+
+  return (
+    <div
+      aria-hidden
+      className="inline-flex items-center justify-center rounded-full font-semibold"
+      style={{
+        width: size,
+        height: size,
+        background: `${color.aqua}20`,
+        color: "#fff",
+        boxShadow: `inset 0 0 0 2px ${color.aqua}55`,
+      }}
+    >
+      {initials || "U"}
+    </div>
+  );
+}
+
+function NavItem({
+  to,
+  children,
+  onNavigate,
+}: {
+  to: string;
+  children: React.ReactNode;
+  onNavigate?: () => void;
+}) {
+  return (
+    <NavLink
+      to={to}
+      onClick={onNavigate}
+      className="px-3 py-2 rounded-md text-sm font-medium transition outline-none"
+      style={({ isActive }) => ({
+        color: "#fff",
+        background: isActive ? `${color.mist}22` : "transparent",
+      })}
+      onFocus={(e) => (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}40`)}
+      onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+      onMouseEnter={(e) => (e.currentTarget.style.background = `${color.mist}22`)}
+      onMouseLeave={(e) => {
+        const isActive =
+          (e.currentTarget.getAttribute("aria-current") as string | null) === "page";
+        e.currentTarget.style.background = isActive ? `${color.mist}22` : "transparent";
+      }}
+      aria-current={({ isActive }) => (isActive ? "page" : undefined)}
+    >
+      {children}
+    </NavLink>
+  );
+}
+
 function TeacherNavbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [hideNav, setHideNav] = useState(false); // ⬅️ react to body class
+  const [hideNav, setHideNav] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Watch <body> class for "hide-navbar"
+  // Hide when body has "hide-navbar" (e.g., full-screen quiz)
   useEffect(() => {
     const update = () => setHideNav(document.body.classList.contains("hide-navbar"));
-    update(); // initial
+    update();
     const obs = new MutationObserver(update);
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     return () => obs.disconnect();
   }, []);
 
-  // If hidden (e.g., during Quiz), render nothing
+  // Close mobile nav when route changes
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
   if (hideNav) return null;
 
   const handleSignIn = () => navigate("/userTypeSelection");
@@ -47,34 +114,74 @@ function TeacherNavbar() {
     navigate("/");
   };
 
-  const isActive = (path: string) => location.pathname === path;
-
-  const linkStyle = (active: boolean) => ({
-    color: "#fff",
-    background: active ? `${color.mist}22` : "transparent",
-    borderRadius: "0.5rem",
-  });
-
-  const hoverHandlers = (el: HTMLAnchorElement, active: boolean) => {
-    if (active) return;
-    el.style.color = el.dataset._hovering === "1" ? color.mist : "#fff";
-  };
+  const closeMenuOnNavigate = () => setMenuOpen(false);
 
   return (
     <nav
       className="shadow-lg sticky top-0 z-50"
+      role="navigation"
+      aria-label="Teacher main"
       style={{ background: color.steel, color: "#fff", borderBottom: `1px solid ${color.ocean}` }}
     >
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
-          <div className="flex items-center">
+          <div className="flex items-center min-w-0">
             <Link to="/teacherHome" className="flex items-center space-x-2">
               <TugonLogo size={32} />
-              <span className="text-2xl font-bold tracking-tight" style={{ color: "#fff" }}>
+              <span className="text-2xl font-bold tracking-tight truncate" style={{ color: "#fff" }}>
                 Tugon
               </span>
             </Link>
+          </div>
+
+          {/* Desktop */}
+          <div className="hidden md:flex items-center space-x-2">
+            {user ? (
+              <>
+                <NavItem to="/teacherDashboard" onNavigate={closeMenuOnNavigate}>
+                  Dashboard
+                </NavItem>
+                <NavItem to="/create-quiz" onNavigate={closeMenuOnNavigate}>
+                  Create Quiz
+                </NavItem>
+                <NavItem to="/student-progress" onNavigate={closeMenuOnNavigate}>
+                  Student Progress
+                </NavItem>
+
+                <span aria-hidden className="mx-2" style={{ width: 1, height: 24, background: "#ffffff33" }} />
+
+                <div className="flex items-center gap-2">
+                  <Initials email={user.email} />
+                  <span className="text-sm font-medium truncate max-w-[160px] opacity-90">
+                    {user.email}
+                  </span>
+                  <button
+                    onClick={handleLogout}
+                    className="px-3 py-2 rounded-md text-sm font-semibold transition"
+                    style={{ background: "#ef4444", color: "#fff" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.95")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                    onFocus={(e) => (e.currentTarget.style.boxShadow = `0 0 0 3px #ef444455`)}
+                    onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                  >
+                    Logout
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                onClick={handleSignIn}
+                className="px-4 py-2 rounded-md text-sm font-semibold transition"
+                style={{ background: "#fff", color: color.steel }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = `${color.mist}22`)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+                onFocus={(e) => (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}40`)}
+                onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+              >
+                Sign In
+              </button>
+            )}
           </div>
 
           {/* Mobile toggle */}
@@ -84,6 +191,7 @@ function TeacherNavbar() {
               className="inline-flex items-center justify-center rounded-md p-2 focus:outline-none focus-visible:ring-2"
               aria-label="Toggle menu"
               aria-expanded={menuOpen}
+              aria-controls="teacher-mobile-menu"
               style={{ color: "#fff" }}
             >
               <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -96,146 +204,60 @@ function TeacherNavbar() {
               </svg>
             </button>
           </div>
+        </div>
 
-          {/* Desktop links */}
-          <div className="hidden md:flex items-center space-x-2">
+        {/* Mobile menu (animated height) */}
+        <div
+          id="teacher-mobile-menu"
+          ref={menuRef}
+          className="md:hidden overflow-hidden transition-[max-height] duration-300 ease-out"
+          style={{ maxHeight: menuOpen ? 360 : 0 }}
+        >
+          <div className="mt-2 space-y-1 pb-4">
             {user ? (
               <>
-                <Link
-                  to="/teacherDashboard"
-                  aria-current={isActive("/teacherDashboard") ? "page" : undefined}
-                  className="px-3 py-2 rounded-md text-sm font-medium transition"
-                  style={linkStyle(isActive("/teacherDashboard"))}
-                  onMouseOver={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "1";
-                    hoverHandlers(e.currentTarget, isActive("/teacherDashboard"));
-                  }}
-                  onMouseOut={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "0";
-                    hoverHandlers(e.currentTarget, isActive("/teacherDashboard"));
-                  }}
-                >
+                <NavItem to="/teacherDashboard" onNavigate={closeMenuOnNavigate}>
                   Dashboard
-                </Link>
-
-                <Link
-                  to="/create-quiz"
-                  aria-current={isActive("/create-quiz") ? "page" : undefined}
-                  className="px-3 py-2 rounded-md text-sm font-medium transition"
-                  style={linkStyle(isActive("/create-quiz"))}
-                  onMouseOver={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "1";
-                    hoverHandlers(e.currentTarget, isActive("/create-quiz"));
-                  }}
-                  onMouseOut={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "0";
-                    hoverHandlers(e.currentTarget, isActive("/create-quiz"));
-                  }}
-                >
+                </NavItem>
+                <NavItem to="/create-quiz" onNavigate={closeMenuOnNavigate}>
                   Create Quiz
-                </Link>
-
-                {/* Student Progress */}
-                <Link
-                  to="/student-progress"
-                  aria-current={isActive("/student-progress") ? "page" : undefined}
-                  className="px-3 py-2 rounded-md text-sm font-medium transition"
-                  style={linkStyle(isActive("/student-progress"))}
-                  onMouseOver={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "1";
-                    hoverHandlers(e.currentTarget, isActive("/student-progress"));
-                  }}
-                  onMouseOut={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).dataset._hovering = "0";
-                    hoverHandlers(e.currentTarget, isActive("/student-progress"));
-                  }}
-                >
+                </NavItem>
+                <NavItem to="/student-progress" onNavigate={closeMenuOnNavigate}>
                   Student Progress
-                </Link>
+                </NavItem>
 
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-2 rounded-md text-sm font-semibold transition"
-                  style={{ background: "#ef4444", color: "#fff" }}
-                  onMouseOver={(e) => (e.currentTarget.style.opacity = "0.95")}
-                  onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
-                >
-                  Logout
-                </button>
+                <div className="px-2 pt-2 flex items-center gap-2">
+                  <Initials email={user.email} />
+                  <span className="text-sm font-medium opacity-90">{user.email}</span>
+                </div>
+
+                <div className="px-2">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full mt-2 px-4 py-2 rounded-md text-base font-semibold transition"
+                    style={{ background: "#ef4444", color: "#fff" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.95")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                  >
+                    Logout
+                  </button>
+                </div>
               </>
             ) : (
-              <button
-                onClick={handleSignIn}
-                className="px-4 py-2 rounded-md text-sm font-semibold transition"
-                style={{ background: "#fff", color: color.steel }}
-                onMouseOver={(e) => (e.currentTarget.style.background = `${color.mist}22`)}
-                onMouseOut={(e) => (e.currentTarget.style.background = "#fff")}
-              >
-                Sign In
-              </button>
+              <div className="px-2">
+                <button
+                  onClick={handleSignIn}
+                  className="w-full px-4 py-2 rounded-md text-base font-semibold transition"
+                  style={{ background: "#fff", color: color.steel }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = `${color.mist}22`)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+                >
+                  Sign In
+                </button>
+              </div>
             )}
           </div>
         </div>
-
-        {/* Mobile menu */}
-        {menuOpen && (
-          <div className="md:hidden mt-2 space-y-1 pb-4">
-            {user ? (
-              <>
-                <Link
-                  to="/teacherDashboard"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-3 py-2 rounded-md text-base font-medium transition"
-                  style={{ color: "#fff", background: isActive("/teacherDashboard") ? `${color.mist}22` : "transparent" }}
-                >
-                  Dashboard
-                </Link>
-
-                <Link
-                  to="/create-quiz"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-3 py-2 rounded-md text-base font-medium transition"
-                  style={{ color: "#fff", background: isActive("/create-quiz") ? `${color.mist}22` : "transparent" }}
-                >
-                  Create Quiz
-                </Link>
-
-                {/* Student Progress (mobile) */}
-                <Link
-                  to="/student-progress"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-3 py-2 rounded-md text-base font-medium transition"
-                  style={{ color: "#fff", background: isActive("/student-progress") ? `${color.mist}22` : "transparent" }}
-                >
-                  Student Progress
-                </Link>
-
-                <button
-                  onClick={async () => {
-                    await handleLogout();
-                    setMenuOpen(false);
-                  }}
-                  className="w-full mt-2 px-4 py-2 rounded-md text-base font-semibold transition"
-                  style={{ background: "#ef4444", color: "#fff" }}
-                  onMouseOver={(e) => (e.currentTarget.style.opacity = "0.95")}
-                  onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={handleSignIn}
-                className="w-full px-4 py-2 rounded-md text-base font-semibold transition"
-                style={{ background: "#fff", color: color.steel }}
-                onMouseOver={(e) => (e.currentTarget.style.background = `${color.mist}22`)}
-                onMouseOut={(e) => (e.currentTarget.style.background = "#fff")}
-              >
-                Sign In
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </nav>
   );

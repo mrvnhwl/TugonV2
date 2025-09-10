@@ -5,7 +5,6 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import Footer from "../components/Footer";
 import { motion, AnimatePresence } from "framer-motion";
-import Papa from "papaparse";
 import color from "../styles/color";
 import Confetti from "react-confetti";
 
@@ -63,11 +62,13 @@ function StudentDashboard() {
       return;
     }
     loadDashboard();
-  }, [user]); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // track window size for confetti
   useEffect(() => {
-    const onResize = () => setWin({ width: window.innerWidth, height: window.innerHeight });
+    const onResize = () =>
+      setWin({ width: window.innerWidth, height: window.innerHeight });
     onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -77,16 +78,14 @@ function StudentDashboard() {
   useEffect(() => {
     if (!user) return;
 
-    // Supabase supplies last_sign_in_at; use it to scope a unique session key
     const lastSignIn = (user as any)?.last_sign_in_at || "";
     const welcomeKey = `welcomeShown:${user.id}:${lastSignIn}`;
 
     const alreadyShown = sessionStorage.getItem(welcomeKey);
     if (!alreadyShown) {
-      // first time this login -> show
       setShowWelcome(true);
       setConfettiOn(true);
-      sessionStorage.setItem(welcomeKey, "1"); // mark as shown for this login/session
+      sessionStorage.setItem(welcomeKey, "1");
       const t = setTimeout(() => setConfettiOn(false), 3000);
       return () => clearTimeout(t);
     }
@@ -96,29 +95,35 @@ function StudentDashboard() {
 
   const loadDashboard = async () => {
     try {
-      const { data: quizzesData } = await supabase
+      // All quizzes (RLS should allow SELECT for authenticated)
+      const { data: quizzesData, error: qErr } = await supabase
         .from("quizzes")
         .select("*")
         .order("created_at", { ascending: false });
-
+      if (qErr) throw qErr;
       if (quizzesData) setQuizzes(quizzesData);
 
-      const { data: progressData } = await supabase
+      // Only this user's progress (RLS: user_id = auth.uid())
+      const { data: progressData, error: pErr } = await supabase
         .from("user_progress")
-        .select(`
+        .select(
+          `
           quiz_id,
           score,
           completed_at,
           quiz:quizzes (*)
-        `)
+        `
+        )
         .eq("user_id", user?.id)
         .order("completed_at", { ascending: false });
+      if (pErr) throw pErr;
 
       if (progressData) {
         const fixed = progressData.map((item) => ({
           ...item,
-          quiz: Array.isArray(item.quiz) ? item.quiz[0] : item.quiz,
-        }));
+          quiz: Array.isArray(item.quiz) ? item.quiz[0] ?? null : item.quiz ?? null,
+          score: item.score ?? 0,
+        })) as Progress[];
         setProgress(fixed);
       }
 
@@ -129,61 +134,12 @@ function StudentDashboard() {
     }
   };
 
-  const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const confirmed = window.confirm(
-      "Are you sure you want to create accounts for all students in this CSV file? This action cannot be undone."
-    );
-    if (!confirmed) return;
-
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const rows = results.data as {
-          student_number?: string;
-          full_name?: string;
-          email: string;
-          password: string;
-          grade_level?: string;
-          section?: string;
-          contact_number?: string;
-        }[];
-
-        for (const row of rows) {
-          if (!row.email || !row.password) {
-            console.error("Skipping invalid row:", row);
-            continue;
-          }
-          if (row.password.trim().length < 6) {
-            console.error("Password too short:", row.email);
-            continue;
-          }
-          try {
-            const { error } = await supabase.auth.signUp({
-              email: row.email.trim(),
-              password: row.password.trim(),
-            });
-            if (error) throw error;
-            console.log(`✅ Created user: ${row.email}`);
-          } catch (err: any) {
-            console.error(`❌ Failed to create user ${row.email}:`, err.message);
-            alert(`Error creating user for ${row.email}: ${err.message}`);
-          }
-        }
-        alert("CSV import completed!");
-      },
-      error: (error) => {
-        alert("Error parsing CSV: " + error.message);
-      },
-    });
-  };
-
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.15, delayChildren: 0.2 },
+    },
   };
 
   const itemVariants = {
@@ -191,39 +147,35 @@ function StudentDashboard() {
     visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } },
   };
 
-  if (loading) {
-    return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: `linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)` }}
-      >
-        <motion.div
-          className="rounded-full h-12 w-12 border-4 border-t-4"
-          style={{ borderColor: `${color.teal}40` }}
-          animate={{
-            rotate: 360,
-            scale: [1, 1.2, 1],
-            borderColor: [`${color.teal}40`, color.teal, `${color.teal}40`],
-          }}
-          transition={{ duration: 1.5, ease: "easeInOut", repeat: Infinity, repeatDelay: 0.5 }}
-        />
-      </div>
-    );
-  }
+  // ---------- KPIs ----------
+  // Unique quizzes completed (no duplicates)
+  const uniqueCompletedQuizIds = new Set(
+    (progress || []).map((p) => p?.quiz_id).filter(Boolean) as string[]
+  );
+  const quizzesCompleted = uniqueCompletedQuizIds.size;
 
-  // KPIs
-  const completed = progress.length;
-  const totalScore = progress.reduce((acc, curr) => acc + (curr.score ?? 0), 0);
-  const completionRate = quizzes.length ? Math.round((completed / quizzes.length) * 100) : 0;
+  // Completion Rate = uniqueCompleted / total quizzes * 100
+  const totalChallenges = quizzes?.length ?? 0;
+  const completionRate =
+    totalChallenges > 0
+      ? Math.round((quizzesCompleted / totalChallenges) * 100)
+      : 0;
+
+  const totalScore = (progress || []).reduce(
+    (acc, curr) => acc + (curr?.score ?? 0),
+    0
+  );
 
   // Suggested reviews: last 5 attempts with score < 70 (unique by quiz_id)
   const weakAttempts = progress.filter((p) => (p.score ?? 0) < 70);
   const seen = new Set<string>();
-  const suggested = weakAttempts.filter((p) => {
-    if (seen.has(p.quiz_id)) return false;
-    seen.add(p.quiz_id);
-    return true;
-  }).slice(0, 5);
+  const suggested = weakAttempts
+    .filter((p) => {
+      if (seen.has(p.quiz_id)) return false;
+      seen.add(p.quiz_id);
+      return true;
+    })
+    .slice(0, 5);
 
   // Random topic jump
   const jumpToRandomTopic = () => {
@@ -236,10 +188,39 @@ function StudentDashboard() {
     else navigate("/studentDashboard");
   };
 
+  if (loading) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{
+          background: `linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)`,
+        }}
+      >
+        <motion.div
+          className="rounded-full h-12 w-12 border-4 border-t-4"
+          style={{ borderColor: `${color.teal}40` }}
+          animate={{
+            rotate: 360,
+            scale: [1, 1.2, 1],
+            borderColor: [`${color.teal}40`, color.teal, `${color.teal}40`],
+          }}
+          transition={{
+            duration: 1.5,
+            ease: "easeInOut",
+            repeat: Infinity,
+            repeatDelay: 0.5,
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex flex-col min-h-screen"
-      style={{ background: `linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)` }}
+      style={{
+        background: `linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)`,
+      }}
     >
       {/* Confetti */}
       <AnimatePresence>
@@ -286,14 +267,25 @@ function StudentDashboard() {
               {/* Accent header */}
               <div
                 className="px-6 py-5"
-                style={{ background: `linear-gradient(120deg, ${color.teal}, ${color.aqua})`, color: "#fff" }}
+                style={{
+                  background: `linear-gradient(120deg, ${color.teal}, ${color.aqua})`,
+                  color: "#fff",
+                }}
               >
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-xl font-extrabold leading-tight">
-                      Welcome back, <span className="underline decoration-white/50">{username}</span>! 👋
+                      Welcome back,{" "}
+                      <span className="underline decoration-white/50">
+                        {username}
+                      </span>
+                      ! 👋
                     </h2>
-                    {email && <p className="text-white/90 text-sm mt-1">Signed in as {email}</p>}
+                    {email && (
+                      <p className="text-white/90 text-sm mt-1">
+                        Signed in as {email}
+                      </p>
+                    )}
                   </div>
                   <button
                     aria-label="Close"
@@ -309,7 +301,8 @@ function StudentDashboard() {
               {/* Body */}
               <div className="px-6 py-5">
                 <p className="text-sm" style={{ color: color.steel }}>
-                  Keep your streak alive—jump into a daily challenge or review a topic. You’ve got this!
+                  Keep your streak alive—jump into a daily challenge or review a
+                  topic. You’ve got this!
                 </p>
                 <div className="mt-5 flex items-center gap-3">
                   <Link
@@ -344,9 +337,12 @@ function StudentDashboard() {
                 Your Progress 🚀
               </h2>
 
-              <motion.div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center" variants={containerVariants}>
+              <motion.div
+                className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center"
+                variants={containerVariants}
+              >
                 {[
-                  { icon: Trophy, value: completed, label: "Quizzes Completed" },
+                  { icon: Trophy, value: quizzesCompleted, label: "Quizzes Completed" },
                   { icon: BarChart, value: totalScore, label: "Total Score" },
                   { icon: Clock, value: completionRate, label: "Completion Rate", isPercent: true },
                 ].map((item) => (
@@ -382,7 +378,12 @@ function StudentDashboard() {
                 <h3 className="text-lg font-semibold mb-4" style={{ color: color.deep }}>
                   Recent Activity 📖
                 </h3>
-                <motion.div className="space-y-4" variants={containerVariants} initial="hidden" animate="visible">
+                <motion.div
+                  className="space-y-4"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
                   {progress.slice(0, 5).map((item) => (
                     <motion.div
                       key={`${item.quiz_id}-${item.completed_at}`}
@@ -394,10 +395,10 @@ function StudentDashboard() {
                       <div className="flex justify-between items-center">
                         <div>
                           <h4 className="font-medium" style={{ color: color.deep }}>
-                            {item.quiz?.title}
+                            {item.quiz?.title ?? "Untitled Quiz"}
                           </h4>
                           <p className="text-sm" style={{ color: color.steel }}>
-                            Score: {item.score}
+                            Score: {item.score ?? 0}
                           </p>
                         </div>
                         <span className="text-sm" style={{ color: color.steel }}>
@@ -410,7 +411,7 @@ function StudentDashboard() {
               </div>
             </motion.div>
 
-            {/* Keep Learning (replaces Available Quizzes) */}
+            {/* Keep Learning */}
             <motion.div
               className="rounded-2xl p-6 shadow-xl ring-1"
               style={{ background: "#fff", borderColor: `${color.mist}55` }}
@@ -456,7 +457,6 @@ function StudentDashboard() {
                   </span>
                 </Link>
 
-
                 {/* Leaderboards */}
                 <Link
                   to="/leaderboards"
@@ -492,7 +492,6 @@ function StudentDashboard() {
                 </motion.button>
               </div>
 
-              {/* Suggested Reviews List */}
               {suggested.length > 0 && (
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold mb-3" style={{ color: color.deep }}>
@@ -506,9 +505,7 @@ function StudentDashboard() {
                           className="flex items-center justify-between rounded-lg px-3 py-2"
                           style={{ border: `1px solid ${color.mist}`, background: "#fff", color: color.deep }}
                         >
-                          <span className="truncate">
-                            {s.quiz?.title ?? "Untitled Quiz"}
-                          </span>
+                          <span className="truncate">{s.quiz?.title ?? "Untitled Quiz"}</span>
                           <span className="text-sm" style={{ color: color.steel }}>
                             Score: {s.score}
                           </span>
@@ -521,7 +518,7 @@ function StudentDashboard() {
             </motion.div>
           </div>
 
-          {/* Right Column: Topics + CSV + Tips */}
+          {/* Right Column: Topics + Tips */}
           <div className="lg:col-span-1">
             <motion.div
               className="rounded-2xl p-6 h-full shadow-xl ring-1"
@@ -556,33 +553,6 @@ function StudentDashboard() {
                   </motion.div>
                 ))}
               </motion.div>
-
-              {/* CSV Import (kept as-is) */}
-              <div className="mt-8">
-                <label htmlFor="csv-upload" className="block text-sm font-medium mb-2" style={{ color: color.deep }}>
-                  Import Students via CSV
-                </label>
-
-                <input
-                  id="csv-upload"
-                  type="file"
-                  accept=".csv"
-                  className="sr-only"
-                  onChange={handleCSVImport}
-                />
-                <div className="flex items-center gap-3">
-                  <label
-                    htmlFor="csv-upload"
-                    className="inline-flex items-center justify-center rounded-xl px-4 py-2 font-semibold shadow-md cursor-pointer"
-                    style={{ background: color.teal, color: "#fff" }}
-                  >
-                    Upload CSV
-                  </label>
-                  <span className="text-xs" style={{ color: color.steel }}>
-                    Expected headers: <code>email, password</code> (plus optional fields).
-                  </span>
-                </div>
-              </div>
 
               {/* Study Tips */}
               <div className="mt-8">

@@ -36,10 +36,12 @@ declare global {
 
 export {}; // Ensure this file is treated as a module
 
-
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom"; // soft navigation
+import color from "../styles/color";
 
-const apiKey = "AIzaSyAj2V_O5fndQJWcAJ5SbMZQyfcfOJ1YBUQ"; // 🔐 Inline API key
+// ⚠️ your existing key + API call kept intact
+const apiKey = "AIzaSyAj2V_O5fndQJWcAJ5SbMZQyfcfOJ1YBUQ";
 
 export const askTugonAI = async (prompt: string): Promise<string> => {
   try {
@@ -54,10 +56,7 @@ export const askTugonAI = async (prompt: string): Promise<string> => {
       }
     );
     const result = await response.json();
-    return (
-      result.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "No response from TugonAI."
-    );
+    return result.candidates?.[0]?.content?.parts?.[0]?.text || "No response from TugonAI.";
   } catch (error) {
     console.error("TugonAI API error:", error);
     return "Something went wrong while talking to TugonAI.";
@@ -69,6 +68,8 @@ interface FloatingAIButtonProps {
 }
 
 const FloatingAIButton: React.FC<FloatingAIButtonProps> = ({ onWrongAnswer }) => {
+  const navigate = useNavigate();
+
   const [isOpen, setIsOpen] = useState(false);
   const [userInput, setUserInput] = useState("");
   const [chatHistory, setChatHistory] = useState<{ sender: string; text: string }[]>([]);
@@ -76,12 +77,12 @@ const FloatingAIButton: React.FC<FloatingAIButtonProps> = ({ onWrongAnswer }) =>
   const chatRef = useRef<HTMLDivElement>(null);
 
   const { rive, RiveComponent } = useRive({
-  src: '/tugon.riv', // Place tugon.riv in your public folder
-  stateMachines: "State Machine 1", // Use your state machine name
-  autoplay: false,
+    src: "/tugon.riv",
+    stateMachines: "State Machine 1",
+    autoplay: false,
   });
 
-   useEffect(() => {
+  useEffect(() => {
     if (rive) rive.play();
   }, [rive]);
 
@@ -102,221 +103,219 @@ const FloatingAIButton: React.FC<FloatingAIButtonProps> = ({ onWrongAnswer }) =>
     return FAQs[normalized] || null;
   };
 
-  const SpeechRecognition =
-  window.SpeechRecognition || window.webkitSpeechRecognition;
+  // Voice input (unchanged logic)
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = SpeechRecognition ? new SpeechRecognition() : null;
 
-// Define the recognition object if SpeechRecognition exists
-const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+  const handleVoiceInput = () => {
+    if (!recognition) {
+      setChatHistory((prev) => [...prev, { sender: "tugonAI", text: "❌ Voice input is not supported in your browser." }]);
+      return;
+    }
 
-const handleVoiceInput = () => {
-  if (!recognition) {
-    setChatHistory((prev) => [
-      ...prev,
-      { sender: "tugonAI", text: "❌ Voice input is not supported in your browser." },
-    ]);
-    return;
-  }
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
 
-  recognition.lang = "en-US";
-  recognition.interimResults = false;
+    recognition.onstart = () => {
+      setChatHistory((prev) => [...prev, { sender: "tugonAI", text: "🎙️ Listening... please speak clearly." }]);
+    };
 
-  recognition.onstart = () => {
-    setChatHistory((prev) => [
-      ...prev,
-      {
-        sender: "tugonAI",
-        text: "🎙️ Listening... please speak clearly.",
-      },
-    ]);
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[0][0].transcript;
+      setUserInput(transcript);
+    };
+
+    recognition.onerror = (event: Event) => {
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          sender: "tugonAI",
+          text:
+            "❌ Voice input error: " +
+            ((event as SpeechRecognitionEvent & { error?: string }).error === "not-allowed"
+              ? "Microphone access was denied."
+              : "Something went wrong."),
+        },
+      ]);
+    };
+
+    recognition.start();
   };
 
-  recognition.onresult = (event: SpeechRecognitionEvent) => {
-    const transcript = event.results[0][0].transcript;
-    setUserInput(transcript);
-  };
-
-  recognition.onerror = (event: Event) => {
-    setChatHistory((prev) => [
-      ...prev,
-      {
-        sender: "tugonAI",
-        text:
-          "❌ Voice input error: " +
-          ((event as SpeechRecognitionEvent & { error?: string }).error === "not-allowed"
-            ? "Microphone access was denied."
-            : "Something went wrong."),
-      },
-    ]);
-  };
-
-  recognition.start();
-};
-  
-  
-
-
+  // ✅ Expanded navigation routes: includes Leaderboards and synonyms
   const NAVIGATION_ROUTES: Record<string, string> = {
-  // Core pages
-  "home": "/",
-  "main": "/",
-  "start": "/",
-  "landing": "/",
+    // Core / landing
+    home: "/",
+    main: "/",
+    start: "/",
+    landing: "/",
 
-  "dashboard": "/studentDashboard",
-  "student dashboard": "/studentDashboard",
-  "student": "/studentDashboard",
-  "user dashboard": "/studentDashboard",
+    // Student dashboard
+    dashboard: "/studentDashboard",
+    "student dashboard": "/studentDashboard",
+    student: "/studentDashboard",
+    "user dashboard": "/studentDashboard",
 
-  "tugon": "/tugonsense",
-  "tugonsense": "/tugonsense",
-  "ai tutor": "/tugonsense",
-  "sense": "/tugonsense",
-  "tugon sense": "/tugonsense",
+    // AI tutor
+    tugon: "/tugonSense",
+    tugonsense: "/tugonSense",
+    "ai tutor": "/tugonSense",
+    sense: "/tugonSense",
+    "tugon sense": "/tugonSense",
 
-  "quiz": "/quizzes",
-  "quizzes": "/quizzes",
-  "take quiz": "/quizzes",
-  "practice quiz": "/quizzes",
-  "quiz section": "/quizzes",
+    // Challenges / quizzes
+    challenge: "/challenge",
+    challenges: "/challenge",
+    quiz: "/challenge",
+    quizzes: "/challenge",
+    "take quiz": "/challenge",
+    "practice quiz": "/challenge",
+    "quiz section": "/challenge",
 
-  // Topics with corrected paths
-  "introduction": "/introductiontopic",
-  "introduction to functions": "/introductiontopic",
-  "intro": "/introductiontopic",
-  "functions intro": "/introductiontopic",
+    // 🚀 Leaderboards (added + synonyms)
+    leaderboard: "/leaderboards",
+    leaderboards: "/leaderboards",
+    rankings: "/leaderboards",
+    ranking: "/leaderboards",
+    scoreboard: "/leaderboards",
+    scores: "/leaderboards",
+    "top players": "/leaderboards",
 
-  "operations": "/operationstopic",
-  "operations on functions": "/operationstopic",
-  "function operations": "/operationstopic",
-  "apply operations": "/operationstopic",
+    // Profile / settings (if present in your router)
+    profile: "/profile",
+    account: "/profile",
+    settings: "/settings",
 
-  "evaluation": "/evaluationtopic",
-  "evaluate functions": "/evaluationtopic",
-  "function evaluation": "/evaluationtopic",
+    // Info / support
+    help: "/help",
+    support: "/help",
+    contact: "/contact",
+    about: "/about",
 
-  "composition": "/compositiontopic",
-  "composition of functions": "/compositiontopic",
-  "composite functions": "/compositiontopic",
-  "function composition": "/compositiontopic",
+    // Topics
+    introduction: "/introductiontopic",
+    "introduction to functions": "/introductiontopic",
+    intro: "/introductiontopic",
+    "functions intro": "/introductiontopic",
 
-  "rational": "/rationaltopic",
-  "rational functions": "/rationaltopic",
-  "rational expressions": "/rationaltopic",
+    operations: "/operationstopic",
+    "operations on functions": "/operationstopic",
+    "function operations": "/operationstopic",
+    "apply operations": "/operationstopic",
 
-  "asymptotes": "/asymptotestopic",
-  "vertical asymptotes": "/asymptotestopic",
-  "horizontal asymptotes": "/asymptotestopic",
-  "oblique asymptotes": "/asymptotestopic",
-  "graph asymptotes": "/asymptotestopic",
+    evaluation: "/evaluationtopic",
+    "evaluate functions": "/evaluationtopic",
+    "function evaluation": "/evaluationtopic",
 
-  "solving": "/rationalinequalitiestopic",
-  "solve rational equations": "/rationalinequalitiestopic",
-  "rational inequalities": "/rationalinequalitiestopic",
-  "solving rational": "/rationalinequalitiestopic",
+    composition: "/compositiontopic",
+    "composition of functions": "/compositiontopic",
+    "composite functions": "/compositiontopic",
+    "function composition": "/compositiontopic",
 
-  "inverse": "/inversetopic",
-  "inverse functions": "/inversetopic",
-  "inverse of function": "/inversetopic",
+    rational: "/rationaltopic",
+    "rational functions": "/rationaltopic",
+    "rational expressions": "/rationaltopic",
 
-  "exponential": "/exponentialandlogtopic",
-  "logarithmic": "/exponentialandlogtopic",
-  "exponential functions": "/exponentialandlogtopic",
-  "logarithmic functions": "/exponentialandlogtopic",
+    asymptotes: "/asymptotestopic",
+    "vertical asymptotes": "/asymptotestopic",
+    "horizontal asymptotes": "/asymptotestopic",
+    "oblique asymptotes": "/asymptotestopic",
+    "graph asymptotes": "/asymptotestopic",
 
-  "problem solving": "/problemsolvingfunctopic",
-  "function word problems": "/problemsolvingfunctopic",
-  "word problems": "/problemsolvingfunctopic",
+    solving: "/rationalinequalitiestopic",
+    "solve rational equations": "/rationalinequalitiestopic",
+    "rational inequalities": "/rationalinequalitiestopic",
+    "solving rational": "/rationalinequalitiestopic",
 
-  "graphs": "/graphstopic",
-  "graphing functions": "/graphs",
-  "function graphs": "/graphs",
-  "graphs of functions": "/graphs",
-};
+    inverse: "/inversetopic",
+    "inverse functions": "/inversetopic",
+    "inverse of function": "/inversetopic",
 
+    exponential: "/exponentialandlogtopic",
+    logarithmic: "/exponentialandlogtopic",
+    "exponential functions": "/exponentialandlogtopic",
+    "logarithmic functions": "/exponentialandlogtopic",
+
+    "problem solving": "/problemsolvingfunctopic",
+    "function word problems": "/problemsolvingfunctopic",
+    "word problems": "/problemsolvingfunctopic",
+
+    graphs: "/graphstopic",
+    "graphing functions": "/graphstopic",
+    "function graphs": "/graphstopic",
+    "graphs of functions": "/graphstopic",
+
+    // Extras (only if defined in your router)
+    modules: "/modules",
+    topics: "/topics",
+    resources: "/resources",
+    notes: "/notes",
+    calculator: "/calculator",
+    formula: "/formula",
+    "formula sheet": "/formula",
+    references: "/references",
+  };
 
   const sendMessage = async () => {
-  const trimmedInput = userInput.trim();
-  if (!trimmedInput) return;
+    const trimmedInput = userInput.trim();
+    if (!trimmedInput) return;
 
-  const normalizedInput = trimmedInput.toLowerCase();
- 
-  //Define trigger phrases that imply intent to navigate
-  const navigationIntentPhrases = [
-    "go to",
-    "navigate to",
-    "take me to",
-    "open",
-    "where is",
-    "show me",
-    "bring me to",
-    "redirect to",
-    "navigate me to",
-    
-  ];
+    const normalizedInput = trimmedInput.toLowerCase();
 
-  //Check if input contains a navigation phrase
-  const hasNavigationIntent = navigationIntentPhrases.some((phrase) =>
-    normalizedInput.includes(phrase)
-  );
+    const navigationIntentPhrases = [
+      "go to",
+      "navigate to",
+      "take me to",
+      "open",
+      "where is",
+      "show me",
+      "bring me to",
+      "redirect to",
+      "navigate me to",
+    ];
 
-  // 🔍 Try to match a navigation keyword
-  const matchedRoute = Object.keys(NAVIGATION_ROUTES).find((keyword) =>
-    normalizedInput.includes(keyword)
-  );
+    const hasNavigationIntent = navigationIntentPhrases.some((p) => normalizedInput.includes(p));
+    const matchedRoute = Object.keys(NAVIGATION_ROUTES).find((keyword) => normalizedInput.includes(keyword));
 
-  //Only navigate if user clearly intends to
-  if (matchedRoute && hasNavigationIntent) {
-    setChatHistory((prev) => [
-      ...prev,
-      { sender: "user", text: trimmedInput },
-      { sender: "tugonAI", text: `🔀 Navigating you to the ${matchedRoute} page.` },
-    ]);
+    // Soft navigation (prevents logout)
+    if (matchedRoute && hasNavigationIntent) {
+      const path = NAVIGATION_ROUTES[matchedRoute];
+      setChatHistory((prev) => [
+        ...prev,
+        { sender: "user", text: trimmedInput },
+        { sender: "tugonAI", text: `🔀 Navigating you to the ${matchedRoute} page.` },
+      ]);
+      setUserInput("");
+      setIsLoading(false);
+      navigate(path);
+      return;
+    }
+
+    setChatHistory((prev) => [...prev, { sender: "user", text: trimmedInput }]);
     setUserInput("");
-    setIsLoading(false);
-    setTimeout(() => {
-      window.location.href = NAVIGATION_ROUTES[matchedRoute];
-    }, 1500);
-    return;
-  }
+    setIsLoading(true);
 
-  setChatHistory((prev) => [...prev, { sender: "user", text: trimmedInput }]);
-  setUserInput("");
-  setIsLoading(true);
-
-  const faqAnswer = findFAQAnswer(trimmedInput);
-  if (faqAnswer) {
-    setChatHistory((prev) => [...prev, { sender: "tugonAI", text: faqAnswer }]);
-    setIsLoading(false);
-    return;
-  }
+    const faqAnswer = findFAQAnswer(trimmedInput);
+    if (faqAnswer) {
+      setChatHistory((prev) => [...prev, { sender: "tugonAI", text: faqAnswer }]);
+      setIsLoading(false);
+      return;
+    }
 
     const systemPrompt = `
 If you are asked what this project is about or who you are, answer: "TugonAI is designed as an educational assistant specialized in General Mathematics."
-
 Only answer questions related to math topics such as algebra, functions, interest, sequences, etc.
-
 If a question is not math-related, respond with: "I can only help with General Mathematics questions."
-
 If a question is unclear, respond with: "Hmm, I didn’t quite catch that. Could you please rephrase or be more specific with your question? I’m here to help!"
-
 Keep your answers clear, factual, student-friendly and 1 sentence only.
-
 If the user asks why Tugon is the name or what is the meaning of Tugon, answer: "The name Tugonsense comes from the core function of the AI itself. The Tugon AI is designed to identify errors in a student’s step-by-step answers, hence the term 'sense' in the name. It 'senses' or detects mistakes in reasoning or computation as students work through problems."
-
 If the user inputs inappropriate or offensive content, respond with: "Avoid using inappropriate or offensive language."
-
 If the user asks "Who is John Raven Aquino ?", answer: Raven is the leader and developer of Tugon.
-
 If the user asks "Who is Mervin Howell Gundaya?", answer: Howell is the lead programmer and the team’s coding wizard.
-
 If the user asks "Who is John Lester Malonzo?", answer: Malonzo is the second-in-command and a key programmer.
-
 If the user asks "Who is Meann Saguid?", answer: Mean is the team’s sharp-eyed document analyst, the mind behind the paper.
-
 If the user asks "Who is Manuell Terenz Cruz?", answer: Manuel is a driven researcher and document lead.
-
 If a user asks where to find something on the website (e.g., 'Where is the interest page?'), respond with: “🔀 Navigating you to the [name] page.” and the system will redirect them automatically.
-
 If it's not a known page, respond with: “Hmm, I couldn’t find that page. Try using keywords like ‘interest’, ‘quizzes’, or ‘profile’.”
 `;
 
@@ -325,7 +324,6 @@ If it's not a known page, respond with: “Hmm, I couldn’t find that page. Try
     setChatHistory((prev) => [...prev, { sender: "tugonAI", text: reply }]);
     setIsLoading(false);
   };
-
 
   useEffect(() => {
     if (chatRef.current) {
@@ -337,212 +335,282 @@ If it's not a known page, respond with: “Hmm, I couldn’t find that page. Try
     <>
       {!isOpen && (
         <button
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          position: "fixed",
-          bottom: "20px",
-          right: "20px",
-          background: "transparent",
-          border: "none",
-          padding: 0,
-          cursor: "pointer",
-          zIndex: 1000,
-        }}
-      >
-       <RiveComponent
-        style={{
-          width: "60px",
-          height: "60px",
-          transition: "transform 0.2s",
-          display: "block",
-        }}
-        onMouseEnter={() => rive && rive.pause()}
-        onMouseLeave={() => rive && rive.play()}
-      
-      />
-      </button>
-      
+          onClick={() => setIsOpen(!isOpen)}
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            zIndex: 1000,
+            width: 64,
+            height: 64,
+            borderRadius: "50%",
+            boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+            transition: "transform .18s ease, box-shadow .18s ease",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.06)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          aria-label="Open TugonAI"
+        >
+          <RiveComponent
+            style={{ width: 40, height: 40, display: "block", margin: "12px auto" }}
+            onMouseEnter={() => rive && rive.pause()}
+            onMouseLeave={() => rive && rive.play()}
+          />
+        </button>
       )}
 
       {isOpen && (
-  <div
-    style={{
-      position: "fixed",
-      bottom: "20px",
-      right: "20px",
-      width: "400px",
-      height: "600px",
-      backgroundColor: "#fff",
-      border: "1px solid #ddd",
-      borderRadius: "12px",
-      boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-      display: "flex",
-      flexDirection: "column",
-      fontFamily: "Arial, sans-serif",
-    }}
-  >
-    {/* Close Button */}
-    <button
-      onClick={() => setIsOpen(false)}
-      style={{
-        position: "absolute",
-        top: "10px",
-        right: "10px",
-        backgroundColor: "#f44336", // Red for close button
-        color: "#fff",
-        border: "none",
-        borderRadius: "50%",
-        width: "30px",
-        height: "30px",
-        fontSize: "16px",
-        cursor: "pointer",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-      }}
-    >
-      ✕
-    </button>
-
-    {/* FAQ Buttons Section */}
-    <div
-      style={{
-        padding: "12px",
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "8px",
-        height: "40%",
-        overflowY: "auto",
-        borderBottom: "1px solid #eee",
-      }}
-    >
-      {Object.keys(FAQs).map((q, idx) => (
-        <button
-          key={idx}
-          onClick={() => {
-            setChatHistory((prev) => [...prev, { sender: "user", text: q }]);
-            const answer = findFAQAnswer(q);
-            if (answer) {
-              setChatHistory((prev) => [
-                ...prev,
-                { sender: "tugonAI", text: answer },
-              ]);
-            }
-          }}
-          style={{
-            padding: "8px 12px",
-            fontSize: "14px",
-            backgroundColor: "#fff",
-            color: "#6200ee",
-            border: "1px solid #6200ee",
-            borderRadius: "20px",
-            cursor: "pointer",
-          }}
-        >
-          {q.charAt(0).toUpperCase() + q.slice(1)}
-        </button>
-      ))}
-    </div>
-
-    {/* Chat Content Section */}
-    <div
-      ref={chatRef}
-      style={{
-        flex: 1,
-        padding: "12px",
-        overflowY: "auto",
-        fontSize: "15px",
-      }}
-    >
-      {chatHistory.map((msg, i) => (
         <div
-          key={i}
           style={{
-            marginBottom: "12px",
+            position: "fixed",
+            bottom: "20px",
+            right: "20px",
+            width: "380px",
+            height: "560px",
+            backgroundColor: "#fff",
+            border: `1px solid ${color.mist}55`,
+            borderRadius: "20px",
+            boxShadow: "0 16px 40px rgba(0,0,0,0.25)",
             display: "flex",
-            flexDirection: msg.sender === "user" ? "row-reverse" : "row",
-            alignItems: "flex-start",
-            gap: "8px",
+            flexDirection: "column",
+            fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
+            overflow: "hidden",
+            zIndex: 1000,
           }}
         >
+          {/* Header */}
           <div
             style={{
-              maxWidth: "70%",
-              padding: "10px",
-              borderRadius: "12px",
-              backgroundColor: msg.sender === "user" ? "#e1f5fe" : "#f5f5f5",
-              color: "#000",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-              fontSize: "14px",
-              textAlign: "left",
+              background: `linear-gradient(135deg, ${color.ocean}, ${color.teal})`,
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              color: "#fff",
             }}
           >
-            <strong>{msg.sender === "user" ? "You" : "TugonAI"}:</strong> {msg.text}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "#ffffff22",
+                  display: "grid",
+                  placeItems: "center",
+                }}
+              >
+                🤖
+              </div>
+              <div style={{ lineHeight: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>TugonAI</div>
+                <div style={{ fontSize: 11, opacity: 0.85 }}>General Mathematics Helper</div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsOpen(false)}
+              style={{
+                background: "#ffffff33",
+                border: "none",
+                borderRadius: "10px",
+                padding: "6px 10px",
+                color: "#fff",
+                cursor: "pointer",
+                fontWeight: 700,
+                transition: "background .18s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#ffffff44")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff33")}
+              aria-label="Close chat"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* FAQ Buttons */}
+          <div
+            style={{
+              padding: "10px",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              height: "38%",
+              overflowY: "auto",
+              borderBottom: `1px solid ${color.mist}55`,
+              background: `${color.mist}11`,
+            }}
+          >
+            {Object.keys(FAQs).map((q, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  setChatHistory((prev) => [...prev, { sender: "user", text: q }]);
+                  const answer = findFAQAnswer(q);
+                  if (answer) {
+                    setChatHistory((prev) => [...prev, { sender: "tugonAI", text: answer }]);
+                  }
+                }}
+                style={{
+                  padding: "8px 12px",
+                  fontSize: "12.5px",
+                  backgroundColor: "#fff",
+                  color: color.teal,
+                  border: `1px solid ${color.teal}`,
+                  borderRadius: "16px",
+                  cursor: "pointer",
+                  transition: "all .18s ease",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = color.teal;
+                  e.currentTarget.style.color = "#fff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#fff";
+                  e.currentTarget.style.color = color.teal;
+                }}
+              >
+                {q.charAt(0).toUpperCase() + q.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Chat Content */}
+          <div
+            ref={chatRef}
+            style={{
+              flex: 1,
+              padding: "12px",
+              overflowY: "auto",
+              fontSize: "14px",
+              background: "#fff",
+            }}
+          >
+            {chatHistory.map((msg, i) => (
+              <div
+                key={i}
+                style={{
+                  marginBottom: "10px",
+                  display: "flex",
+                  flexDirection: msg.sender === "user" ? "row-reverse" : "row",
+                  alignItems: "flex-start",
+                  gap: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    maxWidth: "78%",
+                    padding: "10px 12px",
+                    borderRadius: msg.sender === "user" ? "14px 14px 2px 14px" : "14px 14px 14px 2px",
+                    background:
+                      msg.sender === "user"
+                        ? `linear-gradient(135deg, ${color.teal}, ${color.aqua})`
+                        : `${color.mist}22`,
+                    color: msg.sender === "user" ? "#fff" : color.deep,
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                    border: msg.sender === "user" ? "none" : `1px solid ${color.mist}55`,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  <strong style={{ fontSize: 11, opacity: 0.85 }}>{msg.sender === "user" ? "You" : "TugonAI"}</strong>
+                  <div style={{ marginTop: 4 }}>{msg.text}</div>
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div style={{ color: color.steel, fontStyle: "italic", fontSize: 13 }}>
+                TugonAI is typing…
+              </div>
+            )}
+          </div>
+
+          {/* Input Row */}
+          <div
+            style={{
+              display: "flex",
+              borderTop: `1px solid ${color.mist}55`,
+              background: "#fafafa",
+              padding: "8px",
+              gap: "8px",
+              alignItems: "center",
+            }}
+          >
+            <input
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder="Ask something..."
+              style={{
+                flex: 1,
+                border: `1px solid ${color.mist}`,
+                background: "#fff",
+                padding: "10px 12px",
+                fontSize: "14px",
+                outline: "none",
+                borderRadius: "12px",
+                color: color.deep,
+                boxShadow: "0 1px 2px rgba(0,0,0,0.04) inset",
+              }}
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            />
+
+            <button
+              onClick={handleVoiceInput}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: "10px",
+                background: "#fff",
+                color: color.teal,
+                border: `1px solid ${color.teal}66`,
+                fontSize: 18,
+                cursor: "pointer",
+                transition: "all .18s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = `${color.teal}`;
+                e.currentTarget.style.color = "#fff";
+                e.currentTarget.style.borderColor = color.teal;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#fff";
+                e.currentTarget.style.color = color.teal;
+                e.currentTarget.style.borderColor = `${color.teal}66`;
+              }}
+              title="Speak your question"
+              aria-label="Voice input"
+            >
+              🎤
+            </button>
+
+            <button
+              onClick={sendMessage}
+              style={{
+                width: 42,
+                height: 38,
+                borderRadius: "10px",
+                border: "none",
+                background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                color: "#fff",
+                fontWeight: 800,
+                fontSize: 16,
+                cursor: "pointer",
+                boxShadow: "0 6px 14px rgba(0,0,0,0.12)",
+                transition: "transform .12s ease",
+              }}
+              onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px)")}
+              onMouseUp={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+              aria-label="Send message"
+            >
+              ➤
+            </button>
           </div>
         </div>
-      ))}
-      {isLoading && (
-        <div
-          style={{
-            marginBottom: "12px",
-            textAlign: "left",
-            fontSize: "14px",
-          }}
-        >
-          <strong>TugonAI:</strong> <em>Typing...</em>
-        </div>
       )}
-    </div>
-
-    {/* Input Section */}
-    <div style={{ display: "flex", borderTop: "1px solid #eee" }}>
-  <input
-    value={userInput}
-    onChange={(e) => setUserInput(e.target.value)}
-    placeholder="Ask something..."
-    style={{
-      flex: 1,
-      border: "none",
-      padding: "12px",
-      fontSize: "15px",
-      outline: "none",
-    }}
-    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-  />
-
-  {/* 🎤 Voice Button */}
-  <button
-    onClick={handleVoiceInput}
-    style={{
-      padding: "0 16px",
-      backgroundColor: "#ffffff",
-      color: "#6200ee",
-      border: "none",
-      fontSize: "18px",
-      cursor: "pointer",
-    }}
-    title="Speak your question"
-  >
-    🎤
-  </button>
-
-  {/* ➤ Send Button */}
-  <button
-    onClick={sendMessage}
-    style={{
-      padding: "12px 20px",
-      backgroundColor: "#6200ee",
-      color: "#fff",
-      border: "none",
-      fontWeight: "bold",
-      fontSize: "15px",
-      cursor: "pointer",
-    }}
-  >
-    ➤
-  </button>
-</div>
-  </div>
-)}
-
     </>
   );
 };
