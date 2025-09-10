@@ -35,7 +35,7 @@ function Inversetopic() {
       answer: 1,
     },
     {
-      question:"Find the inverse of f(x) = 2x",
+      question:"Find the inverse of f(x) = 2x.",
       options: [
         "f⁻¹(x) = 2x - 3", 
         "f⁻¹(x) = (x - 3) / 2", 
@@ -63,7 +63,7 @@ function Inversetopic() {
       answer: 2,
     },
 {
-      question: "Find the inverse of the linear y = 1/2x + 3?",
+      question: "Find the inverse of the linear y = 1/2x + 3.",
       options: [
         "f⁻¹(x) = 2x - 3", 
         "f⁻¹(x) = 2x - 6", 
@@ -73,7 +73,7 @@ function Inversetopic() {
       answer: 1,
     },
     {
-      question:"Find the inverse of f(x) = x + 10?",
+      question:"Find the inverse of f(x) = x + 10.",
       options: [
         "f⁻¹(x) = x - 2", 
         "f⁻¹(x) = x + 10", 
@@ -82,7 +82,7 @@ function Inversetopic() {
       answer: 2,
     },
     {
-      question:"Find the inverse of f(x) = 6 - 1/x",
+      question:"Find the inverse of f(x) = 6 - 1/x.",
       options: [
         "f⁻¹(x) = -1/x-6", 
         "f⁻¹(x) = 1/x-6", 
@@ -91,7 +91,7 @@ function Inversetopic() {
       answer: 0,
     },
     {
-      question: "Find the inverse of the function f(x) = 2x+5 / 4x-1",
+      question: "Find the inverse of the function f(x) = 2x+5 / 4x-1.",
       options: [
         "f⁻¹(x) =  x+5 / 4x+2", 
         "f⁻¹(x) =  x-5 / 4x-2", 

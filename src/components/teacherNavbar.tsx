@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import color from "../styles/color"; // centralized palette
@@ -23,9 +23,22 @@ function TugonLogo({ size = 32 }: { size?: number }) {
 
 function TeacherNavbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [hideNav, setHideNav] = useState(false); // ⬅️ react to body class
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Watch <body> class for "hide-navbar"
+  useEffect(() => {
+    const update = () => setHideNav(document.body.classList.contains("hide-navbar"));
+    update(); // initial
+    const obs = new MutationObserver(update);
+    obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+
+  // If hidden (e.g., during Quiz), render nothing
+  if (hideNav) return null;
 
   const handleSignIn = () => navigate("/userTypeSelection");
   const handleLogout = async () => {

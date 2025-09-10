@@ -36,12 +36,21 @@ function Quiz() {
 
   const returnTo = location.state?.returnTo || '/challenge';
 
+  // Hide navbar while on quiz page
+  useEffect(() => {
+    document.body.classList.add('hide-navbar');
+    return () => {
+      document.body.classList.remove('hide-navbar');
+    };
+  }, []);
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
       return;
     }
     loadQuiz();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user]);
 
   useEffect(() => {
@@ -54,9 +63,7 @@ function Quiz() {
 
   useEffect(() => {
     if (timeLeft > 0 && !isAnswered) {
-      const timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
+      const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
       return () => clearInterval(timer);
     } else if (timeLeft === 0 && !isAnswered) {
       handleTimeout();
@@ -65,20 +72,24 @@ function Quiz() {
 
   const loadQuiz = async () => {
     try {
-      const { data: quizData } = await supabase
+      const { data: quizData, error: quizError } = await supabase
         .from('quizzes')
         .select('*')
         .eq('id', id)
         .single();
 
+      if (quizError) throw quizError;
+
       if (quizData) {
         setQuiz(quizData);
 
-        const { data: questionsData } = await supabase
+        const { data: questionsData, error: qErr } = await supabase
           .from('questions')
           .select('*')
           .eq('quiz_id', id)
           .order('created_at');
+
+        if (qErr) throw qErr;
 
         if (questionsData && questionsData.length > 0) {
           setQuestions(questionsData);
@@ -87,16 +98,23 @@ function Quiz() {
       }
     } catch (error) {
       console.error('Error loading quiz:', error);
+      toast.error('Failed to load quiz.');
     }
   };
 
   const loadAnswers = async (questionId: string) => {
-    const { data: answersData } = await supabase
-      .from('answers')
-      .select('*')
-      .eq('question_id', questionId);
+    try {
+      const { data: answersData, error } = await supabase
+        .from('answers')
+        .select('*')
+        .eq('question_id', questionId);
 
-    if (answersData) setAnswers(answersData);
+      if (error) throw error;
+      if (answersData) setAnswers(answersData);
+    } catch (e) {
+      console.error('Error loading answers:', e);
+      toast.error('Failed to load answers.');
+    }
   };
 
   const handleTimeout = () => {
@@ -107,16 +125,17 @@ function Quiz() {
     if (isAnswered) return;
     setIsAnswered(true);
 
-    if (answer.is_correct) {
-      const timeBonus = Math.floor((timeLeft / 30) * currentQuestion!.points);
+    if (answer.is_correct && currentQuestion) {
+      const timeBonus = Math.floor((timeLeft / 30) * currentQuestion.points);
       setScore((prev) => prev + timeBonus);
     }
   };
 
   const nextQuestion = () => {
     if (questionIndex < questions.length - 1) {
-      setQuestionIndex((prev) => prev + 1);
-      setCurrentQuestion(questions[questionIndex + 1]);
+      const nextIndex = questionIndex + 1;
+      setQuestionIndex(nextIndex);
+      setCurrentQuestion(questions[nextIndex]);
     } else {
       finishQuiz();
     }
@@ -124,27 +143,32 @@ function Quiz() {
 
   const prevQuestion = () => {
     if (questionIndex > 0) {
-      setQuestionIndex((prev) => prev - 1);
-      setCurrentQuestion(questions[questionIndex - 1]);
+      const prevIndex = questionIndex - 1;
+      setQuestionIndex(prevIndex);
+      setCurrentQuestion(questions[prevIndex]);
     }
   };
 
   const finishQuiz = async () => {
-    await supabase.from('user_progress').insert({
-      user_id: user?.id,
-      quiz_id: id,
-      score: score,
-      user_email: user?.email,
-    });
-
-    toast.success('Challenge Completed!');
+    try {
+      await supabase.from('user_progress').insert({
+        user_id: user?.id,
+        quiz_id: id,
+        score,
+        user_email: user?.email,
+      });
+      toast.success('Challenge Completed!');
+    } catch (e) {
+      console.error('Error saving progress:', e);
+      toast.error('Failed to save progress.');
+    }
     navigate(returnTo);
   };
 
   if (!quiz || !currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600" />
       </div>
     );
   }

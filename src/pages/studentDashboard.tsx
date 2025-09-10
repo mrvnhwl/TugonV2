@@ -216,6 +216,26 @@ function StudentDashboard() {
   const totalScore = progress.reduce((acc, curr) => acc + (curr.score ?? 0), 0);
   const completionRate = quizzes.length ? Math.round((completed / quizzes.length) * 100) : 0;
 
+  // Suggested reviews: last 5 attempts with score < 70 (unique by quiz_id)
+  const weakAttempts = progress.filter((p) => (p.score ?? 0) < 70);
+  const seen = new Set<string>();
+  const suggested = weakAttempts.filter((p) => {
+    if (seen.has(p.quiz_id)) return false;
+    seen.add(p.quiz_id);
+    return true;
+  }).slice(0, 5);
+
+  // Random topic jump
+  const jumpToRandomTopic = () => {
+    const t = topics[Math.floor(Math.random() * topics.length)];
+    if (t) navigate(t.path);
+  };
+
+  const goReviewFirst = () => {
+    if (suggested[0]) navigate(`/quiz/${suggested[0].quiz_id}`);
+    else navigate("/studentDashboard");
+  };
+
   return (
     <div
       className="flex flex-col min-h-screen"
@@ -289,7 +309,7 @@ function StudentDashboard() {
               {/* Body */}
               <div className="px-6 py-5">
                 <p className="text-sm" style={{ color: color.steel }}>
-                  Keep your streak alive—jump into a quiz or review a topic. You’ve got this!
+                  Keep your streak alive—jump into a daily challenge or review a topic. You’ve got this!
                 </p>
                 <div className="mt-5 flex items-center gap-3">
                   <Link
@@ -390,7 +410,7 @@ function StudentDashboard() {
               </div>
             </motion.div>
 
-            {/* Available Quizzes */}
+            {/* Keep Learning (replaces Available Quizzes) */}
             <motion.div
               className="rounded-2xl p-6 shadow-xl ring-1"
               style={{ background: "#fff", borderColor: `${color.mist}55` }}
@@ -399,45 +419,109 @@ function StudentDashboard() {
               variants={containerVariants}
             >
               <h2 className="text-2xl font-bold mb-6" style={{ color: color.deep }}>
-                Available Quizzes 🧠
+                Keep Learning ⚡
               </h2>
-              <motion.div className="space-y-4" variants={containerVariants}>
-                {quizzes.map((quiz) => (
-                  <motion.div
-                    key={quiz.id}
-                    variants={itemVariants}
-                    whileHover={{ scale: 1.02, x: 5 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Link
-                      to={`/quiz/${quiz.id}`}
-                      className="block rounded-lg p-4 transition flex justify-between items-center"
-                      style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
-                    >
-                      <div>
-                        <h3 className="text-lg font-semibold" style={{ color: color.deep }}>
-                          {quiz.title}
-                        </h3>
-                        <p className="text-sm mt-1" style={{ color: color.steel }}>
-                          {quiz.description}
-                        </p>
-                      </div>
-                      <motion.div
-                        className="flex items-center space-x-2 px-4 py-2 rounded-full transition"
-                        style={{ background: color.teal, color: "#fff" }}
-                        whileHover={{ scale: 1.08 }}
-                      >
-                        <Play className="h-4 w-4" />
-                        <span>Start</span>
-                      </motion.div>
-                    </Link>
-                  </motion.div>
-                ))}
-              </motion.div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Random Topic */}
+                <motion.button
+                  onClick={jumpToRandomTopic}
+                  className="flex items-center justify-between rounded-xl px-4 py-3 shadow-sm"
+                  style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+                  variants={itemVariants}
+                  whileHover={{ scale: 1.02, x: 4 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <span className="flex items-center gap-2 font-medium" style={{ color: color.deep }}>
+                    <BookOpen className="h-5 w-5" style={{ color: color.teal }} />
+                    Random Topic
+                  </span>
+                  <span className="text-xs" style={{ color: color.steel }}>
+                    Explore anything
+                  </span>
+                </motion.button>
+
+                {/* Daily Challenge */}
+                <Link
+                  to="/daily-challenge"
+                  className="flex items-center justify-between rounded-xl px-4 py-3 shadow-sm"
+                  style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+                >
+                  <span className="flex items-center gap-2 font-medium" style={{ color: color.deep }}>
+                    <Play className="h-5 w-5" style={{ color: color.teal }} />
+                    Daily Challenge
+                  </span>
+                  <span className="text-xs" style={{ color: color.steel }}>
+                    5–10 mins
+                  </span>
+                </Link>
+
+
+                {/* Leaderboards */}
+                <Link
+                  to="/leaderboards"
+                  className="flex items-center justify-between rounded-xl px-4 py-3 shadow-sm"
+                  style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+                >
+                  <span className="flex items-center gap-2 font-medium" style={{ color: color.deep }}>
+                    <Trophy className="h-5 w-5" style={{ color: color.teal }} />
+                    View Leaderboards
+                  </span>
+                  <span className="text-xs" style={{ color: color.steel }}>
+                    See top scores
+                  </span>
+                </Link>
+
+                {/* Review Mistakes */}
+                <motion.button
+                  onClick={goReviewFirst}
+                  disabled={suggested.length === 0}
+                  className="flex items-center justify-between rounded-xl px-4 py-3 shadow-sm disabled:opacity-60"
+                  style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+                  variants={itemVariants}
+                  whileHover={{ scale: 1.02, x: 4 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <span className="flex items-center gap-2 font-medium" style={{ color: color.deep }}>
+                    <BarChart className="h-5 w-5" style={{ color: color.teal }} />
+                    Review Mistakes
+                  </span>
+                  <span className="text-xs" style={{ color: color.steel }}>
+                    {suggested.length ? `${suggested.length} suggestion(s)` : "All good!"}
+                  </span>
+                </motion.button>
+              </div>
+
+              {/* Suggested Reviews List */}
+              {suggested.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold mb-3" style={{ color: color.deep }}>
+                    Suggested Reviews
+                  </h3>
+                  <ul className="space-y-2">
+                    {suggested.map((s) => (
+                      <li key={s.quiz_id}>
+                        <Link
+                          to={`/quiz/${s.quiz_id}`}
+                          className="flex items-center justify-between rounded-lg px-3 py-2"
+                          style={{ border: `1px solid ${color.mist}`, background: "#fff", color: color.deep }}
+                        >
+                          <span className="truncate">
+                            {s.quiz?.title ?? "Untitled Quiz"}
+                          </span>
+                          <span className="text-sm" style={{ color: color.steel }}>
+                            Score: {s.score}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </motion.div>
           </div>
 
-          {/* Right Column: Topics + CSV */}
+          {/* Right Column: Topics + CSV + Tips */}
           <div className="lg:col-span-1">
             <motion.div
               className="rounded-2xl p-6 h-full shadow-xl ring-1"
@@ -473,7 +557,7 @@ function StudentDashboard() {
                 ))}
               </motion.div>
 
-              {/* CSV Import */}
+              {/* CSV Import (kept as-is) */}
               <div className="mt-8">
                 <label htmlFor="csv-upload" className="block text-sm font-medium mb-2" style={{ color: color.deep }}>
                   Import Students via CSV
@@ -498,6 +582,19 @@ function StudentDashboard() {
                     Expected headers: <code>email, password</code> (plus optional fields).
                   </span>
                 </div>
+              </div>
+
+              {/* Study Tips */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold mb-3" style={{ color: color.deep }}>
+                  Study Tips ✨
+                </h3>
+                <ul className="list-disc list-inside space-y-2 text-sm" style={{ color: color.steel }}>
+                  <li>Do one Daily Challenge. Small steps add up.</li>
+                  <li>Review mistakes immediately while they’re fresh.</li>
+                  <li>Rotate topics—don’t get stuck on one area.</li>
+                  <li>Explain a concept out loud to test understanding.</li>
+                </ul>
               </div>
             </motion.div>
           </div>

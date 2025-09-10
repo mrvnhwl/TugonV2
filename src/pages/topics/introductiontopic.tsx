@@ -104,7 +104,7 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
 
   const quizQuestions = [
     {
-      question: "Which of the following best describes a function",
+      question: "Which of the following best describes a function?",
       options: [
         "A rule that assigns one output to many inputs", 
         "A rule that assigns each input to exactly one output", 

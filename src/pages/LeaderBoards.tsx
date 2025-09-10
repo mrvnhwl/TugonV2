@@ -17,6 +17,15 @@ interface LeaderboardEntry {
   score: number;
 }
 
+// --- helper to obfuscate names ---
+const maskName = (input: string): string => {
+  if (!input) return "";
+  // Keep 2–4 chars at start, mask the rest
+  const visible = Math.min(4, Math.floor(Math.random() * 3) + 2);
+  const maskedPart = "*".repeat(Math.max(1, input.length - visible));
+  return input.slice(0, visible) + maskedPart;
+};
+
 export default function Leaderboards() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -151,8 +160,8 @@ export default function Leaderboards() {
                         <span className="font-medium text-gray-900">
                           {index + 1}.{" "}
                           {entry.user_email
-                            ? entry.user_email.split("@")[0]
-                            : entry.user_id.slice(0, 8)}
+                            ? maskName(entry.user_email.split("@")[0])
+                            : maskName(entry.user_id.slice(0, 8))}
                         </span>
                       </div>
                       <span className="text-indigo-700 font-semibold">
@@ -169,7 +178,7 @@ export default function Leaderboards() {
                     <div className="p-4 border border-indigo-200 rounded-lg bg-indigo-50/50">
                       <div className="flex items-center justify-between">
                         <div className="font-medium text-gray-900">
-                          Your rank: {myRank}. {myAlias(myRow.user_email)}
+                          Your rank: {myRank}. {maskName(myAlias(myRow.user_email))}
                         </div>
                         <div className="text-indigo-700 font-semibold">
                           {myRow.score} pts
