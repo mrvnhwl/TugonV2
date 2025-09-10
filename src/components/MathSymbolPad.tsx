@@ -357,13 +357,28 @@ export default function MathSymbolPad({ onInsert, onClose, onPreventFocusLoss }:
       <RenderedMath latex={k.label} />
     </button>
   );
+  const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+      const checkMobile = () => setIsMobile(window.innerWidth < 640);
+      checkMobile(); // run on mount
+      window.addEventListener("resize", checkMobile);
+      return () => window.removeEventListener("resize", checkMobile);
+    }, []);
+
 
   return (
-    <div
+  <div
       ref={padRef}
       className="fixed z-50 rounded-2xl border bg-white shadow-xl p-3 w-[760px] max-w-[96vw]"
-      style={{ top: position.y, left: position.x, transform: "translate(-50%, -50%)" }}
+      style={
+        isMobile
+          ? { bottom: "16px", left: "50%", transform: "translateX(-50%)" }
+          : { top: position.y, left: position.x, transform: "translate(-50%, -50%)" }
+      }
     >
+
+
       {loading ? (
         <div className="flex justify-center items-center h-24">
           <p className="text-gray-500">Loading symbols...</p>

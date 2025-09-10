@@ -431,24 +431,13 @@ function CreateQuiz() {
                 </button>
               </div>
 
-             {/* QUESTION with live render */}
-<div className="relative">
-  {/* MathJax Preview BELOW */}
-  <div
-    className={`absolute inset-0 
-              flex items-center 
-              font-mono pointer-events-none 
-              whitespace-pre-wrap z-0
-              px-2 py-1 leading-relaxed ${q.question.trim() === "" ? "text-gray-400" : "text-gray-900"}`}
-  >
-    <MathJax dynamic>
-      {q.question.trim() !== ""
-        ? `${q.question}`
-        : `\\(\\text{Question ${qIndex + 1}}\\)`}
-    </MathJax>
-  </div>
+           {/* ===== TEACHER / EDITOR VIEW ===== */}
+<div className="mb-6">
+  <label className="block text-sm font-medium text-gray-700 mb-1">
+    Question {qIndex + 1}
+  </label>
 
-  {/* Editable Textarea ABOVE */}
+  {/* Editable Textarea */}
   <textarea
     ref={(el) => (questionRefs.current[qIndex] = el)}
     onFocus={() => setPadTarget({ type: "question", qIndex })}
@@ -457,79 +446,71 @@ function CreateQuiz() {
     value={q.question}
     onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
     className="w-full rounded-md border-gray-300 shadow-sm 
-              focus:border-indigo-500 focus:ring-indigo-500
-              caret-black resize-none font-mono bg-transparent 
-              text-transparent placeholder-transparent relative z-10
-              px-2 py-1 leading-relaxed"
+               focus:border-indigo-500 focus:ring-indigo-500
+               caret-black resize-none font-mono px-3 py-2"
     rows={2}
-    placeholder={`Question ${qIndex + 1}`}
-    style={{
-      WebkitTextFillColor: "transparent", // hides typed text in Chrome/Safari
-      color: "transparent",               // hides typed text in Firefox/Edge
-      fontFamily: "monospace",
-      letterSpacing: "normal",
-      lineHeight: "1.5",
-      padding: "0.5rem", // match preview
-    }}
+    placeholder="Type your question here:"
   />
+
+  {/* Live MathJax Preview */}
+  {q.question.trim() && (
+    <div className="mt-2 p-2 bg-gray-50 border rounded-md">
+      <MathJax dynamic>{q.question}</MathJax>
+    </div>
+  )}
 </div>
-
-
 
 {/* Time & Points */}
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-  <input
-    type="number"
-    min={5}
-    max={600}
-    required
-    value={q.time_limit}
-    onChange={(e) =>
-      updateQuestion(qIndex, "time_limit", parseInt(e.target.value || "0", 10))
-    }
-    className="rounded-md border-gray-300 shadow-sm 
-              focus:border-indigo-500 focus:ring-indigo-500 font-mono"
-    placeholder="Time Limit (sec)"
-  />
-  <input
-    type="number"
-    min={50}
-    max={10000}
-    step={50}
-    required
-    value={q.points}
-    onChange={(e) =>
-      updateQuestion(qIndex, "points", parseInt(e.target.value || "0", 10))
-    }
-    className="rounded-md border-gray-300 shadow-sm 
-              focus:border-indigo-500 focus:ring-indigo-500 font-mono"
-    placeholder="Points"
-  />
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Time Limit (sec)
+    </label>
+    <input
+      type="number"
+      min={5}
+      max={600}
+      required
+      value={q.time_limit}
+      onChange={(e) =>
+        updateQuestion(qIndex, "time_limit", parseInt(e.target.value || "0", 10))
+      }
+      className="w-full rounded-md border-gray-300 shadow-sm 
+                 focus:border-indigo-500 focus:ring-indigo-500 font-mono px-3 py-2"
+      placeholder="Time Limit"
+    />
+  </div>
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Points
+    </label>
+    <input
+      type="number"
+      min={50}
+      max={10000}
+      step={50}
+      required
+      value={q.points}
+      onChange={(e) =>
+        updateQuestion(qIndex, "points", parseInt(e.target.value || "0", 10))
+      }
+      className="w-full rounded-md border-gray-300 shadow-sm 
+                 focus:border-indigo-500 focus:ring-indigo-500 font-mono px-3 py-2"
+      placeholder="Points"
+    />
+  </div>
 </div>
 
-
-
 {/* ANSWERS with live render */}
-<div className="space-y-2">
+<div className="space-y-4">
   {q.answers.map((a, aIndex) => (
-    <div key={aIndex} className="flex items-center gap-2 sm:gap-3">
-      <div className="relative flex-1">
-        {/* MathJax Preview BELOW */}
-        <div
-          className={`absolute inset-0 
-                      flex items-center 
-                      font-mono pointer-events-none 
-                      whitespace-pre-wrap z-0
-                      px-2 py-1 leading-relaxed ${a.answer.trim() === "" ? "text-gray-400" : "text-gray-900"}`}
-        >
-          <MathJax dynamic>
-            {a.answer.trim() !== ""
-              ? `${a.answer}`
-              : `\\(\\text{Answer ${aIndex + 1}}\\)`}
-          </MathJax>
-        </div>
+    <div key={aIndex} className="flex items-start gap-3">
+      <div className="flex-1">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Answer {aIndex + 1}
+        </label>
 
-        {/* Editable Input ABOVE */}
+        {/* Editable Input */}
         <input
           ref={(el) => {
             if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
@@ -544,24 +525,21 @@ function CreateQuiz() {
             updateAnswer(qIndex, aIndex, "answer", e.target.value)
           }
           className="w-full rounded-md border-gray-300 shadow-sm 
-                      focus:border-indigo-500 focus:ring-indigo-500 
-                      caret-black font-mono bg-transparent 
-                      text-transparent placeholder-transparent relative z-10
-                      px-2 py-1 leading-relaxed"
-          placeholder={`Answer ${aIndex + 1}`}
-          style={{
-            WebkitTextFillColor: "transparent", // hides typed text in Chrome/Safari
-            color: "transparent",               // hides typed text in Firefox/Edge
-            fontFamily: "monospace",
-            letterSpacing: "normal",
-            lineHeight: "1.5",
-            padding: "0.5rem", // match preview
-          }}
+                     focus:border-indigo-500 focus:ring-indigo-500 
+                     caret-black font-mono px-3 py-2"
+          placeholder="Type your answer here: "
         />
+
+        {/* Live MathJax Preview */}
+        {a.answer.trim() && (
+          <div className="mt-1 p-2 bg-gray-50 border rounded-md">
+            <MathJax dynamic>{a.answer}</MathJax>
+          </div>
+        )}
       </div>
 
       {/* Correct Answer Selector */}
-      <label className="flex items-center gap-1 text-sm">
+      <label className="flex items-center gap-2 text-sm mt-7">
         <input
           type="radio"
           name={`correct-${qIndex}`}
@@ -574,6 +552,26 @@ function CreateQuiz() {
     </div>
   ))}
 </div>
+
+{/* ===== STUDENT VIEW ===== */}
+{/* Rendered question */}
+<div className="mb-4 text-lg font-mono">
+  <MathJax dynamic>{q.question}</MathJax>
+</div>
+
+{/* Rendered answers */}
+<ul className="space-y-2">
+  {q.answers.map((a, idx) => (
+    <li
+  key={idx}
+  className="p-2 border rounded-md"
+>
+  <MathJax dynamic>{a.answer}</MathJax>
+</li>
+
+  ))}
+</ul>
+
 
 
 
@@ -634,7 +632,7 @@ function CreateQuiz() {
         type="button"
         // 1. Toggle the visibility of the math pad on click
         onClick={() => setShowMathPad(!showMathPad)}
-        className="fixed bottom-4 left-4 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
+        className="sticky bottom-4 left-4 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
         aria-label="Toggle Math Keyboard"
       >
         <Keyboard className="h-6 w-6" />
