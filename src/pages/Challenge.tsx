@@ -90,6 +90,8 @@ export default function Challenge() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const [authChecked, setAuthChecked] = useState(false); // ⬅️ wait for real auth state
+
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
   const [progressRows, setProgressRows] = useState<UserProgress[]>([]);
@@ -100,14 +102,37 @@ export default function Challenge() {
   const [difficulty, setDifficulty] = useState<"" | Difficulty>("");
   const [sortBy, setSortBy] = useState<"new" | "popular" | "time" | "best">("new");
 
+  // ✅ On mount, confirm session once and subscribe to changes
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
+    let unsub: (() => void) | undefined;
+
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      setAuthChecked(true);
+      // also keep listening for sign-out
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!session) {
+          navigate("/login", { replace: true });
+        }
+      });
+      unsub = () => listener.subscription.unsubscribe();
+    })();
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [navigate]);
+
+  // After auth confirmed, load page data
+  useEffect(() => {
+    if (!authChecked) return;
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [authChecked]);
 
   const loadAll = async () => {
     try {
@@ -170,7 +195,11 @@ export default function Challenge() {
     quizId: string
   ) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {
+      // If somehow no user after hydration, protect route
+      navigate("/login", { replace: true });
+      return;
+    }
 
     const optimisticId = "optimistic-" + Date.now();
 
@@ -382,7 +411,7 @@ export default function Challenge() {
         </svg>
       </header>
 
-      {/* Sticky Controls: always visible (works in webviews) */}
+      {/* Sticky Controls */}
       <div
         className="sticky top-0 z-40"
         style={{ background: "#fff", boxShadow: "0 6px 18px rgba(0,0,0,0.06)" }}
