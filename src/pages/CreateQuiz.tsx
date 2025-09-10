@@ -449,7 +449,7 @@ function CreateQuiz() {
                focus:border-indigo-500 focus:ring-indigo-500
                caret-black resize-none font-mono px-3 py-2"
     rows={2}
-    placeholder="Type your question here"
+    placeholder="Type your question here:"
   />
 
   {/* Live MathJax Preview */}
@@ -527,7 +527,7 @@ function CreateQuiz() {
           className="w-full rounded-md border-gray-300 shadow-sm 
                      focus:border-indigo-500 focus:ring-indigo-500 
                      caret-black font-mono px-3 py-2"
-          placeholder="Type your answer here"
+          placeholder="Type your answer here: "
         />
 
         {/* Live MathJax Preview */}
