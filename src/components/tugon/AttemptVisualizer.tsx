@@ -115,15 +115,19 @@ export default function AttemptVisualizer({ attempts, className = "" }: AttemptV
           </div>
         )}
 
-        {/* Minimized View with Behavior */}
+        {/* FIXED: Minimized View with Behavior - handle null behavior */}
         {isMinimized && attempts.length > 0 && (
           <div className="px-3 py-2 text-xs text-gray-600">
             <div className="flex items-center justify-between">
               <span>
                 {steps.length} steps, {attempts.filter(a => a.isCorrect).length} correct
               </span>
-              <span className={`font-medium ${UserBehaviorClassifier.getBehaviorColor(behaviorProfile.currentBehavior)}`}>
-                {behaviorProfile.currentBehavior.toUpperCase()}
+              <span className={`font-medium ${
+                behaviorProfile.currentBehavior 
+                  ? UserBehaviorClassifier.getBehaviorColor(behaviorProfile.currentBehavior)
+                  : 'text-gray-500'
+              }`}>
+                {behaviorProfile.currentBehavior?.toUpperCase() || 'NO PATTERN'}
               </span>
             </div>
           </div>
@@ -163,11 +167,14 @@ export default function AttemptVisualizer({ attempts, className = "" }: AttemptV
             </div>
           </div>
           
-          {/* Mobile Behavior Status */}
+          {/* FIXED: Mobile Behavior Status - handle null behavior */}
           <div className="text-xs">
             <span className="text-white/70">Status: </span>
             <span className="text-white font-medium">
-              {UserBehaviorClassifier.getBehaviorDescription(behaviorProfile.currentBehavior)}
+              {behaviorProfile.currentBehavior 
+                ? UserBehaviorClassifier.getBehaviorDescription(behaviorProfile.currentBehavior)
+                : 'No specific pattern detected'
+              }
             </span>
           </div>
         </div>
@@ -215,12 +222,12 @@ export default function AttemptVisualizer({ attempts, className = "" }: AttemptV
   );
 }
 
-// Behavior Status Bar Component
+// FIXED: Behavior Status Bar Component - handle null behavior
 function BehaviorStatusBar({ profile }: { profile: UserBehaviorProfile }) {
   if (profile.activeTriggers.length === 0) {
     return (
       <div className="text-xs text-green-200">
-        ✅ Normal learning behavior - no concerns detected
+        ✅ {profile.currentBehavior ? 'Behavior detected but no concerns' : 'No specific behavior pattern detected'}
       </div>
     );
   }
@@ -233,7 +240,7 @@ function BehaviorStatusBar({ profile }: { profile: UserBehaviorProfile }) {
       <div className="flex items-center justify-between">
         <span className="text-white/80">Current Status:</span>
         <span className="text-white font-medium">
-          {profile.currentBehavior.toUpperCase().replace('-', ' ')}
+          {profile.currentBehavior?.toUpperCase().replace('-', ' ') || 'NO PATTERN'}
         </span>
       </div>
       
@@ -252,10 +259,7 @@ function BehaviorStatusBar({ profile }: { profile: UserBehaviorProfile }) {
   );
 }
 
-// Rest of the component code continues with enhanced StepGroup, BehaviorAnalysisView, etc...
-// [The rest of your existing interfaces and components remain the same, but I'll add the behavior-enhanced versions]
-
-// Enhanced StepGroup with Behavior Data
+// FIXED: Enhanced StepGroup with Behavior Data - remove normal references
 interface StepGroupProps {
   stepIndex: number;
   attempts: UserAttempt[];
@@ -281,17 +285,19 @@ function StepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) {
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
-      {/* Step Header with Behavior Indicator */}
+      {/* FIXED: Step Header with Behavior Indicator - remove normal references */}
       <div 
         className={`px-3 py-2 cursor-pointer transition-colors ${
           correctAttempt 
             ? 'bg-green-50 border-b border-green-200' 
-            : behaviorData?.behavior === 'struggling-high'
-            ? 'bg-red-50 border-b border-red-200'
-            : behaviorData?.behavior === 'struggling'
+            : behaviorData?.primaryBehavior === 'struggling'
             ? 'bg-yellow-50 border-b border-yellow-200'
-            : behaviorData?.behavior === 'guessing'
+            : behaviorData?.primaryBehavior === 'guessing'
             ? 'bg-orange-50 border-b border-orange-200'
+            : behaviorData?.primaryBehavior === 'repeating'
+            ? 'bg-amber-50 border-b border-amber-200'
+            : behaviorData?.primaryBehavior === 'self-correction'
+            ? 'bg-emerald-50 border-b border-emerald-200'
             : 'bg-gray-50 border-b border-gray-200'
         }`}
         onClick={() => setIsExpanded(!isExpanded)}
@@ -309,18 +315,20 @@ function StepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) {
               {correctAttempt ? '✓ Complete' : `${attempts.length} attempts`}
             </span>
             
-            {/* Behavior Badge */}
-            {behaviorData && behaviorData.behavior !== 'normal' && (
+            {/* FIXED: Behavior Badge - remove normal, add new behaviors */}
+            {behaviorData?.primaryBehavior && (
               <span className={`text-xs px-2 py-0.5 rounded-full ${
-                behaviorData.behavior === 'struggling-high' ? 'bg-red-100 text-red-700' :
-                behaviorData.behavior === 'struggling' ? 'bg-yellow-100 text-yellow-700' :
-                behaviorData.behavior === 'guessing' ? 'bg-orange-100 text-orange-700' :
+                behaviorData.primaryBehavior === 'struggling' ? 'bg-yellow-100 text-yellow-700' :
+                behaviorData.primaryBehavior === 'guessing' ? 'bg-orange-100 text-orange-700' :
+                behaviorData.primaryBehavior === 'repeating' ? 'bg-amber-100 text-amber-700' :
+                behaviorData.primaryBehavior === 'self-correction' ? 'bg-emerald-100 text-emerald-700' :
                 'bg-blue-100 text-blue-700'
               }`}>
-                {behaviorData.behavior === 'struggling-high' ? '🚨 High Struggle' :
-                 behaviorData.behavior === 'struggling' ? '⚠️ Struggling' :
-                 behaviorData.behavior === 'guessing' ? '🎲 Guessing' :
-                 behaviorData.behavior}
+                {behaviorData.primaryBehavior === 'struggling' ? '⚠️ Struggling' :
+                 behaviorData.primaryBehavior === 'guessing' ? '🎲 Guessing' :
+                 behaviorData.primaryBehavior === 'repeating' ? '🔁 Repeating' :
+                 behaviorData.primaryBehavior === 'self-correction' ? '✨ Self-Correction' :
+                 behaviorData.primaryBehavior}
               </span>
             )}
           </div>
@@ -348,11 +356,11 @@ function StepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) {
         </div>
       </div>
 
-      {/* Step Content - rest remains the same */}
+      {/* FIXED: Step Content - remove normal behavior references */}
       {isExpanded && (
         <div className="p-2 space-y-2">
           {/* Behavior Warning if applicable */}
-          {behaviorData && (behaviorData.behavior === 'struggling-high' || behaviorData.behavior === 'struggling') && (
+          {behaviorData?.primaryBehavior === 'struggling' && (
             <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
               <div className="text-xs text-yellow-700">
                 <strong>Struggling Detected:</strong> This step has {behaviorData.wrongAttempts} wrong attempts
@@ -361,7 +369,7 @@ function StepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) {
             </div>
           )}
           
-          {behaviorData && behaviorData.behavior === 'guessing' && (
+          {behaviorData?.primaryBehavior === 'guessing' && (
             <div className="bg-orange-50 border border-orange-200 rounded p-2">
               <div className="text-xs text-orange-700">
                 <strong>Guessing Detected:</strong> Pattern suggests random/rapid attempts. 
@@ -370,7 +378,25 @@ function StepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) {
             </div>
           )}
 
-          {/* Existing correct/incorrect attempt sections */}
+          {behaviorData?.primaryBehavior === 'repeating' && (
+            <div className="bg-amber-50 border border-amber-200 rounded p-2">
+              <div className="text-xs text-amber-700">
+                <strong>Repeating Pattern:</strong> User is repeating the same inputs. 
+                May need guidance to try a different approach.
+              </div>
+            </div>
+          )}
+
+          {behaviorData?.primaryBehavior === 'self-correction' && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded p-2">
+              <div className="text-xs text-emerald-700">
+                <strong>Learning Progress:</strong> User is learning from mistakes and improving. 
+                This is positive behavior.
+              </div>
+            </div>
+          )}
+
+          {/* Existing correct/incorrect attempt sections remain the same */}
           {correctAttempt && (
             <div className="bg-green-50 border border-green-200 rounded p-2">
               <div className="flex items-center justify-between mb-1">
@@ -419,7 +445,7 @@ function StepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) {
   );
 }
 
-// Behavior Analysis View Component
+// FIXED: Behavior Analysis View Component - handle null behavior
 function BehaviorAnalysisView({ profile, attempts }: { profile: UserBehaviorProfile; attempts: UserAttempt[] }) {
   return (
     <div className="space-y-3">
@@ -429,8 +455,12 @@ function BehaviorAnalysisView({ profile, attempts }: { profile: UserBehaviorProf
         <div className="space-y-1 text-xs">
           <div className="flex justify-between">
             <span>Current Status:</span>
-            <span className={`font-medium ${UserBehaviorClassifier.getBehaviorColor(profile.currentBehavior)}`}>
-              {profile.currentBehavior.replace('-', ' ').toUpperCase()}
+            <span className={`font-medium ${
+              profile.currentBehavior 
+                ? UserBehaviorClassifier.getBehaviorColor(profile.currentBehavior)
+                : 'text-gray-500'
+            }`}>
+              {profile.currentBehavior?.replace('-', ' ').toUpperCase() || 'NO PATTERN'}
             </span>
           </div>
           <div className="flex justify-between">
@@ -465,14 +495,14 @@ function BehaviorAnalysisView({ profile, attempts }: { profile: UserBehaviorProf
                   Step {parseInt(stepIndex) + 1}: {stepData.stepLabel}
                 </span>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-             
-              stepData.primaryBehavior === 'struggling' ? 'bg-yellow-100 text-yellow-700' :
-              stepData.primaryBehavior === 'guessing' ? 'bg-orange-100 text-orange-700' :
-              stepData.primaryBehavior === 'normal' ? 'bg-green-100 text-green-700' :
-              'bg-blue-100 text-blue-700'
-            }`}>
-              {stepData.primaryBehavior}
-            </span>
+                  stepData.primaryBehavior === 'struggling' ? 'bg-yellow-100 text-yellow-700' :
+                  stepData.primaryBehavior === 'guessing' ? 'bg-orange-100 text-orange-700' :
+                  stepData.primaryBehavior === 'repeating' ? 'bg-amber-100 text-amber-700' :
+                  stepData.primaryBehavior === 'self-correction' ? 'bg-emerald-100 text-emerald-700' :
+                  'bg-gray-100 text-gray-700'
+                }`}>
+                  {stepData.primaryBehavior || 'no pattern'}
+                </span>
               </div>
               <div className="text-xs text-gray-600 space-y-0.5">
                 <div>Wrong attempts: {stepData.wrongAttempts}</div>
@@ -487,7 +517,7 @@ function BehaviorAnalysisView({ profile, attempts }: { profile: UserBehaviorProf
   );
 }
 
-// Behavior Trigger Card Component
+// Rest of components remain the same but with behavior fixes...
 function BehaviorTriggerCard({ trigger }: { trigger: BehaviorTrigger }) {
   return (
     <div className={`border rounded p-2 ${
@@ -516,10 +546,7 @@ function BehaviorTriggerCard({ trigger }: { trigger: BehaviorTrigger }) {
   );
 }
 
-// Enhanced Mobile versions would follow similar pattern...
-// [Include the rest of your existing mobile components here]
-
-// For brevity, I'm including the key mobile components:
+// FIXED: Mobile components with behavior fixes
 function MobileStepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) {
   const correctAttempt = attempts.find(a => a.isCorrect);
   const totalTimeOnStep = attempts.length > 0 
@@ -529,8 +556,10 @@ function MobileStepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) 
   return (
     <div className={`bg-white border rounded-lg p-2 ${
       correctAttempt ? 'border-green-300' : 
-      behaviorData?.behavior === 'struggling' ? 'border-yellow-300' :
-      behaviorData?.behavior === 'guessing' ? 'border-orange-300' :
+      behaviorData?.primaryBehavior === 'struggling' ? 'border-yellow-300' :
+      behaviorData?.primaryBehavior === 'guessing' ? 'border-orange-300' :
+      behaviorData?.primaryBehavior === 'repeating' ? 'border-amber-300' :
+      behaviorData?.primaryBehavior === 'self-correction' ? 'border-emerald-300' :
       'border-red-300'
     }`}>
       <div className="flex items-center justify-between">
@@ -546,12 +575,13 @@ function MobileStepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) 
             {correctAttempt ? '✓' : '✗'}
           </span>
           
-          {/* Behavior indicator */}
-          {behaviorData && behaviorData.behavior !== 'normal' && (
+          {/* FIXED: Behavior indicator - remove normal, add new behaviors */}
+          {behaviorData?.primaryBehavior && (
             <span className="text-xs">
-              {behaviorData.behavior === 'struggling-high' ? '🚨' :
-               behaviorData.behavior === 'struggling' ? '⚠️' :
-               behaviorData.behavior === 'guessing' ? '🎲' : ''}
+              {behaviorData.primaryBehavior === 'struggling' ? '⚠️' :
+               behaviorData.primaryBehavior === 'guessing' ? '🎲' :
+               behaviorData.primaryBehavior === 'repeating' ? '🔁' :
+               behaviorData.primaryBehavior === 'self-correction' ? '✨' : ''}
             </span>
           )}
         </div>
@@ -586,14 +616,22 @@ function MobileStepGroup({ stepIndex, attempts, behaviorData }: StepGroupProps) 
   );
 }
 
+// FIXED: Mobile Behavior View - handle null behavior
 function MobileBehaviorView({ profile }: { profile: UserBehaviorProfile }) {
   return (
     <div className="space-y-2">
       {/* Status */}
       <div className="bg-white border border-gray-200 rounded-lg p-2">
         <div className="text-sm font-medium mb-1">Behavior Status</div>
-        <div className={`text-xs ${UserBehaviorClassifier.getBehaviorColor(profile.currentBehavior)}`}>
-          {UserBehaviorClassifier.getBehaviorDescription(profile.currentBehavior)}
+        <div className={`text-xs ${
+          profile.currentBehavior 
+            ? UserBehaviorClassifier.getBehaviorColor(profile.currentBehavior)
+            : 'text-gray-500'
+        }`}>
+          {profile.currentBehavior 
+            ? UserBehaviorClassifier.getBehaviorDescription(profile.currentBehavior)
+            : 'No specific behavior pattern detected'
+          }
         </div>
       </div>
       
@@ -628,9 +666,7 @@ function MobileBehaviorView({ profile }: { profile: UserBehaviorProfile }) {
   );
 }
 
-// Include your existing AttemptCard and MobileAttemptCard components here...
-// [Rest of existing components remain unchanged]
-
+// AttemptCard and MobileAttemptCard remain exactly the same...
 interface AttemptCardProps {
   attempt: UserAttempt;
   index: number;

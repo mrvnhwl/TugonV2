@@ -5,6 +5,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/* MathQuill CSS from CDN */
+@import "https://cdnjs.cloudflare.com/ajax/libs/mathquill/0.10.1/mathquill.css";
+
+/* MathQuill field styling - integrated directly into UserInput */
+.mq-editable-field {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-size: 16px !important;
+  font-family: inherit !important;
+  line-height: 1.5 !important;
+  min-height: 40px !important;
+  padding: 8px 12px !important;
+  width: 100% !important;
+  display: inline-block !important;
+  box-shadow: none !important;
+}
+
+/* MathQuill cursor animation */
+.mq-cursor {
+  border-left: 2px solid #374151 !important;
+  animation: blink 1s infinite !important;
+}
+
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Selection styling */
+.mq-selection {
+  background: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* Focus state */
+.mq-focused {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Fraction styling */
+.mq-fraction {
+  display: inline-block !important;
+  vertical-align: middle !important;
+}
+
+.mq-numerator,
+.mq-denominator {
+  display: block !important;
+  text-align: center !important;
+}
+
+/* Square root styling */
+.mq-sqrt-prefix {
+  border-top: 1px solid currentColor !important;
+}
+
+/* Superscript and subscript */
+.mq-sup {
+  font-size: 0.8em !important;
+  vertical-align: super !important;
+}
+
+.mq-sub {
+  font-size: 0.8em !important;
+  vertical-align: sub !important;
+}
+
+/* Ensure proper text rendering */
+.mq-text-mode {
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
+
+/* Fix positioning issues */
+.mq-editable-field .mq-root-block {
+  display: inline-block !important;
+  vertical-align: baseline !important;
+}
+
 /* Custom animations for hint bubbles */
 @keyframes slideDown {
   from {
@@ -16,11 +102,32 @@
     transform: translateY(0);
   }
 }
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
 html,
 body {
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
 }
+
 .content-fit {
   height: fit-content !important;
   min-height: unset !important;
@@ -30,8 +137,13 @@ input[type="text"],
 textarea {
   font-size: 16px;
 }
+
 .animate-slide-down {
   animation: slideDown 0.3s ease-out;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 
 @layer base {
@@ -77,7 +189,7 @@ textarea {
     --muted: 0 0% 14.9%;
     --muted-foreground: 0 0% 63.9%;
     --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
+    --accent-foreground: 0 0% 9%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 14.9%;
@@ -111,15 +223,90 @@ body {
   }
 }
 
-@keyframes shake {
-  0%,
-  100% {
+/* Animation for Progress Map*/
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
     transform: translateX(0);
   }
-  25% {
-    transform: translateX(-4px);
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
   }
-  75% {
-    transform: translateX(4px);
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animation-delay-500 {
+  animation-delay: 0.5s;
+}
+
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.active\\:scale-98:active {
+  transform: scale(0.98);
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
 }

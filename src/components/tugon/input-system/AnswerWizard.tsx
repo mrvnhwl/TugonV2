@@ -205,7 +205,41 @@ export default function AnswerWizard({
       index
     );
   };
+   useEffect(() => {
+          // Reset all state when question parameters change
+          const newFixedSteps: WizardStep[] = (answersSource || []).map((_, i) => {
+            const t: AnswerType = "multi";
+            return {
+              id: `s${i + 1}`,
+              type: t,
+              answerValue: [''],
+            } as WizardStep;
+          });
 
+          setWizardSteps(newFixedSteps);
+          setIndex(0);
+          setCorrectness(Array.from({ length: newFixedSteps.length }, () => null));
+          setUserInputs(newFixedSteps.map(() => ['']));
+          setShowHints(false);
+          
+          // Reset hint state
+          setHintState({
+            show: false,
+            text: "",
+            requestCount: 0
+          });
+          
+          // Reset conversation history
+          setUserConversationHistory([]);
+          
+          console.log('🔄 AnswerWizard state reset for new question:', {
+            topicId,
+            categoryId,
+            questionId,
+            steps: newFixedSteps.length
+          });
+          
+    }, [topicId, categoryId, questionId, answersSource]); 
   // Function to hide hints
   const hideHints = () => {
     setHintState(prev => ({
@@ -230,39 +264,70 @@ export default function AnswerWizard({
  
   // Handle Enter key submission
   const handleEnterSubmission = (lines: string[]) => {
-    console.log("🎯 Submitting via Enter key:", lines);
-    setShowHints(false);
-    // Use your existing submit logic
-    const validationResult = InputValidator.validateAllSteps([lines], answersSource ? [answersSource[index]] : []);
-    
-    // Track submission in conversation history
-    const userBehavior: UserBehavior = {
-      action: 'submit',
-      timestamp: new Date(),
-      stepIndex: index,
-      details: { validationResult, submissionMethod: 'enter_key' }
-    };
-
-    addToConversationHistory(
-      [], // No message prompts for submissions
-      lines.join('\n'),
-      userBehavior,
-      index
-    );
-
-    // FIXED: Use wizardSteps and match interface signature
-    onSubmit(wizardSteps, validationResult);
-    setTimeout(() => {
-      console.log("🎯 Submitting via Enter key:", lines);
-  console.log("🔄 Current showHints state:", showHints);
+  console.log("🎯 Enter submission triggered:", lines);
+  setShowHints(false);
   
-  setShowHints(true); // Show hint after submission
-  console.log("🔄 Setting showHints to TRUE");
+  // Validate using your InputValidator
+  const expectedSteps = answersSource?.[index]?.steps;
   
-    setShowHints(true);
-    console.log("🔄 Setting showHints to true after delay");
-  }, 200);
+  if (!expectedSteps) {
+    console.log("❌ No expected steps found for validation");
+    return;
+  }
+  
+  // Use InputValidator to check if the current step is correct
+  const currentLine = lines[0] || ''; // Get the first line
+  
+  const validation = InputValidator.validateStepWithTwoPhase(
+    currentLine.trim(),
+    expectedSteps[0]?.answer || '',
+    expectedSteps[0]?.label || '',
+    0,
+    expectedSteps
+  );
+  
+  console.log("🔍 Validation result:", validation);
+  
+  // Track submission in conversation history
+  const userBehavior: UserBehavior = {
+    action: 'submit',
+    timestamp: new Date(),
+    stepIndex: index,
+    details: { validationResult: validation, submissionMethod: 'enter_key' }
   };
+
+  addToConversationHistory(
+    [], // No message prompts for submissions
+    lines.join('\n'),
+    userBehavior,
+    index
+  );
+
+  // FIXED: Call the validation result callback properly
+  if (validation.isCurrentStepCorrect) {
+    console.log("✅ Calling onValidationResult with 'correct'");
+    onValidationResult?.('correct', index);
+  } else {
+    console.log("❌ Calling onValidationResult with 'incorrect'");
+    onValidationResult?.('incorrect', index);
+  }
+
+  // Update wizard steps
+  setWizardSteps((prev) => {
+    const next = [...prev];
+    next[index] = { ...next[index], answerValue: lines } as WizardStep;
+    return next;
+  });
+
+  // Call the onSubmit callback
+  onSubmit(wizardSteps);
+  
+  // Show hints after a delay
+  setTimeout(() => {
+    console.log("🔄 Setting showHints to true after delay");
+    setShowHints(true);
+  }, 200);
+};
 
   const handleSuggestSubmission = (lines: string[]) => {
     // Removed toast notification - just log for now
@@ -418,7 +483,7 @@ export default function AnswerWizard({
     
 
                 <UserInput
-                  key={`user-input-${index}`}
+                  key={`user-input-${index}-${topicId}-${categoryId}-${questionId}`}
                   value={answerLines}
                   onChange={handleInputChange}
                   placeholder="Enter your answer..."

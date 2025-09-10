@@ -83,8 +83,6 @@ export default function UserInput({
   const [behaviorProfile, setBehaviorProfile] = useState<UserBehaviorProfile | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   
-  
-  
   // User progression tracking array
   const [userProgressionArray, setUserProgressionArray] = useState<StepProgression[]>([]);
   const [userAttempt, setUserAttempt] = useState<UserAttempt[]>([]);
@@ -197,7 +195,51 @@ export default function UserInput({
     
     console.log(`⏱️ STEP TIMER STARTED: Step ${stepIndex + 1} (${stepLabel})`);
   }, [expectedSteps, stepTimings]);
-  
+  useEffect(() => {
+    // Reset UserInput state when question parameters change
+    if (topicId && categoryId && questionId) {
+      console.log('🔄 UserInput: Resetting state for new question:', {
+        topicId,
+        categoryId,
+        questionId
+      });
+      
+      // Reset to initial state
+      setLines(['']);
+      setFocusedIndex(null);
+      setLocalShowHints(false);
+      setBehaviorProfile(null);
+      setCurrentStepIndex(0);
+      setUserProgressionArray([]);
+      setUserAttempt([]);
+      setAttemptCounter(0);
+      setLineValidationStates(new Map());
+      setValidationTriggers(new Map());
+      setStepErrorFeedback(new Map());
+      setStepTimings(new Map());
+      setCurrentStepStartTime(null);
+      setPendingLineCreation(null);
+      setAttemptsSinceLastHint(0);
+      setLastBehaviorClassification(null);
+      setHintIntervalActive(false);
+      setShowAIModal(false);
+      setAiHintMessage('');
+      setIsLoadingAIHint(false);
+      
+      // Reset rapid input tracking
+      setLastInputTime(0);
+      setRapidInputCount(0);
+      
+      // Clear lastProcessedStep ref
+      lastProcessedStep.current = null;
+      
+      // Notify parent of reset
+      onChange(['']);
+      onAttemptUpdate?.([]);
+      
+      console.log('✅ UserInput state reset complete');
+  }
+}, [topicId, categoryId, questionId]); // Dependencies
   const completeStepTimer = useCallback((stepIndex: number) => {
     const now = Date.now();
     const existingTiming = stepTimings.get(stepIndex);
@@ -1114,8 +1156,7 @@ export default function UserInput({
           }
         </div>
       </div>
-        {/* TUTOR MOOD INDICATOR */}
-      
+        {/* TUTOR MOOD INDICATOR Add later for AI tutor later */}
     </div>
 
             
