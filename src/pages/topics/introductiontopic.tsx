@@ -1,3 +1,4 @@
+// src/pages/topics/Introductiontopic.tsx
 import React, { useState, useEffect } from "react";
 import Footer from "../../components/Footer";
 import BackButton from "../../components/BackButton";
@@ -14,6 +15,7 @@ import {
 } from "recharts";
 import { evaluate } from "mathjs";
 import { askTugonAI } from "../../components/FloatingAIButton";
+import color from "../../styles/color"; // central palette
 
 function Introductiontopic() {
   // For examples
@@ -25,11 +27,11 @@ function Introductiontopic() {
     return (1 / x).toFixed(2);
   };
 
-  // For graph
+  // For graph (no keyboard, no input text, fixed equation)
   const [inputX, setInputX] = useState(0);
   const [inputY, setInputY] = useState(0);
-  const [equation, setEquation] = useState("2*x + 1");
-  const [error, setError] = useState("");
+  const equation = "2*x + 1"; // ✅ fixed equation (no state)
+
   const [aiExplanation, setAIExplanation] = useState<string>("");
   const [aiLoading, setAILoading] = useState<boolean>(false);
 
@@ -45,10 +47,11 @@ function Introductiontopic() {
     const x = i - 50;
     const y = userFunction(x);
     return { x, y };
-  }).filter((point) => point.y !== null);
+  }).filter((point) => point.y !== null) as { x: number; y: number }[];
 
   const pointDataX = [{ x: inputX, y: userFunction(inputX) }];
   const pointDataY = [{ x: inputY, y: userFunction(inputY) }];
+
   const values = [inputX, inputY];
   const minX = Math.min(-5, ...values) - 2;
   const maxX = Math.max(5, ...values) + 2;
@@ -58,7 +61,7 @@ function Introductiontopic() {
   const minY = Math.min(...outputs, -10) - 2;
   const maxY = Math.max(...outputs, 10) + 2;
 
-  // AI explanation effect
+  // AI explanation effect for the fixed equation
   useEffect(() => {
     let cancelled = false;
     const explain = async () => {
@@ -73,12 +76,7 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
         setAILoading(false);
       }
     };
-    if (equation.trim()) {
-      explain();
-    } else {
-      setAIExplanation("");
-      setAILoading(false);
-    }
+    explain();
     return () => {
       cancelled = true;
     };
@@ -92,49 +90,54 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
 
   const quizQuestions = [
     {
-      question: "What is the independent variable in a function?",
-      options: ["Output", "Input", "Graph", "Equation"],
-      answer: 1,
-    },
-    {
-      question: "Which function is quadratic?",
-      options: ["f(x) = 2x + 3", "f(x) = x² - 4", "f(x) = 1/x", "f(x) = 5"],
-      answer: 1,
-    },
-    {
-      question: "What test determines if a graph is a function?",
+      question: "Which of the following best describes a function?",
       options: [
-        "Horizontal line test",
-        "Slope test",
-        "Vertical line test",
-        "Domain test",
+        "A rule that assigns one output to many inputs",
+        "A rule that assigns each input to exactly one output",
+        "A graph with more than one y-value for the same x-value",
+        "A set of unrelated numbers",
       ],
+      answer: 1,
+    },
+    {
+      question: "In a function, the input is called:",
+      options: ["Dependent variable", "Constant", "Independent variable", "Output"],
       answer: 2,
     },
     {
-      question: "What is the domain of f(x) = 1/x?",
-      options: ["All real numbers", "x ≠ 0", "x > 0", "x < 0"],
-      answer: 1,
-    },
-    {
-      question: "Which is the range of f(x) = x²?",
-      options: ["All real numbers", "y ≥ 0", "y ≤ 0", "y ≠ 0"],
-      answer: 1,
-    },
-    {
-      question: "f(x) = 2x + 1 is what type of function?",
-      options: ["Linear", "Quadratic", "Rational", "Constant"],
+      question: "In a function, the output is called:",
+      options: ["Dependent variable", "Independent variable", "Domain", "Constant"],
       answer: 0,
     },
     {
-      question: "What is f(2) for f(x) = 3x² - 4?",
-      options: ["8", "12", "6", "5"],
+      question: "Which set of ordered pairs does represent a function?",
+      options: [
+        "{(1,2), (1,3), (2,4)}",
+        "{(2,5), (3,6), (4,7)}",
+        "{(1,4), (2,5), (2,6)}",
+        "{(3,2), (3,3), (4,5)}",
+      ],
       answer: 1,
     },
     {
-      question: "What happens if the denominator of a rational function is 0?",
-      options: ["Value is 0", "Undefined", "Infinity", "Negative"],
+      question: "The set of all possible inputs of a function is called:",
+      options: ["Range", "Codomain", "Domain", "Output"],
+      answer: 2,
+    },
+    {
+      question: "The set of all possible outputs of a function is called:",
+      options: ["Domain", "Range", "Independent variable", "Constant"],
       answer: 1,
+    },
+    {
+      question: "Which of the following is NOT a function?",
+      options: ["f(x) = x + 2", "f(x) = x²", "f(x) = ±√ x", "f(x) = 3x -1"],
+      answer: 2,
+    },
+    {
+      question: "If f(x) = 2x + 1, what is f(3)?",
+      options: ["5", "6", "7", "9"],
+      answer: 2,
     },
     {
       question: "Which of these is NOT a function?",
@@ -142,18 +145,18 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
       answer: 1,
     },
     {
-      question: "What is the dependent variable in f(x)?",
-      options: ["x", "f(x)", "Equation", "Graph"],
-      answer: 1,
+      question: "Which of the following is NOT a function?",
+      options: ["f(x) = x + 3", "f(x) = x²", "f(x) = √ x", "f(x) = ±x"],
+      answer: 3,
     },
   ];
 
   const handleAnswer = (index: number) => {
     if (quizQuestions[currentQuestion].answer === index) {
-      setScore(score + 1);
+      setScore((s) => s + 1);
     }
     if (currentQuestion + 1 < quizQuestions.length) {
-      setCurrentQuestion(currentQuestion + 1);
+      setCurrentQuestion((q) => q + 1);
     } else {
       setFinished(true);
     }
@@ -165,219 +168,378 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
     setFinished(false);
   };
 
+  // Theme helpers
+  const subtleShadow = "0 10px 25px rgba(0,0,0,0.06)";
+  const deepShadow = "0 20px 40px rgba(0,0,0,0.14)";
+  const cardBorder = { borderColor: `${color.mist}66` };
+  const heroGradient = {
+    background: `linear-gradient(135deg, ${color.teal} 0%, ${color.aqua} 100%)`,
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <main className="flex-grow max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <BackButton />
+    <div className="flex flex-col min-h-screen bg-white">
+      {/* Hero */}
+      <header className="relative" style={heroGradient}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <BackButton />
+          <div className="mt-4 text-center">
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+              Introduction to Functions
+            </h1>
+            <p className="mt-2 text-white/90 text-lg">
+              Inputs, outputs, domain, range, and graphs
+            </p>
+          </div>
+        </div>
+        <svg viewBox="0 0 1440 120" className="block w-full" aria-hidden>
+          <path
+            d="M0,64 C240,96 480,0 720,32 C960,64 1200,128 1440,96 L1440,120 L0,120 Z"
+            fill="#ffffff"
+          />
+        </svg>
+      </header>
 
-        {/* Topic Name */}
-        <h1 className="text-3xl font-bold text-gray-900 text-center">
-          Introduction to Functions
-        </h1>
-
-        {/* Topic Description */}
-        <p className="text-gray-700 bg-white p-4 rounded border border-gray-300 shadow-sm">
-          A <strong>function</strong> is a rule that maps a number to another unique number.
-          The input to the function is called the independent variable, and the output
-          is called the dependent variable. Functions are a foundational concept in
-          mathematics, allowing us to describe relationships and predict outcomes.
-        </p>
+      <main className="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        {/* Overview */}
+        <section
+          className="rounded-2xl border bg-white p-6 md:p-7 -mt-8"
+          style={{ ...cardBorder, boxShadow: subtleShadow }}
+        >
+          <p className="leading-relaxed" style={{ color: color.steel }}>
+            A <strong>function</strong> is a rule that maps each input to a{" "}
+            <em>single</em> output. The input is the{" "}
+            <strong>independent variable</strong>, and the output is the{" "}
+            <strong>dependent variable</strong>. Functions model relationships
+            and help us predict outcomes.
+          </p>
+        </section>
 
         {/* Important Concepts */}
-        <div className="bg-blue-50 p-4 rounded border border-blue-300 shadow-sm">
-          <p className="text-blue-800 font-semibold mb-2">Important Concepts:</p>
-          <ul className="list-disc list-inside text-blue-800">
-            <li>The input is called the independent variable, and the output is the dependent variable.</li>
-            <li>The graph of a function passes the vertical line test.</li>
-            <li>Domain: set of all possible inputs.</li>
-            <li>Range: set of all possible outputs.</li>
-          </ul>
-        </div>
-
-        {/* Domain and Range Section */}
-        <h2 className="text-xl font-semibold text-gray-800 mt-6">Domain and Range</h2>
-        <p className="text-gray-700 mb-4">
-          The <strong>domain</strong> of a function is the set of all possible input values (x-values) 
-          for which the function is defined. The <strong>range</strong> is the set of all possible 
-          output values (y-values) produced by the function.
-        </p>
-
-        <div className="grid md:grid-cols-2 gap-6 items-start">
-          {/* Table of Values */}
-          <div className="overflow-x-auto">
-            <table className="border border-gray-300 w-full text-sm text-left">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border border-gray-300 px-3 py-2">x</th>
-                  <th className="border border-gray-300 px-3 py-2">f(x) = x²</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[-3, -2, -1, 0, 1, 2, 3].map((x) => (
-                  <tr key={x}>
-                    <td className="border border-gray-300 px-3 py-2">{x}</td>
-                    <td className="border border-gray-300 px-3 py-2">{x * x}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <section className="mt-6 grid md:grid-cols-2 gap-5">
+          <div
+            className="rounded-xl border bg-white p-5"
+            style={{ ...cardBorder, boxShadow: subtleShadow }}
+          >
+            <h3 className="font-semibold mb-2" style={{ color: color.deep }}>
+              Important Concepts
+            </h3>
+            <ul className="list-disc list-inside" style={{ color: color.steel }}>
+              <li>Independent vs. dependent variables</li>
+              <li>Vertical line test</li>
+              <li>Domain: all valid inputs</li>
+              <li>Range: all outputs produced</li>
+            </ul>
           </div>
 
-          {/* Compact Graph */}
-          <div className="bg-white p-3 rounded border border-gray-300 shadow-sm">
-            <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={[-3, -2, -1, 0, 1, 2, 3].map((x) => ({ x, y: x * x }))}>
-                <CartesianGrid stroke="#ddd" />
-                <XAxis dataKey="x" type="number" />
-                <YAxis />
+          <div
+            className="rounded-xl border p-5"
+            style={{
+              ...cardBorder,
+              background: `${color.aqua}0D`,
+              boxShadow: subtleShadow,
+            }}
+          >
+            <h3 className="font-semibold mb-2" style={{ color: color.deep }}>
+              Quick Tip
+            </h3>
+            <p style={{ color: color.steel }}>
+              If any vertical line touches the graph more than once, it’s{" "}
+              <em>not</em> a function.
+            </p>
+          </div>
+        </section>
+
+        {/* Domain and Range */}
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold mb-4" style={{ color: color.deep }}>
+            Domain and Range
+          </h2>
+          <p className="mb-4" style={{ color: color.steel }}>
+            The <strong>domain</strong> is the set of inputs (x-values) where
+            the function is defined. The <strong>range</strong> is the set of
+            outputs (y-values) the function produces.
+          </p>
+
+          <div className="grid md:grid-cols-2 gap-6 items-start">
+            {/* Table of Values */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left rounded-md overflow-hidden">
+                <thead style={{ background: `${color.mist}22`, color: color.deep }}>
+                  <tr>
+                    <th className="px-3 py-2 border" style={cardBorder}>
+                      x
+                    </th>
+                    <th className="px-3 py-2 border" style={cardBorder}>
+                      f(x) = x²
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[-3, -2, -1, 0, 1, 2, 3].map((x) => (
+                    <tr key={x} style={{ color: color.steel }}>
+                      <td className="px-3 py-2 border" style={cardBorder}>
+                        {x}
+                      </td>
+                      <td className="px-3 py-2 border" style={cardBorder}>
+                        {x * x}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Compact Graph */}
+            <div
+              className="p-3 rounded border bg-white"
+              style={{ ...cardBorder, boxShadow: subtleShadow }}
+            >
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart
+                  data={[-3, -2, -1, 0, 1, 2, 3].map((x) => ({ x, y: x * x }))}
+                >
+                  <CartesianGrid stroke={`${color.mist}66`} />
+                  <XAxis dataKey="x" type="number" stroke={color.steel} />
+                  <YAxis stroke={color.steel} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="y" stroke={color.teal} dot />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </section>
+
+        {/* Video */}
+        <section className="mt-8">
+          <h3 className="text-lg font-semibold mb-3" style={{ color: color.deep }}>
+            Watch: Understanding Domain and Range
+          </h3>
+          <div
+            className="rounded-xl border overflow-hidden bg-white"
+            style={{ ...cardBorder, boxShadow: subtleShadow }}
+          >
+            <iframe
+              width="100%"
+              height="500"
+              src="https://www.youtube.com/embed/KirGQOwjBVI?si=DH84IXre2QzIDWee"
+              title="Domain and Range Video"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          </div>
+        </section>
+
+        {/* Examples */}
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold mb-3" style={{ color: color.deep }}>
+            Examples
+          </h2>
+          <label className="block text-sm mb-2" style={{ color: color.steel }}>
+            Choose an input value (x):
+            <input
+              type="number"
+              value={inputValue}
+              onChange={(e) => setInputValue(Number(e.target.value))}
+              className="mt-1 block w-full px-3 py-2 rounded shadow-sm focus:outline-none"
+              style={{
+                border: `1px solid ${color.mist}66`,
+                color: color.deep,
+              }}
+              onFocus={(e) =>
+                (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}33`)
+              }
+              onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+            />
+          </label>
+
+          <div className="grid md:grid-cols-3 gap-4">
+            {[
+              {
+                title: "Linear Function: f(x) = x + 3",
+                value: linearFunction(inputValue),
+              },
+              {
+                title: "Quadratic Function: f(x) = 3x² − 4",
+                value: quadraticFunction(inputValue),
+              },
+              {
+                title: "Rational Function: f(x) = 1 / x",
+                value: rationalFunction(inputValue),
+              },
+            ].map((c) => (
+              <div
+                key={c.title}
+                className="p-4 rounded border bg-white"
+                style={{ ...cardBorder, boxShadow: subtleShadow }}
+              >
+                <p className="font-semibold" style={{ color: color.deep }}>
+                  {c.title}
+                </p>
+                <p className="mt-1" style={{ color: color.steel }}>
+                  f({inputValue}) = {c.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Try Your Own Function (fixed equation shown, no input) */}
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold" style={{ color: color.deep }}>
+            Try Your Own Function (demo)
+          </h2>
+          <p className="text-sm mb-2" style={{ color: color.steel }}>
+            We’re currently graphing the fixed function <code>f(x) = 2x + 1</code>.
+            The points below evaluate that function at your chosen X and Y.
+          </p>
+
+          {/* X and Y Inputs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mt-2">
+            <label className="text-sm" style={{ color: color.steel }}>
+              Input X:
+              <input
+                type="number"
+                value={inputX}
+                onChange={(e) => setInputX(Number(e.target.value))}
+                className="mt-1 w-full px-3 py-1.5 rounded-md text-sm shadow-sm focus:outline-none"
+                style={{ border: `1px solid ${color.mist}66`, color: color.deep }}
+                onFocus={(e) =>
+                  (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}33`)
+                }
+                onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+              />
+            </label>
+            <label className="text-sm" style={{ color: color.steel }}>
+              Input Y:
+              <input
+                type="number"
+                value={inputY}
+                onChange={(e) => setInputY(Number(e.target.value))}
+                className="mt-1 w-full px-3 py-1.5 rounded-md text-sm shadow-sm focus:outline-none"
+                style={{ border: `1px solid ${color.mist}66`, color: color.deep }}
+                onFocus={(e) =>
+                  (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}33`)
+                }
+                onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+              />
+            </label>
+          </div>
+
+          {/* Graph */}
+          <div
+            className="mt-4 p-4 rounded border bg-white"
+            style={{ ...cardBorder, boxShadow: subtleShadow }}
+          >
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={graphData}>
+                <CartesianGrid stroke={`${color.mist}66`} />
+                <XAxis dataKey="x" type="number" domain={[minX, maxX]} stroke={color.steel} />
+                <YAxis type="number" domain={[minY, maxY]} stroke={color.steel} />
                 <Tooltip />
-                <Line type="monotone" dataKey="y" stroke="#16a34a" dot />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="y"
+                  stroke={color.teal}
+                  dot={false}
+                  name={`f(x) = ${equation}`}
+                />
+                <Scatter
+                  data={pointDataX as any}
+                  dataKey="y"
+                  fill={color.ocean}
+                  name={`Point @ X=${inputX}`}
+                />
+                <Scatter
+                  data={pointDataY as any}
+                  dataKey="y"
+                  fill={color.mist}
+                  name={`Point @ Y=${inputY}`}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-        </div>
-
-        {/* Embedded Video */}
-        <div className="mt-6">
-          <h3 className="text-lg font-semibold mb-2">Watch: Understanding Domain and Range</h3>
-          <iframe
-            width="100%"
-            height="500"
-            src="https://www.youtube.com/embed/KirGQOwjBVI?si=DH84IXre2QzIDWee"
-            title="Domain and Range Video"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-            className="rounded border border-gray-300"
-          ></iframe>
-        </div>
-
-        {/* Examples */}
-        <h2 className="text-xl font-semibold text-gray-800">Examples</h2>
-        <label className="block text-sm text-gray-700 mb-2">
-          Choose an input value (x):
-          <input
-            type="number"
-            value={inputValue}
-            onChange={(e) => setInputValue(Number(e.target.value))}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded shadow-sm focus:outline-none"
-          />
-        </label>
-
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="bg-gray-100 p-4 rounded border border-gray-300 shadow-sm">
-            <p className="font-semibold">Linear Function: f(x) = x + 3</p>
-            <p>f({inputValue}) = {linearFunction(inputValue)}</p>
-          </div>
-          <div className="bg-gray-100 p-4 rounded border border-gray-300 shadow-sm">
-            <p className="font-semibold">Quadratic Function: f(x) = 3x² - 4</p>
-            <p>f({inputValue}) = {quadraticFunction(inputValue)}</p>
-          </div>
-          <div className="bg-gray-100 p-4 rounded border border-gray-300 shadow-sm">
-            <p className="font-semibold">Rational Function: f(x) = 1 / x</p>
-            <p>f({inputValue}) = {rationalFunction(inputValue)}</p>
-          </div>
-        </div>
-
-        {/* Interactive Graph Section */}
-        <h2 className="text-xl font-semibold text-gray-800">Try Your Own Function</h2>
-        <p className="text-sm text-gray-700 mb-2">
-          Enter any function of <code>x</code> (e.g., <code>2*x+1</code>,{" "}
-          <code>x^2 - 4*x + 3</code>, <code>1/(x-2)</code>).
-        </p>
-
-        {/* Function Input */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <label className="text-sm text-gray-700">Function:</label>
-          <input
-            type="text"
-            value={equation}
-            onChange={(e) => setEquation(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-64 shadow-sm"
-          />
-          {error && <p className="text-red-500 text-xs">{error}</p>}
-        </div>
-
-        {/* X and Y Inputs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
-          <label className="text-sm text-gray-700">
-            Input X:
-            <input
-              type="number"
-              value={inputX}
-              onChange={(e) => setInputX(Number(e.target.value))}
-              className="mt-1 w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm shadow-sm"
-            />
-          </label>
-          <label className="text-sm text-gray-700">
-            Input Y:
-            <input
-              type="number"
-              value={inputY}
-              onChange={(e) => setInputY(Number(e.target.value))}
-              className="mt-1 w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm shadow-sm"
-            />
-          </label>
-        </div>
-
-        {/* Graph */}
-        <div className="bg-white p-4 rounded border border-gray-300 shadow-sm">
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={graphData}>
-              <CartesianGrid stroke="#ccc" />
-              <XAxis dataKey="x" type="number" domain={[minX, maxX]} />
-              <YAxis type="number" domain={[minY, maxY]} />
-              <Tooltip />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="y"
-                stroke="#3b82f6"
-                dot={false}
-                name={`f(x) = ${equation}`}
-              />
-              <Scatter data={pointDataX} dataKey="y" fill="#1d4ed8" name={`Point @ X=${inputX}`} />
-              <Scatter data={pointDataY} dataKey="y" fill="#93c5fd" name={`Point @ Y=${inputY}`} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+        </section>
 
         {/* AI Explanation */}
-        <div className="text-center mt-4">
+        <section className="text-center mt-6">
           {aiLoading ? (
-            <div className="mt-3 p-3 bg-blue-50 border border-blue-300 rounded text-blue-800 text-sm shadow-sm">
+            <div
+              className="mt-3 p-3 rounded border inline-block text-sm"
+              style={{
+                background: `${color.aqua}1a`,
+                color: color.teal,
+                border: `1px solid ${color.mist}66`,
+                boxShadow: subtleShadow,
+              }}
+            >
               <strong>TugonAI:</strong> <em>Explaining...</em>
             </div>
           ) : (
             aiExplanation && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-300 rounded text-blue-800 text-sm shadow-sm">
+              <div
+                className="mt-3 p-3 rounded border inline-block text-sm text-left"
+                style={{
+                  background: `${color.aqua}1a`,
+                  color: color.teal,
+                  border: `1px solid ${color.mist}66`,
+                  boxShadow: subtleShadow,
+                }}
+              >
                 <strong>TugonAI:</strong> {aiExplanation}
               </div>
             )
           )}
-        </div>
+        </section>
 
-        {/* Take Quiz Button */}
-        <div className="text-center mt-8">
+        {/* Take Quiz */}
+        <div className="text-center mt-10">
           <button
             onClick={() => setShowQuiz(true)}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition"
+            className="px-6 py-3 rounded-xl font-semibold shadow-lg transition focus:outline-none"
+            style={{
+              background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+              color: "#fff",
+              boxShadow: subtleShadow,
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.boxShadow = "none")}
+            onMouseUp={(e) => (e.currentTarget.style.boxShadow = subtleShadow)}
           >
             Take Quiz
           </button>
         </div>
 
-{/* Quiz Modal */}
+        {/* Quiz Modal */}
         {showQuiz && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
-            <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            style={{ background: "rgba(0,0,0,0.45)" }}
+          >
+            <div
+              className="w-full max-w-2xl rounded-2xl border bg-white p-6 md:p-7 relative max-h-[90vh] overflow-y-auto"
+              style={{ ...cardBorder, boxShadow: deepShadow }}
+            >
               {!finished ? (
                 <>
-                  <h2 className="text-xl font-bold mb-4 text-center">
-                    Quiz: Exponential Functions
-                  </h2>
-                  <p className="mb-4 text-gray-800">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold" style={{ color: color.deep }}>
+                      Quiz: Introduction to Functions
+                    </h2>
+                    <span
+                      className="text-xs font-semibold px-3 py-1 rounded-full"
+                      style={{
+                        background: `${color.aqua}1a`,
+                        color: color.teal,
+                        border: `1px solid ${color.mist}66`,
+                      }}
+                    >
+                      {currentQuestion + 1} / {quizQuestions.length}
+                    </span>
+                  </div>
+
+                  <p className="mb-4" style={{ color: color.steel }}>
                     {quizQuestions[currentQuestion].question}
                   </p>
 
@@ -386,42 +548,86 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
                       <button
                         key={index}
                         onClick={() => handleAnswer(index)}
-                        className="w-full text-left px-4 py-2 border rounded hover:bg-indigo-100 transition"
+                        className="w-full text-left px-4 py-2 rounded transition focus:outline-none"
+                        style={{
+                          border: `1px solid ${color.mist}66`,
+                          color: color.deep,
+                          background: "#fff",
+                          boxShadow: subtleShadow,
+                        }}
+                        onFocus={(e) =>
+                          (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}33`)
+                        }
+                        onBlur={(e) => (e.currentTarget.style.boxShadow = subtleShadow)}
+                        onMouseOver={(e) => (e.currentTarget.style.background = `${color.teal}0D`)}
+                        onMouseOut={(e) => (e.currentTarget.style.background = "#fff")}
                       >
                         {option}
                       </button>
                     ))}
                   </div>
 
-                  <p className="text-sm text-gray-500 mt-4 text-center">
-                    Question {currentQuestion + 1} of {quizQuestions.length}
-                  </p>
-
-                  <button
-                    onClick={() => setShowQuiz(false)}
-                    className="mt-6 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
-                  >
-                    Exit Quiz
-                  </button>
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      onClick={() => setShowQuiz(false)}
+                      className="px-4 py-2 rounded-lg transition focus:outline-none"
+                      style={{
+                        background: "#f3f4f6",
+                        color: color.steel,
+                        border: `1px solid ${color.mist}66`,
+                      }}
+                      onFocus={(e) =>
+                        (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}33`)
+                      }
+                      onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                    >
+                      Exit Quiz
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
-                  <h2 className="text-xl font-bold mb-4 text-center">
+                  <h2
+                    className="text-2xl font-extrabold text-center"
+                    style={{ color: color.deep }}
+                  >
                     Quiz Finished!
                   </h2>
-                  <p className="mb-4 text-center text-gray-800">
-                    You scored {score} out of {quizQuestions.length}.
+                  <p className="mt-3 text-center" style={{ color: color.steel }}>
+                    You scored{" "}
+                    <span style={{ color: color.teal, fontWeight: 800 }}>
+                      {score}
+                    </span>{" "}
+                    out of {quizQuestions.length}.
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
                     <button
                       onClick={restartQuiz}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+                      className="px-5 py-2 rounded-lg font-semibold transition focus:outline-none"
+                      style={{
+                        background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                        color: "#fff",
+                        boxShadow: subtleShadow,
+                      }}
+                      onFocus={(e) =>
+                        (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}33`)
+                      }
+                      onBlur={(e) => (e.currentTarget.style.boxShadow = subtleShadow)}
                     >
                       Retake Quiz
                     </button>
                     <button
                       onClick={() => setShowQuiz(false)}
-                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                      className="px-5 py-2 rounded-lg font-semibold transition focus:outline-none"
+                      style={{
+                        background: "#f3f4f6",
+                        color: color.steel,
+                        border: `1px solid ${color.mist}66`,
+                      }}
+                      onFocus={(e) =>
+                        (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}33`)
+                      }
+                      onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                     >
                       Close
                     </button>
@@ -432,6 +638,7 @@ Given the function: "${equation}", explain in one sentence whether its graph is 
           </div>
         )}
       </main>
+
       <Footer />
     </div>
   );

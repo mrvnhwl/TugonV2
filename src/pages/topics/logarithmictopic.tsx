@@ -1,3 +1,4 @@
+// src/pages/topics/Logarithmictopic.tsx
 import React, { useState } from "react";
 import Footer from "../../components/Footer";
 import BackButton from "../../components/BackButton";
@@ -10,21 +11,21 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import color from "../../styles/color";
 
 function Logarithmictopic() {
   const [inputValue, setInputValue] = useState(1);
 
-  // Log base 2
+  // log base 2
   const logarithmicFunction = (x: number) => {
-    if (x <= 0) return null; // undefined for x <= 0
+    if (x <= 0) return null;
     return Math.log2(x);
   };
 
-  // Graph data for log₂(x), skipping undefined values
   const graphData = Array.from({ length: 40 }, (_, i) => {
-    const x = i / 2 + 0.1; // start slightly > 0
+    const x = i / 2 + 0.1; // start > 0
     return { x, y: logarithmicFunction(x) };
-  }).filter((point) => point.y !== null);
+  }).filter((p) => p.y !== null);
 
   // Quiz State
   const [showQuiz, setShowQuiz] = useState(false);
@@ -44,41 +45,51 @@ function Logarithmictopic() {
       answer: 2,
     },
     {
+      question: "Which of the following is a logarithmic function?",
+      options: ["f(x) = 2^x", "f(x) = √x", "f(x) = x^2", "f(x) = log₂(x)"],
+      answer: 3,
+    },
+    {
+      question: "The logarithmic function is the inverse of which function?",
+      options: ["Quadratic function", "Exponential function", "Linear function", "Rational function"],
+      answer: 1,
+    },
+    {
+      question: "Which of the following is equivalent to log₁₀(1000)?",
+      options: ["1", "2", "3", "10"],
+      answer: 2,
+    },
+    {
+      question: "What is the domain of f(x) = log(x)?",
+      options: ["x > 0", "All real numbers", "x ≥ 0", "x ≠ 0"],
+      answer: 0,
+    },
+    {
+      question: "Simplify: log₅(25)",
+      options: ["1/2", "1", "3", "2"],
+      answer: 3,
+    },
+    {
       question: "log₂(8) = ?",
       options: ["2", "3", "4", "8"],
       answer: 1,
     },
     {
-      question: "The logarithmic function is the inverse of what function?",
-      options: [
-        "Quadratic",
-        "Exponential",
-        "Linear",
-        "Rational"
-      ],
-      answer: 1,
+      question: "If log₇(x) = 2, then x = ?",
+      options: ["7", "14", "49", "9"],
+      answer: 2,
     },
     {
-      question: "Which statement is true about y = logₐ(x)?",
-      options: [
-        "It is undefined for x ≤ 0",
-        "It passes through (0,0)",
-        "Its domain is all real numbers",
-        "It is decreasing when a > 1"
-      ],
-      answer: 0,
+      question: "If log₂(16) = x, then x = ?",
+      options: ["2", "3", "4", "5"],
+      answer: 2,
     },
   ];
 
   const handleAnswer = (index: number) => {
-    if (quizQuestions[currentQuestion].answer === index) {
-      setScore(score + 1);
-    }
-    if (currentQuestion + 1 < quizQuestions.length) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      setFinished(true);
-    }
+    if (quizQuestions[currentQuestion].answer === index) setScore((s) => s + 1);
+    if (currentQuestion + 1 < quizQuestions.length) setCurrentQuestion((q) => q + 1);
+    else setFinished(true);
   };
 
   const restartQuiz = () => {
@@ -87,102 +98,123 @@ function Logarithmictopic() {
     setFinished(false);
   };
 
+  // Theme helpers
+  const subtleShadow = "0 10px 25px rgba(0,0,0,0.06)";
+  const deepShadow = "0 20px 40px rgba(0,0,0,0.14)";
+  const cardBorder = { borderColor: `${color.mist}66` };
+  const ringFocus = `0 0 0 3px ${color.aqua}33`;
+  const heroGradient = { background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})` };
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      <main className="flex-grow max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <BackButton />
-
-        {/* Topic Name */}
-        <h1 className="text-3xl font-bold text-gray-900 text-center">
-          Logarithmic Functions
-        </h1>
-
-        {/* Topic Description */}
-        <p className="text-gray-700 bg-white p-4 rounded border border-gray-300 shadow-sm">
-          A <strong>logarithmic function</strong> is the inverse of an exponential function. 
-          In general, <code>logₐ(x)</code> answers the question: 
-          “To what power must the base <code>a</code> be raised, to get <code>x</code>?”
-        </p>
-
-        {/* Important Concepts */}
-        <div className="bg-yellow-50 p-4 rounded border border-yellow-300 shadow-sm">
-          <p className="text-yellow-800 font-semibold mb-2">Important Concepts:</p>
-          <ul className="list-disc list-inside text-yellow-800">
-            <li>Domain: <code>x &gt; 0</code> (logarithms are undefined for zero or negative values).</li>
-            <li>Range: all real numbers (<code>-∞</code> to <code>+∞</code>).</li>
-            <li>If <code>a &gt; 1</code>, the log function increases; if <code>0 &lt; a &lt; 1</code>, it decreases.</li>
-            <li>The graph of <code>y = logₐ(x)</code> is the reflection of <code>y = a^x</code> across the line <code>y = x</code>.</li>
-          </ul>
+    <div className="flex flex-col min-h-screen bg-white">
+      {/* Hero */}
+      <header className="relative" style={heroGradient}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <BackButton />
+          <div className="mt-4 text-center">
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">Logarithmic Functions</h1>
+            <p className="mt-2 text-white/90 text-lg">The inverse of exponential growth/decay</p>
+          </div>
         </div>
+        <svg viewBox="0 0 1440 120" className="block w-full" aria-hidden>
+          <path d="M0,64 C240,96 480,0 720,32 C960,64 1200,128 1440,96 L1440,120 L0,120 Z" fill="#ffffff" />
+        </svg>
+      </header>
 
-        {/* Example Section */}
-        <h2 className="text-xl font-semibold text-gray-800">
-          Example: Exploring f(x) = log₂(x)
-        </h2>
-        <label className="block text-sm text-gray-700 mb-2">
-          Enter a positive value for x:
-          <input
-            type="number"
-            value={inputValue}
-            onChange={(e) => setInputValue(Number(e.target.value))}
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring focus:ring-yellow-200"
-          />
-        </label>
+      <main className="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        {/* Overview */}
+        <section className="rounded-2xl border bg-white p-6 md:p-7 -mt-8" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+          <p className="leading-relaxed" style={{ color: color.steel }}>
+            A <strong>logarithmic function</strong> is the inverse of an exponential function. In general, <code>logₐ(x)</code> answers:
+            “To what power must the base <code>a</code> be raised to get <code>x</code>?”
+          </p>
+        </section>
 
-        <div className="bg-gray-100 p-4 rounded">
-          <p className="font-semibold text-gray-800">
-            Logarithmic Function: f(x) = log₂(x)
-          </p>
-          <p className="text-sm text-gray-700">
-            f({inputValue}) ={" "}
-            {logarithmicFunction(inputValue) !== null
-              ? logarithmicFunction(inputValue)?.toFixed(4)
-              : "undefined"}
-          </p>
-        </div>
+        {/* Concepts */}
+        <section className="grid md:grid-cols-2 gap-5 mt-6">
+          <div className="rounded-xl border bg-white p-5" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+            <h3 className="font-semibold mb-2" style={{ color: color.deep }}>Important Concepts</h3>
+            <ul className="list-disc list-inside" style={{ color: color.steel }}>
+              <li>Domain: <code>x &gt; 0</code>; Range: all real numbers.</li>
+              <li>If <code>a &gt; 1</code> the log increases; if <code>0 &lt; a &lt; 1</code> it decreases.</li>
+              <li><code>y = logₐ(x)</code> reflects <code>y = a^x</code> across the line <code>y = x</code>.</li>
+            </ul>
+          </div>
+          <div className="rounded-xl border p-5" style={{ ...cardBorder, background: `${color.aqua}0D`, boxShadow: subtleShadow }}>
+            <h3 className="font-semibold mb-2" style={{ color: color.deep }}>Tip</h3>
+            {/* ✅ FIXED: removed backslashes that broke JSX parsing */}
+            <p style={{ color: color.steel }}>
+              Change of base: <code>log_b(x) = ln(x) / ln(b)</code>.
+            </p>
+          </div>
+        </section>
+
+        {/* Example */}
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold mb-3" style={{ color: color.deep }}>
+            Example: Exploring f(x) = log₂(x)
+          </h2>
+          <label className="block text-sm mb-2" style={{ color: color.steel }}>
+            Enter a positive value for x:
+            <input
+              type="number"
+              value={inputValue}
+              onChange={(e) => setInputValue(Number(e.target.value))}
+              className="mt-1 block w-full px-3 py-2 rounded-md shadow-sm focus:outline-none"
+              style={{ border: `1px solid ${color.mist}66`, color: color.deep }}
+              onFocus={(e) => (e.currentTarget.style.boxShadow = ringFocus)}
+              onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+            />
+          </label>
+
+          <div className="p-4 rounded border bg-white" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+            <p className="font-semibold" style={{ color: color.deep }}>Logarithmic Function: f(x) = log₂(x)</p>
+            <p className="text-sm mt-1" style={{ color: color.steel }}>
+              f({inputValue}) = {logarithmicFunction(inputValue) !== null ? logarithmicFunction(inputValue)!.toFixed(4) : "undefined"}
+            </p>
+          </div>
+        </section>
 
         {/* Graph */}
-        <div className="bg-white p-4 rounded border border-gray-300 shadow-sm">
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={graphData}>
-              <CartesianGrid stroke="#ccc" />
-              <XAxis dataKey="x" type="number" domain={[0, "auto"]} />
-              <YAxis type="number" />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="y"
-                stroke="#f59e0b"
-                dot={false}
-                name="f(x) = log₂(x)"
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+        <section className="mt-6">
+          <div className="bg-white p-4 rounded border shadow-sm" style={{ ...cardBorder }}>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={graphData as { x: number; y: number }[]}>
+                <CartesianGrid stroke={`${color.mist}66`} />
+                <XAxis dataKey="x" type="number" domain={[0, "auto"]} />
+                <YAxis type="number" />
+                <Tooltip />
+                <Line type="monotone" dataKey="y" stroke={color.teal} dot={false} name="f(x) = log₂(x)" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
 
-        {/* Embedded Video */}
-        <div className="mt-6">
-          <h3 className="text-lg font-semibold mb-2">
+        {/* Video */}
+        <section className="mt-8">
+          <h3 className="text-lg font-semibold mb-3" style={{ color: color.deep }}>
             Watch: Logarithmic Functions Explained
           </h3>
-          <iframe
-            width="100%"
-            height="500"
-            src="https://www.youtube.com/embed/kqVpPSzkTYA?si=0mXoAbnD7zKSpu9u"
-            title="Logarithmic Functions Video"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-            className="rounded border border-gray-300"
-          ></iframe>
-        </div>
+          <div className="rounded-xl border overflow-hidden bg-white" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+            <iframe
+              width="100%"
+              height="500"
+              src="https://www.youtube.com/embed/kqVpPSzkTYA?si=0mXoAbnD7zKSpu9u"
+              title="Logarithmic Functions Video"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          </div>
+        </section>
 
-        {/* Take Quiz Button */}
-        <div className="text-center mt-8">
+        {/* CTA */}
+        <div className="text-center mt-10">
           <button
             onClick={() => setShowQuiz(true)}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition"
+            className="px-6 py-3 rounded-xl font-semibold shadow-lg transition focus:outline-none"
+            style={{ background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`, color: "#fff" }}
           >
             Take Quiz
           </button>
@@ -190,58 +222,64 @@ function Logarithmictopic() {
 
         {/* Quiz Modal */}
         {showQuiz && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
-            <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: "rgba(0,0,0,0.45)" }}>
+            <div className="w-full max-w-2xl rounded-2xl border bg-white p-6 md:p-7 relative max-h-[90vh] overflow-y-auto" style={{ borderColor: `${color.mist}66`, boxShadow: deepShadow }}>
               {!finished ? (
                 <>
-                  <h2 className="text-xl font-bold mb-4 text-center">
-                    Quiz: Logarithmic Functions
-                  </h2>
-                  <p className="mb-4 text-gray-800">
-                    {quizQuestions[currentQuestion].question}
-                  </p>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold" style={{ color: color.deep }}>Quiz: Logarithmic Functions</h2>
+                    <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{ background: `${color.aqua}1a`, color: color.teal, border: `1px solid ${color.mist}66` }}>
+                      {currentQuestion + 1} / {quizQuestions.length}
+                    </span>
+                  </div>
+
+                  <p className="mb-4" style={{ color: color.steel }}>{quizQuestions[currentQuestion].question}</p>
 
                   <div className="space-y-2">
                     {quizQuestions[currentQuestion].options.map((option, index) => (
                       <button
                         key={index}
                         onClick={() => handleAnswer(index)}
-                        className="w-full text-left px-4 py-2 border rounded hover:bg-yellow-100 transition"
+                        className="w-full text-left px-4 py-2 rounded transition focus:outline-none"
+                        style={{ border: `1px solid ${color.mist}66`, color: color.deep, background: "#fff", boxShadow: subtleShadow }}
+                        onFocus={(e) => (e.currentTarget.style.boxShadow = `0 0 0 3px ${color.aqua}33`)}
+                        onBlur={(e) => (e.currentTarget.style.boxShadow = subtleShadow)}
+                        onMouseOver={(e) => (e.currentTarget.style.background = `${color.teal}0D`)}
+                        onMouseOut={(e) => (e.currentTarget.style.background = "#fff")}
                       >
                         {option}
                       </button>
                     ))}
                   </div>
 
-                  <p className="text-sm text-gray-500 mt-4 text-center">
-                    Question {currentQuestion + 1} of {quizQuestions.length}
-                  </p>
-
-                  <button
-                    onClick={() => setShowQuiz(false)}
-                    className="mt-6 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
-                  >
-                    Exit Quiz
-                  </button>
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      onClick={() => setShowQuiz(false)}
+                      className="px-4 py-2 rounded-lg transition focus:outline-none"
+                      style={{ background: "#f3f4f6", color: color.steel, border: `1px solid ${color.mist}66` }}
+                    >
+                      Exit Quiz
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
-                  <h2 className="text-xl font-bold mb-4 text-center">
-                    Quiz Finished!
-                  </h2>
-                  <p className="mb-4 text-center text-gray-800">
-                    You scored {score} out of {quizQuestions.length}.
+                  <h2 className="text-2xl font-extrabold text-center" style={{ color: color.deep }}>Quiz Finished!</h2>
+                  <p className="mt-3 text-center" style={{ color: color.steel }}>
+                    You scored <span style={{ color: color.teal, fontWeight: 800 }}>{score}</span> out of {quizQuestions.length}.
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
                     <button
                       onClick={restartQuiz}
-                      className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition"
+                      className="px-5 py-2 rounded-lg font-semibold transition focus:outline-none"
+                      style={{ background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`, color: "#fff" }}
                     >
                       Retake Quiz
                     </button>
                     <button
                       onClick={() => setShowQuiz(false)}
-                      className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+                      className="px-5 py-2 rounded-lg font-semibold transition focus:outline-none"
+                      style={{ background: "#f3f4f6", color: color.steel, border: `1px solid ${color.mist}66` }}
                     >
                       Close
                     </button>
@@ -252,6 +290,7 @@ function Logarithmictopic() {
           </div>
         )}
       </main>
+
       <Footer />
     </div>
   );

@@ -1,87 +1,174 @@
 /*
-  # Initial Schema Setup for Quiz Platform
-
-  1. New Tables
-    - users
-      - Stores user information and authentication
-    - quizzes
-      - Stores quiz information
-    - questions
-      - Stores questions for each quiz
-    - answers
-      - Stores possible answers for each question
-    - user_progress
-      - Tracks user progress and scores
-    
-  2. Security
-    - Enable RLS on all tables
-    - Add policies for authenticated users
+  Updated policies & FK for full owner-managed editing/deletion.
+  Safe to re-run (drops/recreates policies & FK as needed).
 */
 
--- Create tables
-CREATE TABLE IF NOT EXISTS quizzes (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  description TEXT,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  created_by uuid REFERENCES auth.users(id)
-);
+-- Ensure RLS is enabled (safe to re-run)
+alter table public.quizzes enable row level security;
+alter table public.questions enable row level security;
+alter table public.answers enable row level security;
+alter table public.user_progress enable row level security;
 
-CREATE TABLE IF NOT EXISTS questions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  quiz_id uuid REFERENCES quizzes(id) ON DELETE CASCADE,
-  question TEXT NOT NULL,
-  time_limit INTEGER DEFAULT 30,
-  points INTEGER DEFAULT 1000,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+-- =========================
+-- Quizzes
+-- =========================
+drop policy if exists "Anyone can view quizzes" on public.quizzes;
+create policy "Anyone can view quizzes"
+  on public.quizzes for select
+  to authenticated
+  using (true);
 
-CREATE TABLE IF NOT EXISTS answers (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  question_id uuid REFERENCES questions(id) ON DELETE CASCADE,
-  answer TEXT NOT NULL,
-  is_correct BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+drop policy if exists "Users can create quizzes" on public.quizzes;
+create policy "Users can create quizzes"
+  on public.quizzes for insert
+  to authenticated
+  with check (auth.uid() = created_by);
 
-CREATE TABLE IF NOT EXISTS user_progress (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id),
-  quiz_id uuid REFERENCES quizzes(id),
-  score INTEGER DEFAULT 0,
-  completed_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, quiz_id)
-);
+-- NEW: allow owners to update/delete their quizzes
+drop policy if exists "update own quizzes" on public.quizzes;
+create policy "update own quizzes"
+  on public.quizzes for update
+  to authenticated
+  using (auth.uid() = created_by)
+  with check (auth.uid() = created_by);
 
--- Enable Row Level Security
-ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE questions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE answers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_progress ENABLE ROW LEVEL SECURITY;
+drop policy if exists "delete own quizzes" on public.quizzes;
+create policy "delete own quizzes"
+  on public.quizzes for delete
+  to authenticated
+  using (auth.uid() = created_by);
 
--- Create policies
-CREATE POLICY "Anyone can view quizzes"
-  ON quizzes FOR SELECT
-  TO authenticated
-  USING (true);
+-- =========================
+-- Questions (owner-scoped CRUD)
+-- =========================
+drop policy if exists "Anyone can view questions" on public.questions;
+create policy "Anyone can view questions"
+  on public.questions for select
+  to authenticated
+  using (true);
 
-CREATE POLICY "Users can create quizzes"
-  ON quizzes FOR INSERT
-  TO authenticated
-  WITH CHECK (auth.uid() = created_by);
+drop policy if exists "insert questions for own quizzes" on public.questions;
+create policy "insert questions for own quizzes"
+  on public.questions for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.quizzes q
+      where q.id = questions.quiz_id
+        and q.created_by = auth.uid()
+    )
+  );
 
-CREATE POLICY "Anyone can view questions"
-  ON questions FOR SELECT
-  TO authenticated
-  USING (true);
+drop policy if exists "update questions for own quizzes" on public.questions;
+create policy "update questions for own quizzes"
+  on public.questions for update
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.quizzes q
+      where q.id = questions.quiz_id
+        and q.created_by = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from public.quizzes q
+      where q.id = questions.quiz_id
+        and q.created_by = auth.uid()
+    )
+  );
 
-CREATE POLICY "Anyone can view answers"
-  ON answers FOR SELECT
-  TO authenticated
-  USING (true);
+drop policy if exists "delete questions for own quizzes" on public.questions;
+create policy "delete questions for own quizzes"
+  on public.questions for delete
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.quizzes q
+      where q.id = questions.quiz_id
+        and q.created_by = auth.uid()
+    )
+  );
 
-CREATE POLICY "Users can track their progress"
-  ON user_progress FOR ALL
-  TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+-- =========================
+-- Answers (owner-scoped CRUD)
+-- =========================
+drop policy if exists "Anyone can view answers" on public.answers;
+create policy "Anyone can view answers"
+  on public.answers for select
+  to authenticated
+  using (true);
+
+drop policy if exists "insert answers for own quizzes" on public.answers;
+create policy "insert answers for own quizzes"
+  on public.answers for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.questions qq
+      join public.quizzes q on q.id = qq.quiz_id
+      where qq.id = answers.question_id
+        and q.created_by = auth.uid()
+    )
+  );
+
+drop policy if exists "update answers for own quizzes" on public.answers;
+create policy "update answers for own quizzes"
+  on public.answers for update
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.questions qq
+      join public.quizzes q on q.id = qq.quiz_id
+      where qq.id = answers.question_id
+        and q.created_by = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from public.questions qq
+      join public.quizzes q on q.id = qq.quiz_id
+      where qq.id = answers.question_id
+        and q.created_by = auth.uid()
+    )
+  );
+
+drop policy if exists "delete answers for own quizzes" on public.answers;
+create policy "delete answers for own quizzes"
+  on public.answers for delete
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.questions qq
+      join public.quizzes q on q.id = qq.quiz_id
+      where qq.id = answers.question_id
+        and q.created_by = auth.uid()
+    )
+  );
+
+-- =========================
+-- User Progress (keep your existing policy)
+-- =========================
+drop policy if exists "Users can track their progress" on public.user_progress;
+create policy "Users can track their progress"
+  on public.user_progress for all
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Make progress rows cascade when a quiz is deleted (so delete works cleanly)
+alter table public.user_progress
+  drop constraint if exists user_progress_quiz_id_fkey;
+
+alter table public.user_progress
+  add constraint user_progress_quiz_id_fkey
+  foreign key (quiz_id) references public.quizzes(id)
+  on delete cascade;
