@@ -26,7 +26,14 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+     // ADDED: Include the types folder
+     "typeRoots": ["./node_modules/@types", "./src/types"],
+    "types": ["node", "react", "react-dom"]
   },
-  "include": ["src"]
+  "include": [
+    "src/**/*",
+    "src/types/**/*"  // ADDED: Include types folder
+  ]
+   
 }

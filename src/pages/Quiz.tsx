@@ -237,6 +237,7 @@ function Quiz() {
           </div>
         </header>
 
+
         {/* Card */}
         <main className="max-w-4xl mx-auto px-4 py-6">
           <div
@@ -286,6 +287,7 @@ function Quiz() {
 
             {/* Footer controls */}
             <div className="flex justify-between items-center mt-6">
+
               <button
                 onClick={prevQuestion}
                 disabled={questionIndex === 0}
