@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, Save, Keyboard } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -123,14 +123,20 @@ function CreateQuiz() {
   const questionRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const answerRefs = useRef<(HTMLInputElement | null)[][]>([]);
 
+  // Sync refs when questions change
+  useEffect(() => {
+    questionRefs.current = questions.map(() => null);
+    answerRefs.current = questions.map(() => Array(4).fill(null));
+  }, [questions.length]);
+
   /* ----------------------------- Mutators (UI) ---------------------------- */
 
-  const addQuestion = () => {
+  const addQuestion = useCallback(() => {
     setQuestions((prev) => [
       ...prev,
       { question: "", time_limit: 30, points: 1000, answers: freshAnswers() },
     ]);
-  };
+  }, []);
 
   const removeQuestion = (index: number) => {
     setQuestions((prev) => prev.filter((_, i) => i !== index));
@@ -367,7 +373,7 @@ function CreateQuiz() {
       <motion.div
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.2 }}
         className="max-w-4xl mx-auto px-3 sm:px-6 py-6 sm:py-8"
       >
         <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
@@ -393,30 +399,14 @@ function CreateQuiz() {
             />
           </div>
 
-          {/* Always-visible math tools */}
-          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-3 sm:space-y-4">
-            <div className="text-[11px] sm:text-xs text-gray-500">
-              Tip: click any question or answer first, then insert symbols below. Blur (tap away) to auto-format.
-            </div>
-
-            {/* Live LaTeX preview */}
-            <div className="rounded-md bg-gray-50 border px-3 py-2">
-              <div className="text-[11px] sm:text-xs text-gray-500 mb-1">Live Preview</div>
-              <MathJax dynamic>
-                {previewText && previewText.trim() !== ""
-                  ? previewText
-                  : "\\(\\text{(empty)}\\)"}
-              </MathJax>
-            </div>
-          </div>
-
+         
           {/* Questions */}
           {questions.map((q, qIndex) => (
             <motion.div
               key={qIndex}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: qIndex * 0.04 }}
+              transition={{ duration: 0.2 }} // ❌ removed delay per item
               className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4"
             >
               <div className="flex items-center justify-between gap-2">
@@ -458,6 +448,7 @@ function CreateQuiz() {
       <MathJax dynamic>{q.question}</MathJax>
     </div>
   )}
+  {/* Removed Preview component to fix error */}
 </div>
 
 {/* Time & Points */}
@@ -552,9 +543,14 @@ function CreateQuiz() {
     </div>
   ))}
 </div>
+{/* Separator before Student Preview */}
+<div className="my-6 border-t border-gray-300 relative">
+  <span className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-white px-2 text-gray-500 text-sm">
+    Student Preview
+  </span>
+</div>
 
 {/* ===== STUDENT VIEW ===== */}
-{/* Rendered question */}
 <div className="mb-4 text-lg font-mono">
   <MathJax dynamic>{q.question}</MathJax>
 </div>
@@ -591,26 +587,6 @@ function CreateQuiz() {
             </button>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  // Format all fields in one go
-                  setQuestions((prev) =>
-                    prev.map((q) => ({
-                      ...q,
-                      question: smartFormat(q.question),
-                      answers: q.answers.map((a) => ({
-                        ...a,
-                        answer: smartFormat(a.answer),
-                      })),
-                    }))
-                  );
-                }}
-                className="px-4 py-2 bg-white border rounded-md hover:bg-gray-50 transition"
-              >
-                Format all math
-              </button>
-
               <button
                 type="submit"
                 disabled={saving}
