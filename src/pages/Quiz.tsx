@@ -4,8 +4,13 @@ import { Timer, CheckCircle, XCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { toast } from "sonner";
-import { MathJax, MathJaxContext } from "better-react-mathjax";
+import { MathJax } from "better-react-mathjax";
 import color from "../styles/color";
+
+interface QuizType {
+  id: string;
+  title: string;
+}
 
 interface Question {
   id: string;
@@ -20,13 +25,28 @@ interface Answer {
   is_correct: boolean;
 }
 
+// ✅ Helper to auto-wrap math expressions for MathJax
+const wrapMath = (str: string | undefined | null) => {
+  if (!str) return "";
+  // Already has \( … \) or \[ … \] → leave it
+  if (/\\\(|\\\[/.test(str)) return str;
+
+  // Wrap LaTeX commands or ^/_ with inline math
+  return str.replace(/([a-zA-Z0-9\\]+(\^|_)?(\{[^}]+\})?)/g, (match) => {
+    if (/\\|(\^|_)/.test(match)) {
+      return `\\(${match}\\)`; // inline math
+    }
+    return match;
+  });
+};
+
 function Quiz() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
 
-  const [quiz, setQuiz] = useState<any>(null);
+  const [quiz, setQuiz] = useState<QuizType | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [answers, setAnswers] = useState<Answer[]>([]);
@@ -41,7 +61,7 @@ function Quiz() {
 
   const returnTo = location.state?.returnTo || "/challenge";
 
-  // Hide navbar on quiz page
+  // Hide navbar while in quiz
   useEffect(() => {
     document.body.classList.add("hide-navbar");
     return () => {
@@ -55,8 +75,7 @@ function Quiz() {
       return;
     }
     loadQuiz();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user]);
+  }, [id, user]); // eslint-disable-line
 
   useEffect(() => {
     if (currentQuestion) {
@@ -95,7 +114,7 @@ function Quiz() {
         .single();
 
       if (quizError) throw quizError;
-      setQuiz(quizData);
+      setQuiz(quizData as QuizType);
 
       const { data: questionsData, error: qErr } = await supabase
         .from("questions")
@@ -179,7 +198,7 @@ function Quiz() {
       console.error("Error saving progress:", e);
       toast.error("Failed to save progress.");
     }
-    setShowResult(true); // ⬅️ show final score modal
+    setShowResult(true);
   };
 
   if (!quiz || !currentQuestion) {
@@ -197,186 +216,186 @@ function Quiz() {
   const cardBorder = `${color.mist}66`;
 
   return (
-    <MathJaxContext>
-      <div className="min-h-screen" style={{ background: `linear-gradient(${color.mist}11, #fff)` }}>
-        {/* Header (palette + progress) */}
-        <header
-          className="relative"
-          style={{ background: headerGradient, boxShadow: "0 10px 26px rgba(0,0,0,0.08)" }}
-        >
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-white">
-            <div className="flex items-center justify-between gap-3">
-              <h1 className="text-xl sm:text-2xl font-extrabold leading-tight">
-                <MathJax dynamic>{quiz.title}</MathJax>
-              </h1>
+    <div className="min-h-screen" style={{ background: `linear-gradient(${color.mist}11, #fff)` }}>
+      {/* Header */}
+      <header
+        className="relative"
+        style={{ background: headerGradient, boxShadow: "0 10px 26px rgba(0,0,0,0.08)" }}
+      >
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-white text-center">
+          {/* Title */}
+          <h1 className="text-xl sm:text-2xl font-extrabold leading-tight">
+            <MathJax dynamic inline>{wrapMath(quiz?.title || "")}</MathJax>
+          </h1>
 
-              <div
-                className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold"
-                style={{ background: "#ffffff22", border: "1px solid #ffffff33" }}
-              >
-                <Timer className="h-4 w-4" />
-                <span>{timeLeft}s</span>
-              </div>
-            </div>
-
-            <div className="mt-3 text-xs opacity-90">
-              Question {questionIndex + 1} of {questions.length}
-            </div>
-
-            <div className="mt-2 h-2.5 w-full rounded-full overflow-hidden" style={{ background: "#ffffff2f" }}>
-              <div
-                className="h-2.5 rounded-full"
-                style={{
-                  width: `${progressPct}%`,
-                  background: "#fff",
-                  boxShadow: "0 2px 10px rgba(255,255,255,.45)",
-                  transition: "width .25s ease",
-                }}
-              />
-            </div>
-          </div>
-        </header>
-
-        {/* Card */}
-        <main className="max-w-4xl mx-auto px-4 py-6">
+          {/* Timer */}
           <div
-            className="bg-white rounded-2xl shadow-xl ring-1 p-6 sm:p-7"
-            style={{ borderColor: cardBorder }}
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1 mt-3 text-sm font-semibold"
+            style={{ background: "#ffffff22", border: "1px solid #ffffff33" }}
           >
-            {/* Question */}
-            <div className="mb-6">
-              <h2 className="text-lg sm:text-xl font-semibold" style={{ color: color.deep }}>
-                <MathJax dynamic>{currentQuestion.question}</MathJax>
-              </h2>
+            <Timer className="h-4 w-4" />
+            <span>{timeLeft}s</span>
+          </div>
+
+          {/* Progress */}
+          <div className="mt-3 text-xs opacity-90">
+            Question {questionIndex + 1} of {questions.length}
+          </div>
+          <div className="mt-2 h-2.5 w-full rounded-full overflow-hidden" style={{ background: "#ffffff2f" }}>
+            <div
+              className="h-2.5 rounded-full"
+              style={{
+                width: `${progressPct}%`,
+                background: "#fff",
+                boxShadow: "0 2px 10px rgba(255,255,255,.45)",
+                transition: "width .25s ease",
+              }}
+            />
+          </div>
+        </div>
+      </header>
+
+      {/* Card */}
+      <main className="max-w-4xl mx-auto px-4 py-6">
+        <div
+          className="bg-white rounded-2xl shadow-xl ring-1 p-6 sm:p-7"
+          style={{ borderColor: cardBorder }}
+        >
+          {/* Question */}
+          <div className="mb-6">
+            <h2 className="text-lg sm:text-xl font-semibold" style={{ color: color.deep }}>
+              <MathJax dynamic inline>{wrapMath(currentQuestion.question)}</MathJax>
+            </h2>
+          </div>
+
+          {/* Answers */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+            {answers.map((answer) => {
+              const isCorrect = answer.is_correct;
+              const base =
+                "p-4 rounded-xl text-left transition-all border-2 focus:outline-none focus-visible:ring-2";
+              const neutral =
+                "bg-gray-50 hover:bg-gray-100 border-transparent focus-visible:ring-[rgba(0,0,0,.06)]";
+              const whenAnswered = isCorrect
+                ? "bg-green-50 border-green-500"
+                : "bg-red-50 border-red-500";
+              return (
+                <button
+                  key={answer.id}
+                  onClick={() => handleAnswer(answer)}
+                  disabled={isAnswered}
+                  className={`${base} ${isAnswered ? whenAnswered : neutral}`}
+                >
+                  <div className="flex items-center">
+                    <span className="flex-grow" style={{ color: color.deep }}>
+                      <MathJax dynamic inline>{wrapMath(answer.answer)}</MathJax>
+                    </span>
+                    {isAnswered &&
+                      (isCorrect ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-600" />
+                      ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Footer */}
+          <div className="flex justify-between items-center mt-6">
+            <button
+              onClick={prevQuestion}
+              disabled={questionIndex === 0}
+              className="px-4 py-2 rounded-lg disabled:opacity-50 border"
+              style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
+            >
+              Prev
+            </button>
+
+            <div className="text-sm sm:text-base font-semibold" style={{ color: color.steel }}>
+              Points: <span style={{ color: color.teal }}>{score}</span> / {totalPoints}
             </div>
 
-            {/* Answers */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-              {answers.map((answer) => {
-                const isCorrect = answer.is_correct;
-                const base =
-                  "p-4 rounded-xl text-left transition-all border-2 focus:outline-none focus-visible:ring-2";
-                const neutral =
-                  "bg-gray-50 hover:bg-gray-100 border-transparent focus-visible:ring-[rgba(0,0,0,.06)]";
-                const whenAnswered = isCorrect
-                  ? "bg-green-50 border-green-500"
-                  : "bg-red-50 border-red-500";
-                return (
-                  <button
-                    key={answer.id}
-                    onClick={() => handleAnswer(answer)}
-                    disabled={isAnswered}
-                    className={`${base} ${isAnswered ? whenAnswered : neutral}`}
-                  >
-                    <div className="flex items-center">
-                      <span className="flex-grow" style={{ color: color.deep }}>
-                        <MathJax dynamic>{answer.answer}</MathJax>
-                      </span>
-                      {isAnswered &&
-                        (isCorrect ? (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-600" />
-                        ))}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <button
+              onClick={nextQuestion}
+              className="px-4 py-2 rounded-lg text-white"
+              style={{
+                background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+              }}
+            >
+              {questionIndex === questions.length - 1 ? "Finish" : "Next"}
+            </button>
+          </div>
+        </div>
+      </main>
 
-            {/* Footer controls */}
-            <div className="flex justify-between items-center mt-6">
-              <button
-                onClick={prevQuestion}
-                disabled={questionIndex === 0}
-                className="px-4 py-2 rounded-lg disabled:opacity-50 border"
-                style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
-              >
-                Prev
-              </button>
-
-              <div className="text-sm sm:text-base font-semibold" style={{ color: color.steel }}>
-                Points: <span style={{ color: color.teal }}>{score}</span> / {totalPoints}
-              </div>
-
-              <button
-                onClick={nextQuestion}
-                className="px-4 py-2 rounded-lg text-white"
+      {/* Final Score Modal */}
+      {showResult && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,.32)" }}
+        >
+          <div
+            className="w-[92%] max-w-md rounded-2xl shadow-2xl ring-1 p-6"
+            style={{ background: "#fff", borderColor: cardBorder }}
+          >
+            <div className="text-center">
+              <div
+                className="inline-flex items-center justify-center h-14 w-14 rounded-full mb-3"
                 style={{
                   background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                  boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+                  color: "#fff",
                 }}
               >
-                {questionIndex === questions.length - 1 ? "Finish" : "Next"}
-              </button>
-            </div>
-          </div>
-        </main>
+                🏁
+              </div>
+              <h3 className="text-xl font-extrabold" style={{ color: color.deep }}>
+                Challenge Completed!
+              </h3>
+              <p className="mt-1 text-sm" style={{ color: color.steel }}>
+                You answered <strong>{correctCount}</strong> out of{" "}
+                <strong>{questions.length}</strong> correctly.
+              </p>
 
-        {/* Final Score Modal */}
-        {showResult && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,.32)" }}
-          >
-            <div
-              className="w-[92%] max-w-md rounded-2xl shadow-2xl ring-1 p-6"
-              style={{ background: "#fff", borderColor: cardBorder }}
-            >
-              <div className="text-center">
-                <div
-                  className="inline-flex items-center justify-center h-14 w-14 rounded-full mb-3"
+              <div className="mt-4 text-3xl font-extrabold" style={{ color: color.teal }}>
+                {score}{" "}
+                <span className="text-base font-semibold" style={{ color: color.steel }}>
+                  / {totalPoints}
+                </span>
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    setShowResult(false);
+                    setQuestionIndex(0);
+                    setCurrentQuestion(questions[0]);
+                    setScore(0);
+                    setCorrectCount(0);
+                  }}
+                  className="px-4 py-2 rounded-lg border font-semibold"
+                  style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
+                >
+                  Retry Quiz
+                </button>
+                <button
+                  onClick={() => navigate(returnTo)}
+                  className="px-4 py-2 rounded-lg text-white font-semibold"
                   style={{
                     background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                    color: "#fff",
+                    boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
                   }}
                 >
-                  🏁
-                </div>
-                <h3 className="text-xl font-extrabold" style={{ color: color.deep }}>
-                  Challenge Completed!
-                </h3>
-                <p className="mt-1 text-sm" style={{ color: color.steel }}>
-                  You answered <strong>{correctCount}</strong> out of{" "}
-                  <strong>{questions.length}</strong> correctly.
-                </p>
-
-                <div className="mt-4 text-3xl font-extrabold" style={{ color: color.teal }}>
-                  {score} <span className="text-base font-semibold" style={{ color: color.steel }}>/ {totalPoints}</span>
-                </div>
-
-                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    onClick={() => {
-                      // restart current quiz quickly
-                      setShowResult(false);
-                      setQuestionIndex(0);
-                      setCurrentQuestion(questions[0]);
-                      setScore(0);
-                      setCorrectCount(0);
-                    }}
-                    className="px-4 py-2 rounded-lg border font-semibold"
-                    style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
-                  >
-                    Retry Quiz
-                  </button>
-                  <button
-                    onClick={() => navigate(returnTo)}
-                    className="px-4 py-2 rounded-lg text-white font-semibold"
-                    style={{
-                      background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                      boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
-                    }}
-                  >
-                    Back to Challenges
-                  </button>
-                </div>
+                  Back to Challenges
+                </button>
               </div>
             </div>
           </div>
-        )}
-      </div>
-    </MathJaxContext>
+        </div>
+      )}
+    </div>
   );
 }
 
