@@ -22,7 +22,14 @@
   display: inline-block !important;
   box-shadow: none !important;
 }
+.mq-focused {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
 
+.mq-editable-field.mq-empty::before {
+  color: #9ca3af;
+}
 /* MathQuill cursor animation */
 .mq-cursor {
   border-left: 2px solid #374151 !important;

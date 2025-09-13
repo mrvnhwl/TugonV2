@@ -8,6 +8,8 @@ import { CheckCircle } from "lucide-react";
 import { Small } from "../../Typography";
 import { UserAttempt } from './UserInput';
 
+// Add QuestionBox import
+import QuestionBox from '../question-system/QuestionBox';
 
 // Missing type definitions - ADD these
 interface MessagePrompt {
@@ -58,17 +60,22 @@ export type WizardStep = {
 
 export interface AnswerWizardProps {
   steps: Step[];
-  onSubmit: (finalSteps: WizardStep[], validationResult?: any) => void; // FIXED: Added optional validationResult
+  onSubmit: (finalSteps: WizardStep[], validationResult?: any) => void;
   onIndexChange: (index: number) => void;
   expectedAnswers?: PredefinedAnswer[];
   onValidationResult?: (type: 'correct' | 'incorrect' | 'partial', currentStep: number) => void;
-  onAnswerChange?: (index: number, value: string) => void; // FIXED: Added proper signature
+  onAnswerChange?: (index: number, value: string) => void;
   onAttemptUpdate?: (attempts: UserAttempt[]) => void;
-  className?: string; // ADD: Missing className prop
-  disabled?: boolean; // ADD: Missing disabled prop
+  className?: string;
+  disabled?: boolean;
   topicId?: number;
   categoryId?: number;
   questionId?: number;
+  // Add question props for QuestionBox
+  questionText?: string;
+  questionType?: string;
+  title?: string;
+  fallbackText?: string;
 }
 
 export default function AnswerWizard({
@@ -79,11 +86,13 @@ export default function AnswerWizard({
   onValidationResult,
   onAnswerChange,
   onAttemptUpdate,
-  className, // ADD: Include className
-  disabled = false, // ADD: Include disabled with default
+  className,
+  disabled = false,
   topicId,
   categoryId,
-  questionId
+  questionId,
+   title,
+  fallbackText
 }: AnswerWizardProps) {
   // Source answers
   const answersSource: PredefinedAnswer[] = expectedAnswers && expectedAnswers.length > 0
@@ -106,7 +115,8 @@ export default function AnswerWizard({
   const [correctness, setCorrectness] = useState<Array<boolean | null>>(
     Array.from({ length: fixedSteps.length }, () => null)
   );
- const [showHints, setShowHints] = useState(false);
+  const [showHints, setShowHints] = useState(false);
+  
   // Store all user inputs as arrays of lines
   const [userInputs, setUserInputs] = useState<string[][]>(
     fixedSteps.map(() => [''])
@@ -179,7 +189,7 @@ export default function AnswerWizard({
   ];
 
   // Function to trigger hints for testing
-   const triggerTestHint = () => {
+  const triggerTestHint = () => {
     const hintIndex = hintState.requestCount % sampleHints.length;
     const hintContent = sampleHints[hintIndex];
     
@@ -205,41 +215,43 @@ export default function AnswerWizard({
       index
     );
   };
-   useEffect(() => {
-          // Reset all state when question parameters change
-          const newFixedSteps: WizardStep[] = (answersSource || []).map((_, i) => {
-            const t: AnswerType = "multi";
-            return {
-              id: `s${i + 1}`,
-              type: t,
-              answerValue: [''],
-            } as WizardStep;
-          });
 
-          setWizardSteps(newFixedSteps);
-          setIndex(0);
-          setCorrectness(Array.from({ length: newFixedSteps.length }, () => null));
-          setUserInputs(newFixedSteps.map(() => ['']));
-          setShowHints(false);
-          
-          // Reset hint state
-          setHintState({
-            show: false,
-            text: "",
-            requestCount: 0
-          });
-          
-          // Reset conversation history
-          setUserConversationHistory([]);
-          
-          console.log('🔄 AnswerWizard state reset for new question:', {
-            topicId,
-            categoryId,
-            questionId,
-            steps: newFixedSteps.length
-          });
-          
-    }, [topicId, categoryId, questionId, answersSource]); 
+  useEffect(() => {
+    // Reset all state when question parameters change
+    const newFixedSteps: WizardStep[] = (answersSource || []).map((_, i) => {
+      const t: AnswerType = "multi";
+      return {
+        id: `s${i + 1}`,
+        type: t,
+        answerValue: [''],
+      } as WizardStep;
+    });
+
+    setWizardSteps(newFixedSteps);
+    setIndex(0);
+    setCorrectness(Array.from({ length: newFixedSteps.length }, () => null));
+    setUserInputs(newFixedSteps.map(() => ['']));
+    setShowHints(false);
+    
+    // Reset hint state
+    setHintState({
+      show: false,
+      text: "",
+      requestCount: 0
+    });
+    
+    // Reset conversation history
+    setUserConversationHistory([]);
+    
+    console.log('🔄 AnswerWizard state reset for new question:', {
+      topicId,
+      categoryId,
+      questionId,
+      steps: newFixedSteps.length
+    });
+    
+  }, [topicId, categoryId, questionId, answersSource]); 
+  
   // Function to hide hints
   const hideHints = () => {
     setHintState(prev => ({
@@ -264,70 +276,70 @@ export default function AnswerWizard({
  
   // Handle Enter key submission
   const handleEnterSubmission = (lines: string[]) => {
-  console.log("🎯 Enter submission triggered:", lines);
-  setShowHints(false);
-  
-  // Validate using your InputValidator
-  const expectedSteps = answersSource?.[index]?.steps;
-  
-  if (!expectedSteps) {
-    console.log("❌ No expected steps found for validation");
-    return;
-  }
-  
-  // Use InputValidator to check if the current step is correct
-  const currentLine = lines[0] || ''; // Get the first line
-  
-  const validation = InputValidator.validateStepWithTwoPhase(
-    currentLine.trim(),
-    expectedSteps[0]?.answer || '',
-    expectedSteps[0]?.label || '',
-    0,
-    expectedSteps
-  );
-  
-  console.log("🔍 Validation result:", validation);
-  
-  // Track submission in conversation history
-  const userBehavior: UserBehavior = {
-    action: 'submit',
-    timestamp: new Date(),
-    stepIndex: index,
-    details: { validationResult: validation, submissionMethod: 'enter_key' }
+    console.log("🎯 Enter submission triggered:", lines);
+    setShowHints(false);
+    
+    // Validate using your InputValidator
+    const expectedSteps = answersSource?.[index]?.steps;
+    
+    if (!expectedSteps) {
+      console.log("❌ No expected steps found for validation");
+      return;
+    }
+    
+    // Use InputValidator to check if the current step is correct
+    const currentLine = lines[0] || ''; // Get the first line
+    
+    const validation = InputValidator.validateStepWithTwoPhase(
+      currentLine.trim(),
+      expectedSteps[0]?.answer || '',
+      expectedSteps[0]?.label || '',
+      0,
+      expectedSteps
+    );
+    
+    console.log("🔍 Validation result:", validation);
+    
+    // Track submission in conversation history
+    const userBehavior: UserBehavior = {
+      action: 'submit',
+      timestamp: new Date(),
+      stepIndex: index,
+      details: { validationResult: validation, submissionMethod: 'enter_key' }
+    };
+
+    addToConversationHistory(
+      [], // No message prompts for submissions
+      lines.join('\n'),
+      userBehavior,
+      index
+    );
+
+    // FIXED: Call the validation result callback properly
+    if (validation.isCurrentStepCorrect) {
+      console.log("✅ Calling onValidationResult with 'correct'");
+      onValidationResult?.('correct', index);
+    } else {
+      console.log("❌ Calling onValidationResult with 'incorrect'");
+      onValidationResult?.('incorrect', index);
+    }
+
+    // Update wizard steps
+    setWizardSteps((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], answerValue: lines } as WizardStep;
+      return next;
+    });
+
+    // Call the onSubmit callback
+    onSubmit(wizardSteps);
+    
+    // Show hints after a delay
+    setTimeout(() => {
+      console.log("🔄 Setting showHints to true after delay");
+      setShowHints(true);
+    }, 200);
   };
-
-  addToConversationHistory(
-    [], // No message prompts for submissions
-    lines.join('\n'),
-    userBehavior,
-    index
-  );
-
-  // FIXED: Call the validation result callback properly
-  if (validation.isCurrentStepCorrect) {
-    console.log("✅ Calling onValidationResult with 'correct'");
-    onValidationResult?.('correct', index);
-  } else {
-    console.log("❌ Calling onValidationResult with 'incorrect'");
-    onValidationResult?.('incorrect', index);
-  }
-
-  // Update wizard steps
-  setWizardSteps((prev) => {
-    const next = [...prev];
-    next[index] = { ...next[index], answerValue: lines } as WizardStep;
-    return next;
-  });
-
-  // Call the onSubmit callback
-  onSubmit(wizardSteps);
-  
-  // Show hints after a delay
-  setTimeout(() => {
-    console.log("🔄 Setting showHints to true after delay");
-    setShowHints(true);
-  }, 200);
-};
 
   const handleSuggestSubmission = (lines: string[]) => {
     // Removed toast notification - just log for now
@@ -335,7 +347,7 @@ export default function AnswerWizard({
   };
 
   // Handle input changes from UserInput
-   const handleInputChange = (lines: string[]) => {
+  const handleInputChange = (lines: string[]) => {
     const expectedSteps = answersSource?.[index]?.steps;
     
     InputValidator.logValidation(lines, expectedSteps, index);
@@ -445,6 +457,7 @@ export default function AnswerWizard({
 
     handleValidationResult("spam");
   };
+  
   // Function to get userInput for any step (for external access)
   const getUserInputForStep = (stepIndex: number): string[] => {
     return userInputs[stepIndex] || [''];
@@ -456,7 +469,16 @@ export default function AnswerWizard({
   };
 
   return (
-    <div className={cn("rounded-2xl border bg-card shadow-sm p-4 space-y-4", className)}>
+    <div className={cn("rounded-2xl  p-4 space-y-4", className)}>
+      {/* ADD: QuestionBox Component */}
+      <QuestionBox
+        title={title}
+        topicId={topicId}
+        categoryId={categoryId}
+        questionId={questionId}
+        fallbackText={fallbackText}
+      />
+
       {/* Main input area */}
       {current && (
         <div className="space-y-3">
@@ -480,15 +502,13 @@ export default function AnswerWizard({
 
             return (
               <div className="space-y-2">
-    
-
                 <UserInput
                   key={`user-input-${index}-${topicId}-${categoryId}-${questionId}`}
                   value={answerLines}
                   onChange={handleInputChange}
                   placeholder="Enter your answer..."
                   maxLines={8}
-                  disabled={Boolean(disabled || (correctness[index] === true))} // FIXED: Use disabled prop
+                  disabled={Boolean(disabled || (correctness[index] === true))}
                   className={inputClasses}
                   expectedSteps={expectedSteps}
                   onSubmit={handleEnterSubmission}
@@ -504,8 +524,6 @@ export default function AnswerWizard({
                   categoryId={categoryId}
                   questionId={questionId}
                 />
-
-               
               </div>
             );
           })()}

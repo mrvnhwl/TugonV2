@@ -286,18 +286,32 @@ export default function TugonPlay() {
       />
 
       {/* Navbar - Responsive */}
-      <div className="h-16 sm:h-16 bg-violet-600 flex items-center justify-between px-3 sm:px-4 flex-shrink-0">
-        <SubHeading className="text-white font-semibold text-sm sm:text-base truncate">
-          TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
-        </SubHeading>
-        <button
-          onClick={() => navigate("/tugonsense")}
-          className="text-white bg-transparent border-none text-lg sm:text-xl p-1 hover:bg-white/10 rounded transition-colors"
-        >
-          ✕
-        </button>
+     <div className="h-16 bg-gradient-to-r from-[#397F85] to-[#327373] flex items-center justify-between px-4 shadow-lg flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-sm">T</span>
+          </div>
+          <SubHeading className="text-white font-bold text-lg">
+            TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
+          </SubHeading>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {/* Question Progress Indicator */}
+          <div className="hidden sm:flex items-center gap-2 text-white/80 text-sm">
+            <span>Q{questionId}</span>
+            <div className="w-1 h-4 bg-white/30 rounded-full"></div>
+            <span>Topic {topicId}</span>
+          </div>
+          
+          <button
+            onClick={() => navigate("/tugonsense")}
+            className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
+          >
+            ✕
+          </button>
+        </div>
       </div>
-
       {/* MOBILE LAYOUT (sm and below) */}
       <div className="flex-1 overflow-y-auto px-2 py-3 sm:hidden">
         <div className="w-full max-w-full mx-auto">
@@ -312,14 +326,7 @@ export default function TugonPlay() {
           {/* Mobile: QuestionBox with floating Character */}
           <div className="mb-3 relative" id="question-box-container-mobile">
             {/* Question Box - Full width, no flex constraints */}
-            <QuestionBox 
-              topicId={topicId}
-              categoryId={finalCategoryId}
-              questionId={questionId}
-              title={topicName}
-              fallbackText="Question not found."
-            />
-            
+           
             {/* Character - Floating to the right of QuestionBox */}
             <CharacterPositionedMobile />
           </div>
@@ -356,15 +363,7 @@ export default function TugonPlay() {
             />
           </div>
           
-          <div className="mb-4 sm:mb-6">
-            <QuestionBox 
-              topicId={topicId}
-              categoryId={finalCategoryId}
-              questionId={questionId}
-              title={topicName}
-              fallbackText="Question not found."
-            />
-          </div>
+     
           
           {/* Desktop Answer Wizard */}
           <div className="mb-4 sm:mb-6" id="answer-wizard-container">
@@ -451,10 +450,7 @@ function CharacterPositionedMobile() {
         left: position.left,
       }}
     >
-      <Character 
-        name="Tugon" 
-        className="w-12 h-12 drop-shadow-lg"
-      />
+     
     </div>
   );
 }
@@ -505,10 +501,7 @@ function CharacterPositionedDesktop() {
         left: position.left,
       }}
     >
-      <Character 
-        name="Tugon" 
-        className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24"
-      />
+      
     </div>
   );
 }

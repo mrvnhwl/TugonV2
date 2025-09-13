@@ -38,20 +38,19 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
   }
 
   return (
-    <Card className={cn("w-auto max-w-full mx-auto rounded-2xl border-2 border-purple-500 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]", className)}>
-      <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative">
-        {/* Call-to-action indicator icon */}
-       
-        
-        {/* Main text with enhanced styling */}
-        <Text className="text-purple-950 font-bold text-left leading-relaxed text-fluid-sm sm:text-fluid-base tracking-wide">
-          {categoryQuestion}
-        </Text>
-        
-        {/* Subtle accent line */}
-        <div className="absolute bottom-0 left-8 right-8 h-1 bg-gradient-to-r from-purple-400 to-indigo-400 rounded-full"></div>
-      </CardContent>
-    </Card>
+   <Card className={cn(
+  "w-auto max-w-full mx-auto rounded-2xl border-0 bg-[#5da295] shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
+  className
+)}>
+  <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative">
+    {/* Main text with enhanced styling */}
+    <Text className="text-white font-bold text-left leading-relaxed text-fluid-sm sm:text-fluid-base tracking-wide">
+      {categoryQuestion}
+    </Text>
+    {/* Subtle accent line */}
+    <div className="absolute bottom-0 left-8 right-8 h-1 bg-gradient-to-r from-[#397F85] to-[#327373] rounded-full"></div>
+  </CardContent>
+</Card>
   );
 };
 

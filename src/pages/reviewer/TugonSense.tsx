@@ -26,25 +26,8 @@ export default function TugonSense() {
       {/* Main */}
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            {/* Progress Map Section */}
-           
-            
-            {/* Course Card Section */}
-            <section className="lg:col-span-5">
-              <CourseCard
-                title={activeCourse.title}
-                description={activeCourse.description}
-                lessons={activeCourse.lessons}
-                exercises={activeCourse.exercises}
-                // Pass progress data
-                topicId={activeCourse.id}
-                progress={activeTopicProgress}
-                overallStats={stats}
-              />
-            </section>
-             <section className="lg:col-span-7">
+         
+
               <ProgressMap
                 courses={courses}
                 onActiveChange={() => {}} // You can implement if needed
@@ -53,9 +36,8 @@ export default function TugonSense() {
                   navigate(`/tugonplay?topic=${topicId}&category=${categoryId}&question=${questionId}`);
                 }}
               />
-            </section>
-            
-          </div>
+     
+
         </div>
       </main>
     </div>

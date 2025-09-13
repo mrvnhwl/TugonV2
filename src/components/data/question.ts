@@ -5,8 +5,10 @@ export interface GivenQuestion {
   question_id: number;
   question_text: string;
   guide_text: string;
+
     image_url?: string; // Optional image field
   image_alt?: string; // Alt text for accessibility
+
   
 }
 
@@ -40,6 +42,15 @@ export const defaultTopics: Topic[] = [
     level: [
       { 
         category_id: 1, 
+        category_question: "INPUT OUTPUT",
+        given_question: [
+          { question_id: 1, question_text: "The vending machine gives you a Soda. What number did you press?", guide_text: "Check if any x-value repeats with different y-values.", image_alt: "Is the relation a function?" },
+          { question_id: 2, question_text: "You received a Bag of Chips. Which input did you choose?", guide_text: "Each x-value should map to only one y-value.", image_url: "/images/stage1/relation2.png", image_alt: "Is the relation a function?" },
+          { question_id: 3, question_text: "The machine drops a Chocolate Bar. What was the input?", guide_text: "Look for repeated x-values with different y-values.", image_url: "/images/stage1/relation3.png", image_alt: "Is the relation a function?" },
+        ]
+      },
+      { 
+        category_id: 2, 
         category_question: "RELATION A FUNCTION OR NOT?",
         given_question: [
           { question_id: 1, question_text: "RELATION OR NOT 1", guide_text: "Check if any x-value repeats with different y-values.", image_url: "/images/stage1/relation1.png", image_alt: "Is the relation a function?" },
@@ -50,7 +61,7 @@ export const defaultTopics: Topic[] = [
         ]
       },
       { 
-        category_id: 2, 
+        category_id: 3, 
         category_question: "GRAPH A FUNCTION OR NOT?",
         given_question: [                                                                                                                           
           { question_id: 1, question_text: "Graph 1", guide_text: "Does any vertical line cross the graph more than once?", image_url: "/images/stage2/graph2.png", image_alt: "Graph showing a relation that is not a function" },
@@ -61,24 +72,44 @@ export const defaultTopics: Topic[] = [
         ]
       },
       { 
-        category_id: 3, 
-        category_question: "INTERPRET FUNCTION NOTATION",
+        category_id: 4, 
+        category_question: "Input-OUTPUT RELATION", //not done
         given_question: [
           { question_id: 1, question_text: "The sum of twice x and three times y", guide_text: "Substitute 3 for x in the function.", image_url: "/images/stage3/interpret1.png", image_alt: "The sum of twice x and three times y" },
-          { question_id: 2, question_text: "The square of x plus the square of y", guide_text: "Replace x with 5 in the function.", image_url: "/images/stage3/interpret2.png", image_alt: "The square of x plus the square of y"  },
+          { question_id: 2, question_text: "x^{2}+5", guide_text: "Replace x with 5 in the function.", image_url: "/images/stage3/interpret2.png", image_alt: "The square of x plus the square of y"  },
           { question_id: 3, question_text: "y is equal to five less than x", guide_text: "Multiply 4 by 2.", image_url: "/images/stage3/interpret3.png", image_alt: "y is equal to five less than x"},
           { question_id: 4, question_text: "If f(x) = x², what is f(2)?", guide_text: "Square the input value.", image_url: "/images/stage3/interpret4.png", image_alt: "The product of x and the cube of y" },
           { question_id: 5, question_text: "If f(x) = x², what is f(2)?", guide_text: "Square the input value.", image_url: "/images/stage3/interpret5.png", image_alt: "y is equal to the absolute value of x" }
         ]
       },
       { 
-        category_id: 4, 
-        category_question: "IDENTIFY FUNCTION NOTATION",
+        category_id: 5, 
+        category_question: "IDENTIFY FUNCTION NOTATION", //not done
         given_question: [
-          { question_id: 1, question_text: "If f(x) = x + 2, what is f(3)?", guide_text: "Substitute 3 for x in the function." },
-          { question_id: 2, question_text: "If f(x) = x - 1, what is f(5)?", guide_text: "Replace x with 5 in the function." },
-          { question_id: 3, question_text: "If f(x) = 2x, what is f(4)?", guide_text: "Multiply 4 by 2." },
-          { question_id: 4, question_text: "If f(x) = x², what is f(2)?", guide_text: "Square the input value." }
+          { question_id: 1, question_text: "y=2x+5", guide_text: "Substitute 3 for x in the function." },
+          { question_id: 2, question_text: "x/y?", guide_text: "Replace x with 5 in the function." },
+          { question_id: 3, question_text: "square root of x+9", guide_text: "Multiply 4 by 2." },
+          { question_id: 4, question_text: "Real numbers", guide_text: "Square the input value." }
+        ]
+      },
+       { 
+        category_id: 6, 
+        category_question: "COMPLETE THE TABLE", //not done
+        given_question: [
+          { question_id: 1, question_text: "y=2x+5", guide_text: "Substitute 3 for x in the function." },
+          { question_id: 2, question_text: "x/y?", guide_text: "Replace x with 5 in the function." },
+          { question_id: 3, question_text: "square root of x+9", guide_text: "Multiply 4 by 2." },
+          { question_id: 4, question_text: "Real numbers", guide_text: "Square the input value." }
+        ]
+      },
+       { 
+        category_id: 7, 
+        category_question: "IDENTIFY THE TYPE OF EQUATION ", //not done
+        given_question: [
+          { question_id: 1, question_text: "y=2x+5", guide_text: "Substitute 3 for x in the function." },
+          { question_id: 2, question_text: "x/y?", guide_text: "Replace x with 5 in the function." },
+          { question_id: 3, question_text: "square root of x+9", guide_text: "Multiply 4 by 2." },
+          { question_id: 4, question_text: "Real numbers", guide_text: "Square the input value." }
         ]
       },
     ],

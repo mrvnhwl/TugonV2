@@ -70,7 +70,7 @@ function AppContent() {
   const isStudentRoute = studentRoutes.includes(location.pathname);
 
   // 👇 Hide AI button on login
-  const hideOnRoutes = ['/login', '/', '/tugon-play', '/tugonSense'];
+  const hideOnRoutes = ['/login', '/', '/tugonplay', '/tugonSense'];
   const shouldShowAIButton = !hideOnRoutes.includes(location.pathname);
 
   return (

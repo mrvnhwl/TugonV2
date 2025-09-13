@@ -5,17 +5,19 @@ import { cn } from "../../cn";
 import { defaultTopics } from "../../data/question";
 import { SubHeading, Text, Small } from "../../Typography";
 
-type QuestionBoxProps = PropsWithChildren<{
-  title?: string;
-  className?: string;
-  // IDs to identify specific question
+
+export interface QuestionBoxProps {
+  questionText?: string;
+  questionType?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
   topicId?: number;
   categoryId?: number;
   questionId?: number;
-  // Fallback text if no IDs provided
+  title?: string;
+  className?: string;
   fallbackText?: string;
-}>;
-
+  children?: React.ReactNode;
+}
 export default function QuestionBox({
   title,
   className,
@@ -78,7 +80,7 @@ export default function QuestionBox({
                 className={cn(
                   // Match the question text container sizing
                   "w-full max-h-80 object-contain", // Full width of container, constrained height
-                  "rounded-lg border shadow-sm",
+                  "rounded-lg  shadow-sm",
                   "transition-opacity duration-200",
                   "bg-gray-50"
                 )}
