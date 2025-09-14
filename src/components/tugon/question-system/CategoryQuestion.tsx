@@ -44,9 +44,22 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
 )}>
   <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative">
     {/* Main text with enhanced styling */}
-    <Text className="text-white font-bold text-left leading-relaxed text-fluid-sm sm:text-fluid-base tracking-wide">
-      {categoryQuestion}
-    </Text>
+    <math-field
+      value={categoryQuestion || ""}
+      read-only={true}
+      style={{
+        color: "white",
+        fontWeight: "bold",
+        textAlign: "left",
+        fontSize: "1.5rem",
+        background: "transparent",
+        border: "none",
+        width: "100%",
+        pointerEvents: "none",
+        fontFamily: "Comic Sans MS', cursive, sans-serif"
+      }}
+      className="leading-relaxed tracking-wide"
+    ></math-field>
     {/* Subtle accent line */}
     <div className="absolute bottom-0 left-8 right-8 h-1 bg-gradient-to-r from-[#397F85] to-[#327373] rounded-full"></div>
   </CardContent>

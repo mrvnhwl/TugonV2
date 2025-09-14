@@ -7,7 +7,7 @@ import InputValidator from './UserInputValidator';
 import { CheckCircle } from "lucide-react";
 import { Small } from "../../Typography";
 import { UserAttempt } from './UserInput';
-
+import  MathInputs from './MathInputs'; // Import MathInputs component
 // Add QuestionBox import
 import QuestionBox from '../question-system/QuestionBox';
 
@@ -60,23 +60,26 @@ export type WizardStep = {
 
 export interface AnswerWizardProps {
   steps: Step[];
-  onSubmit: (finalSteps: WizardStep[], validationResult?: any) => void;
-  onIndexChange: (index: number) => void;
+  mathMode?: boolean;
+ 
   expectedAnswers?: PredefinedAnswer[];
-  onValidationResult?: (type: 'correct' | 'incorrect' | 'partial', currentStep: number) => void;
-  onAnswerChange?: (index: number, value: string) => void;
-  onAttemptUpdate?: (attempts: UserAttempt[]) => void;
   className?: string;
   disabled?: boolean;
   topicId?: number;
   categoryId?: number;
   questionId?: number;
+  onValidationResult?: (type: 'correct' | 'incorrect' | 'partial', currentStep: number) => void;
+  onAnswerChange?: (index: number, value: string) => void;
+  onAttemptUpdate?: (attempts: UserAttempt[]) => void;
+  onSubmit: (finalSteps: WizardStep[], validationResult?: any) => void;
+  onIndexChange: (index: number) => void;
   // Add question props for QuestionBox
   questionText?: string;
   questionType?: string;
   title?: string;
   fallbackText?: string;
 }
+
 
 export default function AnswerWizard({
   steps: inputSteps,
@@ -502,6 +505,7 @@ export default function AnswerWizard({
 
             return (
               <div className="space-y-2">
+               
                 <UserInput
                   key={`user-input-${index}-${topicId}-${categoryId}-${questionId}`}
                   value={answerLines}
@@ -523,7 +527,7 @@ export default function AnswerWizard({
                   topicId={topicId}
                   categoryId={categoryId}
                   questionId={questionId}
-                />
+                  />
               </div>
             );
           })()}
