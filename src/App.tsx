@@ -14,18 +14,18 @@ import StudentDashboard from "./pages/studentDashboard";
 import Challenge from "./pages/Challenge";
 import Leaderboards from "./pages/LeaderBoards";
 import Game from "./pages/Game";
-import TugonSense from "./pages/reviewer/TugonSense";
-
+import TugonSense from './pages/reviewer/TugonSense';
+import TugonPlay from './pages/reviewer/TugonPlay';
 import Operation from "./pages/tugonsense/operations";
 import Evaluation from "./pages/tugonsense/evaluation";
 import Radio from "./components/Radio";
 import FloatingAIButton from "./components/FloatingAIButton";
 
-import TugonPlay from "./pages/reviewer/TugonPlay";
 import HostGame from "./pages/HostGame";
 
 // TugonSense challenges
 import EvaluationDifficultySelector from "./pages/tugonsense/Evaluation/evaluationdifficulty";
+
 import EvaluationPhase1 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase1";
 import EvaluationPhase2 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase2";
 import EvaluationPhase3 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase3";
@@ -155,7 +155,7 @@ function AppContent() {
             <Route path="/student-progress" element={<StudentProgress />} />
             <Route path="/challenge" element={<Challenge />} />
             <Route path="/tugonsense" element={<TugonSense />} />
-            <Route path="/tugon-play" element={<TugonPlay />} />
+            <Route path="/tugonplay" element={<TugonPlay />} />
             <Route path="/host" element={<HostGame />} />
             <Route path="/leaderboards" element={<Leaderboards />} />
             <Route path="/game/:id" element={<Game />} />

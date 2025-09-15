@@ -313,6 +313,18 @@ function Quiz() {
               Prev
             </button>
 
+        {/* Card */}
+        <main className="max-w-4xl mx-auto px-4 py-6">
+          <div
+            className="bg-white rounded-2xl shadow-xl ring-1 p-6 sm:p-7"
+            style={{ borderColor: cardBorder }}
+          >
+            {/* Question */}
+            <div className="mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold" style={{ color: color.deep }}>
+                <MathJax dynamic>{currentQuestion.question}</MathJax>
+              </h2>
+            </div>
             <div className="text-sm sm:text-base font-semibold" style={{ color: color.steel }}>
               Points: <span style={{ color: color.teal }}>{score}</span> / {totalPoints}
             </div>
@@ -330,6 +342,21 @@ function Quiz() {
           </div>
         </div>
       </main>
+            {/* Footer controls */}
+            <div className="flex justify-between items-center mt-6">
+
+              <button
+                onClick={prevQuestion}
+                disabled={questionIndex === 0}
+                className="px-4 py-2 rounded-lg disabled:opacity-50 border"
+                style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
+              >
+                Prev
+              </button>
+
+              <div className="text-sm sm:text-base font-semibold" style={{ color: color.steel }}>
+                Points: <span style={{ color: color.teal }}>{score}</span> / {totalPoints}
+              </div>
 
       {/* Final Score Modal */}
       {showResult && (

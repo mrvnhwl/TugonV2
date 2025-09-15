@@ -83,7 +83,8 @@ function NavItem({
   );
 }
 
-function TeacherNavbar() {
+
+function TeacherNavbar({ className = "" }: { className?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hideNav, setHideNav] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -117,12 +118,14 @@ function TeacherNavbar() {
   const closeMenuOnNavigate = () => setMenuOpen(false);
 
   return (
+
     <nav
       className="shadow-lg sticky top-0 z-50"
       role="navigation"
       aria-label="Teacher main"
       style={{ background: color.steel, color: "#fff", borderBottom: `1px solid ${color.ocean}` }}
     >
+
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}

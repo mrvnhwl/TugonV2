@@ -9,6 +9,19 @@ module.exports = {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+		 fontSize: {
+              // fluid font sizes: clamp(min, preferred, max)
+              'fluid-xs':  'clamp(.75rem, 1.2vw, .875rem)',   // small captions
+              'fluid-sm':  'clamp(.875rem, 1.4vw, 1rem)',     // body small
+              'fluid-base': 'clamp(1rem, 1.6vw, 1.125rem)',   // body default
+              'fluid-lg':  'clamp(1.125rem, 2.2vw, 1.375rem)',// subtitle
+              'fluid-xl':  'clamp(1.5rem, 3vw, 2rem)',        // heading
+              'fluid-2xl': 'clamp(2rem, 4vw, 3rem)'          // large hero
+          },
+          maxWidth: {
+              'content': '56rem',  // ~896px for wide containers
+              'reading': '40rem'   // ~640px, good for prose and Q/A cards
+          },
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',

@@ -16,6 +16,7 @@ import { motion } from "framer-motion";
 import color from "../styles/color";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabase";
+import Papa from "papaparse";
 
 interface Quiz {
   id: string;
@@ -117,6 +118,59 @@ function TeacherDashboard() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Function for CSV import
+  const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to create accounts for all students in this CSV file? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data as {
+          student_number?: string;
+          full_name?: string;
+          email: string;
+          password: string;
+          grade_level?: string;
+          section?: string;
+          contact_number?: string;
+        }[];
+
+        for (const row of rows) {
+          if (!row.email || !row.password) {
+            console.error("Skipping invalid row:", row);
+            continue;
+          }
+          if (row.password.trim().length < 6) {
+            console.error("Password too short:", row.email);
+            continue;
+          }
+          try {
+            const { error } = await supabase.auth.signUp({
+              email: row.email.trim(),
+              password: row.password.trim(),
+            });
+            if (error) throw error;
+            console.log(`✅ Created user: ${row.email}`);
+          } catch (err: any) {
+            console.error(`❌ Failed to create user ${row.email}:`, err.message);
+            alert(`Error creating user for ${row.email}: ${err.message}`);
+          }
+        }
+        alert("CSV import completed!");
+      },
+      error: (error) => {
+        alert("Error parsing CSV: " + error.message);
+      },
+    });
+  };
 
   // NEW: helper to (re)build StudentProgress list, optionally filtered by section
   const buildStudentProgress = async (rows: any[], sectionId: string) => {
@@ -330,7 +384,7 @@ function TeacherDashboard() {
                     </div>
                     <div className="min-w-0">
                       <div className="text-xs sm:text-sm" style={{ color: color.steel }}>
-                        Active Students
+                        Number of Students
                       </div>
                       <div className="text-lg sm:text-2xl font-extrabold" style={{ color: color.deep }}>
                         {studentProgress.length}
@@ -383,6 +437,31 @@ function TeacherDashboard() {
                   </div>
                 </motion.div>
               </motion.div>
+              {/* CSV Import (kept as-is) */}
+              <div className="mt-8">
+                <label htmlFor="csv-upload" className="block text-sm font-medium mb-2" style={{ color: color.deep }}>
+                  Import Students via CSV
+                </label>
+                <input
+                  id="csv-upload"
+                  type="file"
+                  accept=".csv"
+                  className="sr-only"
+                  onChange={handleCSVImport}
+                />
+                <div className="flex items-center gap-3">
+                  <label
+                    htmlFor="csv-upload"
+                    className="inline-flex items-center justify-center rounded-xl px-4 py-2 font-semibold shadow-md cursor-pointer"
+                    style={{ background: color.teal, color: "#fff" }}
+                  >
+                    Upload CSV
+                  </label>
+                  <span className="text-xs" style={{ color: color.steel }}>
+                    Expected headers: <code>email, password</code> (plus optional fields).
+                  </span>
+                </div>
+              </div>
             </motion.div>
 
             {/* Student Progress (latest per student) */}
