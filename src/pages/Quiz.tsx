@@ -28,15 +28,11 @@ interface Answer {
 // ✅ Helper to auto-wrap math expressions for MathJax
 const wrapMath = (str: string | undefined | null) => {
   if (!str) return "";
-  // Already has \( … \) or \[ … \] → leave it
-  if (/\\\(|\\\[/.test(str)) return str;
-
-  // Wrap LaTeX commands or ^/_ with inline math
-  return str.replace(/([a-zA-Z0-9\\]+(\^|_)?(\{[^}]+\})?)/g, (match) => {
-    if (/\\|(\^|_)/.test(match)) {
-      return `\\(${match}\\)`; // inline math
-    }
-    return match;
+  if (/\\\(|\\\[/.test(str)) return str; // already wrapped
+  // naive inline wrap for LaTeX-ish tokens
+  return str.replace(/([a-zA-Z0-9\\]+(\^|_)?(\{[^}]+\})?)/g, (m) => {
+    if (/\\|(\^|_)/.test(m)) return `\\(${m}\\)`;
+    return m;
   });
 };
 
@@ -59,7 +55,7 @@ function Quiz() {
   const [correctCount, setCorrectCount] = useState<number>(0);
   const [showResult, setShowResult] = useState(false);
 
-  const returnTo = location.state?.returnTo || "/challenge";
+  const returnTo = (location.state as any)?.returnTo || "/challenge";
 
   // Hide navbar while in quiz
   useEffect(() => {
@@ -69,29 +65,83 @@ function Quiz() {
     };
   }, []);
 
+  // Load quiz + questions
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-    loadQuiz();
-  }, [id, user]); // eslint-disable-line
+    const run = async () => {
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+      try {
+        const { data: quizData, error: quizError } = await supabase
+          .from("quizzes")
+          .select("*")
+          .eq("id", id)
+          .single();
 
+        if (quizError) throw quizError;
+        setQuiz(quizData as QuizType);
+
+        const { data: questionsData, error: qErr } = await supabase
+          .from("questions")
+          .select("*")
+          .eq("quiz_id", id)
+          .order("created_at");
+
+        if (qErr) throw qErr;
+
+        if (questionsData && questionsData.length > 0) {
+          const qs = questionsData as Question[];
+          setQuestions(qs);
+          setCurrentQuestion(qs[0]);
+          setQuestionIndex(0);
+          setScore(0);
+          setCorrectCount(0);
+        } else {
+          setQuestions([]);
+          setCurrentQuestion(null);
+        }
+      } catch (e) {
+        console.error("Error loading quiz:", e);
+        toast.error("Failed to load quiz.");
+      }
+    };
+    run();
+  }, [id, user, navigate]);
+
+  // Load answers when the current question changes
   useEffect(() => {
+    const loadAnswers = async (questionId: string) => {
+      try {
+        const { data: answersData, error } = await supabase
+          .from("answers")
+          .select("*")
+          .eq("question_id", questionId);
+
+        if (error) throw error;
+        setAnswers((answersData as Answer[]) || []);
+      } catch (e) {
+        console.error("Error loading answers:", e);
+        toast.error("Failed to load answers.");
+      }
+    };
+
     if (currentQuestion) {
       const start = currentQuestion.time_limit || 30;
       setTimeLeft(start);
-      loadAnswers(currentQuestion.id);
       setIsAnswered(false);
+      loadAnswers(currentQuestion.id);
     }
   }, [currentQuestion]);
 
+  // Countdown
   useEffect(() => {
-    if (timeLeft > 0 && !isAnswered) {
-      const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+    if (!isAnswered && timeLeft > 0) {
+      const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
       return () => clearInterval(timer);
-    } else if (timeLeft === 0 && !isAnswered) {
-      handleTimeout();
+    }
+    if (!isAnswered && timeLeft === 0) {
+      setIsAnswered(true); // timeout
     }
   }, [timeLeft, isAnswered]);
 
@@ -104,56 +154,6 @@ function Quiz() {
     () => (questions.length ? Math.round(((questionIndex + 1) / questions.length) * 100) : 0),
     [questionIndex, questions.length]
   );
-
-  const loadQuiz = async () => {
-    try {
-      const { data: quizData, error: quizError } = await supabase
-        .from("quizzes")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (quizError) throw quizError;
-      setQuiz(quizData as QuizType);
-
-      const { data: questionsData, error: qErr } = await supabase
-        .from("questions")
-        .select("*")
-        .eq("quiz_id", id)
-        .order("created_at");
-
-      if (qErr) throw qErr;
-
-      if (questionsData && questionsData.length > 0) {
-        const qs = questionsData as Question[];
-        setQuestions(qs);
-        setCurrentQuestion(qs[0]);
-        setQuestionIndex(0);
-        setScore(0);
-        setCorrectCount(0);
-      }
-    } catch (error) {
-      console.error("Error loading quiz:", error);
-      toast.error("Failed to load quiz.");
-    }
-  };
-
-  const loadAnswers = async (questionId: string) => {
-    try {
-      const { data: answersData, error } = await supabase
-        .from("answers")
-        .select("*")
-        .eq("question_id", questionId);
-
-      if (error) throw error;
-      setAnswers((answersData as Answer[]) || []);
-    } catch (e) {
-      console.error("Error loading answers:", e);
-      toast.error("Failed to load answers.");
-    }
-  };
-
-  const handleTimeout = () => setIsAnswered(true);
 
   const handleAnswer = (answer: Answer) => {
     if (isAnswered || !currentQuestion) return;
@@ -255,12 +255,9 @@ function Quiz() {
         </div>
       </header>
 
-      {/* Card */}
+      {/* Main Card */}
       <main className="max-w-4xl mx-auto px-4 py-6">
-        <div
-          className="bg-white rounded-2xl shadow-xl ring-1 p-6 sm:p-7"
-          style={{ borderColor: cardBorder }}
-        >
+        <div className="bg-white rounded-2xl shadow-xl ring-1 p-6 sm:p-7" style={{ borderColor: cardBorder }}>
           {/* Question */}
           <div className="mb-6">
             <h2 className="text-lg sm:text-xl font-semibold" style={{ color: color.deep }}>
@@ -276,9 +273,7 @@ function Quiz() {
                 "p-4 rounded-xl text-left transition-all border-2 focus:outline-none focus-visible:ring-2";
               const neutral =
                 "bg-gray-50 hover:bg-gray-100 border-transparent focus-visible:ring-[rgba(0,0,0,.06)]";
-              const whenAnswered = isCorrect
-                ? "bg-green-50 border-green-500"
-                : "bg-red-50 border-red-500";
+              const whenAnswered = isCorrect ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500";
               return (
                 <button
                   key={answer.id}
@@ -302,7 +297,7 @@ function Quiz() {
             })}
           </div>
 
-          {/* Footer */}
+          {/* Footer controls */}
           <div className="flex justify-between items-center mt-6">
             <button
               onClick={prevQuestion}
@@ -313,18 +308,6 @@ function Quiz() {
               Prev
             </button>
 
-        {/* Card */}
-        <main className="max-w-4xl mx-auto px-4 py-6">
-          <div
-            className="bg-white rounded-2xl shadow-xl ring-1 p-6 sm:p-7"
-            style={{ borderColor: cardBorder }}
-          >
-            {/* Question */}
-            <div className="mb-6">
-              <h2 className="text-lg sm:text-xl font-semibold" style={{ color: color.deep }}>
-                <MathJax dynamic>{currentQuestion.question}</MathJax>
-              </h2>
-            </div>
             <div className="text-sm sm:text-base font-semibold" style={{ color: color.steel }}>
               Points: <span style={{ color: color.teal }}>{score}</span> / {totalPoints}
             </div>
@@ -342,21 +325,6 @@ function Quiz() {
           </div>
         </div>
       </main>
-            {/* Footer controls */}
-            <div className="flex justify-between items-center mt-6">
-
-              <button
-                onClick={prevQuestion}
-                disabled={questionIndex === 0}
-                className="px-4 py-2 rounded-lg disabled:opacity-50 border"
-                style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
-              >
-                Prev
-              </button>
-
-              <div className="text-sm sm:text-base font-semibold" style={{ color: color.steel }}>
-                Points: <span style={{ color: color.teal }}>{score}</span> / {totalPoints}
-              </div>
 
       {/* Final Score Modal */}
       {showResult && (
@@ -382,8 +350,7 @@ function Quiz() {
                 Challenge Completed!
               </h3>
               <p className="mt-1 text-sm" style={{ color: color.steel }}>
-                You answered <strong>{correctCount}</strong> out of{" "}
-                <strong>{questions.length}</strong> correctly.
+                You answered <strong>{correctCount}</strong> out of <strong>{questions.length}</strong> correctly.
               </p>
 
               <div className="mt-4 text-3xl font-extrabold" style={{ color: color.teal }}>
