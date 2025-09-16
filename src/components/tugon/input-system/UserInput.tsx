@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "../../cn";
 import InputValidator from "./UserInputValidator";
 import type { TwoPhaseValidationResult, CompletionStatus } from "./UserInputValidator";
-import type { Step } from "@/components/data/answers";
+import type { Step } from "@/components/data/answers/types";
 import ShortHints from "../hint-system/shortHints";
 import UserBehaviorClassifier from './UserBehaviorClassifier';
 import type { UserBehaviorProfile, BehaviorType } from './UserBehaviorClassifier';
 import LongHints from "../hint-system/longHints";
+import { MathfieldElement } from "mathlive"; // Ensure mathlive is installed
 
 type StepProgression = [string, string, boolean, string, number]; 
 // [stepLabel, userInput, isCorrect, expectedAnswer, totalProgress]
@@ -16,8 +17,10 @@ type UserAttempt = {
   stepIndex: number;
   stepLabel: string;
   userInput: string;
+  sanitizedInput: string; 
   isCorrect: boolean;
   expectedAnswer: string;
+  sanitizedExpectedAnswer: string; 
   cumulativeProgress: number;
   stepStartTime: number; // When step was started
   attemptTime: number;   // When this specific attempt was made
@@ -35,7 +38,6 @@ type StepTiming = {
 
 export interface UserInputProps {
   value: string[];
-  onChange: (lines: string[]) => void;
   placeholder?: string;
   maxLines?: number;
   disabled?: boolean;
@@ -43,13 +45,15 @@ export interface UserInputProps {
    topicId?: number;
   categoryId?: number;
   questionId?: number;
-  onSpamDetected?: () => void;
-  onResetSpamFlag?: () => void;
-  expectedSteps?: Step[];
-  onSubmit?: (lines: string[]) => void;
-  onSuggestSubmission?: (lines: string[]) => void;
+  expectedSteps: Step[];
   showHints?: boolean;
   hintText?: string;
+  //mathMode?: boolean; //mathlive
+  onChange: (lines: string[]) => void;
+  onSpamDetected?: () => void;
+  onResetSpamFlag?: () => void;
+  onSubmit?: (lines: string[]) => void;
+  onSuggestSubmission?: (lines: string[]) => void;
   onRequestHint?: () => void;
   onAttemptUpdate?: (attempts: UserAttempt[]) => void;
 }
@@ -76,9 +80,20 @@ export default function UserInput({
 }: UserInputProps) {
   const [lines, setLines] = useState<string[]>(value);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-  const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement)[]>([]);
+  const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | any)[]>([]); //mathlive
   const [localShowHints, setLocalShowHints] = useState<boolean>(false);
-  
+   
+
+  //add mathlive ref
+  //const mfe = new MathfieldElement();
+  // Add virtual keyboard control
+   const [virtualKeyboardEnabled, setVirtualKeyboardEnabled] = useState<boolean>(false);
+   const [isDesktop, setIsDesktop] = useState<boolean>(true);
+   useEffect(() => {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsDesktop(!isMobile);
+      setVirtualKeyboardEnabled(true);// Enable by default only on mobile
+    }, []);
   // Add to your component state 
   const [behaviorProfile, setBehaviorProfile] = useState<UserBehaviorProfile | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
@@ -125,6 +140,8 @@ export default function UserInput({
    const [showAIModal, setShowAIModal] = useState<boolean>(false)
    const [aiHintMessage, setAiHintMessage] = useState<string>('');
   const [isLoadingAIHint, setIsLoadingAIHint] = useState<boolean>(false);
+   
+
 
   // Check if scrolling is needed
   const checkScrollNeeded = useCallback(() => {
@@ -166,6 +183,23 @@ export default function UserInput({
       scrollToFocusedInput(focusedIndex);
     }
   }, [focusedIndex, isScrollable, scrollToFocusedInput]);
+  // Adapter for math-field input events
+
+
+    
+   const shouldUseMathMode = useCallback((lineIndex: number): boolean => {
+        if (!expectedSteps || lineIndex >= expectedSteps.length) {
+          return false; // Default to text mode if no step info
+        }
+        
+        const stepLabel = expectedSteps[lineIndex].label;
+        
+        // Math mode for mathematical operations
+        const mathLabels = ["substitution", "simplification", "final", "math"];
+  
+        return mathLabels.includes(stepLabel); //mathlive
+
+      }, [expectedSteps]);
 
   // Timing functions
   const startStepTimer = useCallback((stepIndex: number) => {
@@ -192,17 +226,12 @@ export default function UserInput({
     });
     
     setCurrentStepStartTime(now);
-    
-    console.log(`⏱️ STEP TIMER STARTED: Step ${stepIndex + 1} (${stepLabel})`);
+  
+
   }, [expectedSteps, stepTimings]);
   useEffect(() => {
     // Reset UserInput state when question parameters change
     if (topicId && categoryId && questionId) {
-      console.log('🔄 UserInput: Resetting state for new question:', {
-        topicId,
-        categoryId,
-        questionId
-      });
       
       // Reset to initial state
       setLines(['']);
@@ -236,8 +265,7 @@ export default function UserInput({
       // Notify parent of reset
       onChange(['']);
       onAttemptUpdate?.([]);
-      
-      console.log('✅ UserInput state reset complete');
+    
   }
 }, [topicId, categoryId, questionId]); // Dependencies
   const completeStepTimer = useCallback((stepIndex: number) => {
@@ -263,12 +291,7 @@ export default function UserInput({
       return newMap;
     });
     
-    console.log(`⏱️ STEP TIMER COMPLETED:`);
-    console.log(`   Step ${stepIndex + 1} (${existingTiming.stepLabel})`);
-    console.log(`   Duration: ${(duration / 1000).toFixed(2)} seconds`);
-    console.log(`   Start: ${new Date(existingTiming.startTime).toLocaleTimeString()}`);
-    console.log(`   End: ${new Date(now).toLocaleTimeString()}`);
-    
+  
     return duration;
   }, [stepTimings]);
 
@@ -317,13 +340,12 @@ export default function UserInput({
   const storeStepProgressionToAttempt = useCallback((stepProgression: StepProgression, stepIndex: number) => {
     const currentInput = stepProgression[1];
     const now = Date.now();
-    
+     const expectedAnswer = stepProgression[3];
     // PREVENT DUPLICATE CALLS: Check if we just processed this exact step/input
     if (lastProcessedStep.current && 
         lastProcessedStep.current.stepIndex === stepIndex &&
         lastProcessedStep.current.input === currentInput &&
         (now - lastProcessedStep.current.timestamp) < 100) {
-      console.log('🚫 DUPLICATE CALL DETECTED - IGNORING');
       return;
     }
     
@@ -339,21 +361,24 @@ export default function UserInput({
     if (stepProgression[2] === true) { // isCorrect
       timeSpentOnStep = completeStepTimer(stepIndex);
     }
-    
+    const sanitizedUserInput = InputValidator.sanitizeTextMathLive(currentInput);
+    const sanitizedExpectedAnswer = InputValidator.sanitizeTextMathLive(expectedAnswer);
     setAttemptCounter(prev => {
       const newId = prev + 1;
       
       const newUserAttempt: UserAttempt = {
-        attempt_id: newId,
-        stepIndex,
-        stepLabel: stepProgression[0],      
-        userInput: stepProgression[1],      
-        isCorrect: stepProgression[2],      
-        expectedAnswer: stepProgression[3], 
-        cumulativeProgress: stepProgression[4],
-        stepStartTime,           // When step timing started
-        attemptTime: now,        // When this attempt was made
-        timeSpentOnStep,         // Total time if step completed
+      attempt_id: newId,
+      stepIndex,
+      stepLabel: stepProgression[0],
+      userInput: sanitizedUserInput,                    // Original user input
+      sanitizedInput: sanitizedUserInput,        // ✅ ADD: Sanitized user input
+      isCorrect: stepProgression[2],
+      expectedAnswer:sanitizedExpectedAnswer,             // Original expected answer
+      sanitizedExpectedAnswer: sanitizedExpectedAnswer, // ✅ ADD: Sanitized expected answer
+      cumulativeProgress: stepProgression[4],
+      stepStartTime,           // When step timing started
+      attemptTime: now,        // When this attempt was made
+      timeSpentOnStep,         // Total time if step completed
       };
 
     setUserAttempt(prevAttempts => {
@@ -398,8 +423,6 @@ export default function UserInput({
       
       // ANALYZE BEHAVIOR AFTER EACH ATTEMPT
       setTimeout(() => {
-        console.log('⏰ TIMEOUT TRIGGERED - Calling analyzeBehaviorAndUpdateHints');
-        console.log('📊 Attempts being analyzed:', newAttempts.length);
         analyzeBehaviorAndUpdateHints(newAttempts);
       }, 150);
       
@@ -414,13 +437,22 @@ export default function UserInput({
   const validateIndividualLine = useCallback((lineIndex: number, trigger: 'enter') => {
     const line = lines[lineIndex];
     
-    // Only validate if line has content and we have expected steps
-    if (!line.trim() || !expectedSteps || lineIndex >= expectedSteps.length) {
+     // ADD: Don't validate default/placeholder values
+    if (line.trim() === '7' && !trigger) {
+      console.log(`⏭️ Skipping validation for default value: "${line}"`);
       return;
     }
-   
     const expectedStep = expectedSteps[lineIndex];
-    
+    console.log(`🔍 Validating line ${lineIndex}: "${line.trim()}" vs expected "${expectedStep.answer}"`);
+    const userInputSanitized = InputValidator.sanitizeTextMathLive(line.trim());
+    const expectedSanitized = InputValidator.sanitizeTextMathLive(expectedStep.answer);
+    console.log(`🔍 UserInput: Validating line ${lineIndex} (MathLive-aware):`, {
+      userInput: line.trim(),
+      userInputSanitized: userInputSanitized,
+      expectedAnswer: expectedStep.answer,
+      expectedSanitized: expectedSanitized,
+      stepLabel: expectedStep.label
+    });
     const validation = InputValidator.validateStepWithTwoPhase(
       line.trim(),
       expectedStep.answer,
@@ -621,7 +653,7 @@ export default function UserInput({
         }
       } else {
         // Show feedback for incorrect step
-        console.log(`❌ Step ${pendingLineCreation + 1} must be correct before proceeding to the next step.`);
+       
         showStepRequiredFeedback(pendingLineCreation);
       }
       
@@ -671,9 +703,10 @@ export default function UserInput({
 
   // Handle key events
   const handleKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+     
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      console.log('🎯 Enter key pressed in UserInput');
+     
     
     // SET LOCAL SHOW HINTS TO TRUE WHEN ENTER IS PRESSED
     setLocalShowHints(true);
@@ -706,41 +739,72 @@ export default function UserInput({
       focusLine(index + 1);
     }
   };
+      const handleMathFieldInput = useCallback((index: number, event: any) => {
+        const mathField = event.target;
+        
+        // Use the new MathLive-aware extraction
+        const extractedValue = InputValidator.extractMathFieldValue(mathField);
+        
+        console.log(`🧮 MathField input at index ${index}:`, {
+          rawLatex: mathField.getValue?.() || mathField.value || "",
+          extractedValue: extractedValue,
+          sanitized: InputValidator.sanitizeTextMathLive(extractedValue)
+        });
+        
+        // Use the extracted value for line change
+        handleLineChange(index, extractedValue);
+      }, [handleLineChange]);
+
+    // Adapter for math-field keyboard events  
+    const handleMathFieldKeyDown = useCallback((index: number, event: any) => {
+  
+      // Create React-like event object
+      const syntheticEvent = {
+        key: event.key,
+        shiftKey: event.shiftKey,
+        preventDefault: () => event.preventDefault(),
+      } as React.KeyboardEvent<HTMLInputElement>;
+      
+      handleKeyDown(index, syntheticEvent); // Your existing function works!
+    }, [handleKeyDown]); //mathlive
 
   // Focus management with scroll
   const focusLine = (index: number) => {
-    requestAnimationFrame(() => {
-      const input = inputRefs.current[index];
-      if (input) {
-        input.focus();
-        if (input instanceof HTMLInputElement) {
-          input.setSelectionRange(input.value.length, input.value.length);
-        } else if (input instanceof HTMLTextAreaElement) {
-          input.setSelectionRange(input.value.length, input.value.length);
-        }
-        
-        if (isScrollable) {
-          scrollToFocusedInput(index);
-        }
-      } else {
-        setTimeout(() => {
-          const retryInput = inputRefs.current[index];
-          if (retryInput) {
-            retryInput.focus();
-            if (retryInput instanceof HTMLInputElement) {
-              retryInput.setSelectionRange(retryInput.value.length, retryInput.value.length);
-            } else if (retryInput instanceof HTMLTextAreaElement) {
-              retryInput.setSelectionRange(retryInput.value.length, retryInput.value.length);
+        requestAnimationFrame(() => {
+          const input = inputRefs.current[index];
+          if (input) {
+            input.focus();
+            
+            // Handle cursor positioning for both types
+            if (shouldUseMathMode(index) && input.tagName === 'MATH-FIELD') {
+              // For math-field, move cursor to end (MathLive specific)
+              try {
+                input.executeCommand('moveToMathFieldEnd');
+              } catch (e) {
+                // Fallback if command doesn't exist
+                console.warn('MathLive command not available');
+              }
+            } else if (input instanceof HTMLInputElement) {
+              input.setSelectionRange(input.value.length, input.value.length);
+            } else if (input instanceof HTMLTextAreaElement) {
+              input.setSelectionRange(input.value.length, input.value.length);
             }
             
             if (isScrollable) {
               scrollToFocusedInput(index);
             }
+          } else {
+            // Your existing retry logic stays the same
+            setTimeout(() => {
+              const retryInput = inputRefs.current[index];
+              if (retryInput) {
+                retryInput.focus();
+                // ... same retry logic you already have
+              }
+            }, 100);
           }
-        }, 100);
-      }
-    });
-  };
+        });
+      }; //mathlive
 
   // Ensure we have at least one empty line
   useEffect(() => {
@@ -750,19 +814,151 @@ export default function UserInput({
       onChange(newLines);
     } 
   }, [lines, onChange, expectedSteps, maxLines]);
-
+  
   // Set up input refs
-  const setInputRef = (index: number) => (el: HTMLInputElement | HTMLTextAreaElement | null) => {
-    while (inputRefs.current.length <= index) {
-      inputRefs.current.push(null as any);
-    }
+  const setInputRef = (index: number) => (el: HTMLInputElement | HTMLTextAreaElement | any | null) => {
+  while (inputRefs.current.length <= index) {
+    inputRefs.current.push(null as any);
+  }
+  
+  if (inputRefs.current[index] && inputRefs.current[index]._cleanup) {
+    inputRefs.current[index]._cleanup();
+  }
+
+  if (el) {
+    inputRefs.current[index] = el;
     
-    if (el) {
-      inputRefs.current[index] = el;
-    } else {
-      inputRefs.current[index] = null as any;
+    if (shouldUseMathMode(index) && el.tagName === 'MATH-FIELD') {
+      console.log(`🔧 Setting up MathLive events for line ${index}`);
+      
+      // ✅ FIXED: Replace setOptions() with direct property assignment
+      el.virtualKeyboardMode = virtualKeyboardEnabled ? 'manual' : 'off';
+      
+      // ✅ FIXED: Use addEventListener for input events instead of onInput option
+     
+      const inputHandler = (e: any) => {
+        const mathField = e.target;
+         console.log(`✅ before input handler`);
+        // Use the MathLive-aware extraction
+        const extractedValue = InputValidator.extractMathFieldValue(mathField);
+        
+        console.log(`🧮 MathField input at index ${index}:`, {
+          rawLatex: mathField.getValue?.() || mathField.value || "",
+          extractedValue: extractedValue,
+          sanitized: InputValidator.sanitizeTextMathLive(extractedValue)
+        });
+        
+        // Start step timer if needed
+        if (extractedValue.trim() && !stepTimings.has(index)) {
+          startStepTimer(index);
+        }
+        
+        // Use the extracted value for line change
+        handleLineChange(index, extractedValue);
+    };
+      
+      // ✅ FIXED: Enhanced keydown handler with proper timing
+      const keydownHandler = (e: KeyboardEvent) => {
+        
+        
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          
+          // ✅ CRITICAL: Get the CURRENT value from MathLive
+          const currentValue = el.getValue();
+        
+          
+          // ✅ CRITICAL: Update lines state BEFORE validation
+          const updatedLines = [...lines];
+          updatedLines[index] = currentValue;
+          
+          // Update state synchronously
+          setLines(updatedLines);
+          onChange(updatedLines);
+          
+          // ✅ CRITICAL: Use setTimeout to ensure state update completes
+          setTimeout(() => {
+
+            // Start step timer if needed
+            if (currentValue.trim() && !stepTimings.has(index)) {
+              startStepTimer(index);
+            }
+            
+            // Set local hints to true
+            setLocalShowHints(true);
+            
+            // Validate with the updated content
+            if (currentValue.trim() && expectedSteps && index < expectedSteps.length) {
+              console.log(`🎯 Triggering validation for line ${index}`);
+              validateIndividualLine(index, 'enter');
+              setPendingLineCreation(index);
+              
+              // Check if answer is complete
+              const isComplete = isAnswerComplete(updatedLines);
+              if (isComplete) {
+                onSubmit?.(updatedLines);
+                return;
+              }
+            }
+          }, 10); // Small delay to ensure state updates
+          
+          return false;
+        }
+        
+        // Handle other navigation keys
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Backspace') {
+          const syntheticEvent = {
+            key: e.key,
+            shiftKey: e.shiftKey,
+            preventDefault: () => e.preventDefault(),
+          } as React.KeyboardEvent<HTMLInputElement>;
+          
+          handleMathFieldKeyDown(index, syntheticEvent);
+        }
+      };
+      
+      // Other event handlers remain the same
+      const focusHandler = () => {
+      
+        setFocusedIndex(index);
+        
+        if (virtualKeyboardEnabled && el.virtualKeyboard) {
+          setTimeout(() => {
+      
+            el.virtualKeyboard.show();
+          }, 100);
+        }
+      };
+      
+      const blurHandler = () => {
+       
+        setFocusedIndex(null);
+      };
+      
+      // ✅ FIXED: Add all event listeners including the new input handler
+      el.addEventListener('input', inputHandler);
+      el.addEventListener('keydown', keydownHandler);
+      el.addEventListener('focus', focusHandler);
+      el.addEventListener('blur', blurHandler);
+      
+      el.setAttribute('tabindex', '0');
+      
+      // ✅ FIXED: Update cleanup to include input handler
+      el._cleanup = () => {
+      
+        el.removeEventListener('input', inputHandler);
+        el.removeEventListener('keydown', keydownHandler);
+        el.removeEventListener('focus', focusHandler);
+        el.removeEventListener('blur', blurHandler);
+      };
+      
+      console.log(`✅ MathLive setup complete for line ${index}`);
     }
-  };
+  } else {
+    inputRefs.current[index] = null as any;
+  }
+};
+  //mathlive
 
   const handleAIHintRequest = useCallback(async () => {
 
@@ -860,8 +1056,7 @@ export default function UserInput({
     const behaviorChanged = lastBehaviorClassification !== profile.currentBehavior;
     if (behaviorChanged) {
       console.log(`🔄 BEHAVIOR CLASSIFICATION CHANGED:`);
-      console.log(`   Previous: ${lastBehaviorClassification || 'none'}`);
-       console.log(`   Current: ${profile.currentBehavior || 'none'}`);
+      
       
        // FIXED: Reset attempt count for ANY behavior change (not just problematic ones)
         if (profile.currentBehavior) {
@@ -914,17 +1109,25 @@ export default function UserInput({
       setAttemptsSinceLastHint(0);
       console.log(`🔄 HINT INTERVAL RESET after showing AI hint`);
     }
-    } else {
-      console.log('❌ AI MODAL NOT TRIGGERED - Reasons:');
-      console.log('   - shouldShowAIModal:', shouldShowAIModal);
-      console.log('   - hintIntervalActive:', hintIntervalActive);
-      console.log('   - currentBehavior:', profile.currentBehavior);
-      console.log('   - attemptsSinceLastHint:', attemptsSinceLastHint);
-    }
+    } 
   }, [lines, expectedSteps, lineValidationStates, showHints, handleAIHintRequest, topicId, categoryId, questionId, lastBehaviorClassification, hintIntervalActive]);
 
   const status = getCompletionStatus(lines);
   
+  useEffect(() => {
+  return () => {
+    // Cleanup all MathLive event listeners on unmount
+    inputRefs.current.forEach((el, index) => {
+      if (el && el.tagName === 'MATH-FIELD' && el._eventHandlers) {
+        const handlers = el._eventHandlers;
+        el.removeEventListener('input', handlers.input);
+        el.removeEventListener('keydown', handlers.keydown);
+        el.removeEventListener('focus', handlers.focus);
+        el.removeEventListener('blur', handlers.blur);
+      }
+    });
+  };
+}, []);
   return (
     <div className={cn("border rounded-lg overflow-hidden bg-white", className)}>
       {/* Container with fixed height when scrollable */}
@@ -984,25 +1187,91 @@ export default function UserInput({
                   {/* Line number indicator */}
                   <div className="w-8 flex-shrink-0 text-center text-xs text-gray-400 font-mono">
                     {index + 1}
-                  </div>
-                  
-                  {/* Input field */}
-                  <input
-                    ref={setInputRef(index)}
-                    type="text"
-                    value={line}
-                    onChange={(e) => handleLineChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    onFocus={() => setFocusedIndex(index)}
-                    onBlur={() => setFocusedIndex(null)}
-                    disabled={disabled}
-                    placeholder={index === 0 ? placeholder : `Step ${index + 1}...`}
-                    className={cn(
-                      "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-3 px-3",
-                      "placeholder-gray-400 text-gray-900",
-                      disabled && "bg-gray-50 text-gray-500"
-                    )}
-                  />
+                                      </div>
+                                      
+                                      {/* Input field */}
+                                      {shouldUseMathMode(index) ? (
+                                          <div className="flex-1 flex items-center gap-2">
+                        {/* Math Field */}
+                        <math-field
+                          ref={setInputRef(index)}
+                          value={line}
+                          virtual-keyboard-mode={virtualKeyboardEnabled ? "manual" : "off"}
+                          smart-fence={true}
+                          smart-superscript={true}
+                          smart-mode={true}
+                          style={{
+                            flex: 1,
+                            border: "none",
+                            background: "transparent",
+                            padding: "12px",
+                            color: "#1f2937",
+                            fontSize: "1rem",
+                            minHeight: "48px",
+                            outline: "none",
+                            cursor: "text",
+                            userSelect: "text"
+                          }}
+                          className={cn(
+                            "focus:ring-0 focus:outline-none",
+                            "placeholder-gray-400 text-gray-900",
+                            disabled && "bg-gray-50 text-gray-500"
+                          )}
+                        />
+                        
+                        {/* Submit Button for Math Fields */}
+                        {virtualKeyboardEnabled && line.trim() && (
+                          <button
+                            onClick={() => {
+                                  // ✅ SIMPLE: Just simulate Enter key press on the math field
+                                  const mathField = inputRefs.current[index];
+                                  if (mathField) {
+                                    // Create and dispatch a keyboard event
+                                    const enterEvent = new KeyboardEvent('keydown', {
+                                      key: 'Enter',
+                                      code: 'Enter',
+                                      keyCode: 13,
+                                      which: 13,
+                                      bubbles: true,
+                                      cancelable: true
+                                    });
+                                    
+                                    // Dispatch the event to trigger your existing Enter handler
+                                    mathField.dispatchEvent(enterEvent);
+                                  }
+                                }}
+                            className={cn(
+                              "px-3 py-2 rounded-md text-sm font-medium transition-all duration-200",
+                              "bg-blue-500 hover:bg-blue-600 text-white",
+                              "shadow-sm hover:shadow-md",
+                              "flex items-center gap-1"
+                            )}
+                            title="Submit this step"
+                          >
+                            <span>✓</span>
+                            <span className="hidden sm:inline">Submit</span>
+                          </button>
+                        )}
+                      </div>
+                      ) : (
+                        // Text mode - your existing input (keep exactly as is)
+                        <input
+                          ref={setInputRef(index)}
+                          type="text"
+                          value={line}
+                          onChange={(e) => handleLineChange(index, e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(index, e)}
+                          onFocus={() => setFocusedIndex(index)}
+                          onBlur={() => setFocusedIndex(null)}
+                          disabled={disabled}
+                          placeholder={index === 0 ? placeholder : `Step ${index + 1}...`}
+                          className={cn(
+                            "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-3 px-3",
+                            "placeholder-gray-400 text-gray-900",
+                            disabled && "bg-gray-50 text-gray-500"
+                          )}
+                        />
+                      )} {/*mathlive*/}
 
                   {/* Individual line status indicator */}
                   {expectedSteps && index < expectedSteps.length && (
@@ -1055,109 +1324,11 @@ export default function UserInput({
 
       {/* Progress bar indicator */}
        {expectedSteps && expectedSteps.length > 0 && (
-  <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-t border-gray-200 px-4 py-3 space-y-3">
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-t border-gray-200 px-4 py-3 space-y-3">
+            {/* Virtual Keyboard Toggle (Desktop Only) */}
+            
     {/* Main Progress Section */}
-    <div className="flex items-center gap-4">
-      {/* Progress Label with Icon */}
-      <div className="flex items-center gap-2 min-w-[80px]">
-        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-        <span className="text-sm font-medium text-gray-700">
-          Progress
-        </span>
-      </div>
-
-      {/* Enhanced Progress Bar */}
-      <div className="flex-1 relative bg-white rounded-full p-1 shadow-inner">
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
-          {/* Background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-150 to-gray-200"></div>
-          
-          {/* Progress fill with enhanced styling */}
-          <div 
-            className={cn(
-              "h-full transition-all duration-500 ease-out rounded-full relative overflow-hidden",
-              "shadow-sm",
-              status.percentage === 100 
-                ? "bg-gradient-to-r from-green-400 to-green-600 shadow-green-200"
-                : status.percentage >= 80  
-                ? "bg-gradient-to-r from-emerald-400 to-emerald-600 shadow-emerald-200"
-                : status.percentage >= 60  
-                ? "bg-gradient-to-r from-blue-400 to-blue-600 shadow-blue-200"
-                : status.percentage >= 40  
-                ? "bg-gradient-to-r from-indigo-400 to-indigo-600 shadow-indigo-200"
-                : status.percentage >= 20  
-                ? "bg-gradient-to-r from-orange-400 to-orange-600 shadow-orange-200"
-                : status.percentage > 0    
-                ? "bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-yellow-200"
-                : "bg-gray-300"
-            )}
-            style={{ width: `${status.percentage}%` }}
-          >
-            {/* Shine effect */}
-            {status.percentage > 0 && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
-            )}
-          </div>
-          
-          {/* Progress markers */}
-          {expectedSteps.map((_, index) => {
-            const markerPosition = ((index + 1) / expectedSteps.length) * 100;
-            const isCompleted = status.percentage >= markerPosition;
-            return (
-              <div
-                key={index}
-                className={cn(
-                  "absolute top-0 w-0.5 h-full transition-colors duration-300",
-                  isCompleted ? "bg-white/50" : "bg-gray-300"
-                )}
-                style={{ left: `${markerPosition}%` }}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Enhanced Progress Percentage */}
-      <div className="flex items-center gap-2 min-w-[60px]">
-        <span className={cn(
-          "text-sm font-bold transition-colors duration-300",
-          status.percentage === 100 
-            ? "text-green-600"
-            : status.percentage >= 80
-            ? "text-emerald-600"
-            : status.percentage >= 60
-            ? "text-blue-600"
-            : status.percentage >= 40
-            ? "text-indigo-600"
-            : status.percentage >= 20
-            ? "text-orange-600"
-            : status.percentage > 0
-            ? "text-yellow-600"
-            : "text-gray-500"
-        )}>
-          {status.percentage}%
-        </span>
-        
-        {/* Progress status icon */}
-        <div className="text-lg">
-          {status.percentage === 100 
-            ? "🎉"
-            : status.percentage >= 80
-            ? "🔥"
-            : status.percentage >= 60
-            ? "💪"
-            : status.percentage >= 40
-            ? "📈"
-            : status.percentage >= 20
-            ? "🎯"
-            : status.percentage > 0
-            ? "🚀"
-            : "⭐"
-          }
-        </div>
-      </div>
-        {/* TUTOR MOOD INDICATOR Add later for AI tutor later */}
-    </div>
+         
 
             
           {/* Short Hints Component */}

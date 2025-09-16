@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import QuestionBox from "../../components/tugon/question-system/QuestionBox";
 import CategoryQuestion from "../../components/tugon/question-system/CategoryQuestion";
-import { defaultTopics } from "../../components/data/question";
-import { getAnswerForQuestion, answersByTopicAndCategory } from "../../components/data/answers";
+import { defaultTopics } from "../../components/data/questions/index";
+import { getAnswerForQuestion, answersByTopicAndCategory } from "../../components/data/answers/index";
 import AnswerWizard, { Step, WizardStep } from "../../components/tugon/input-system/AnswerWizard";
 import HintBubble from "../../components/tugon/hint-system/HintBubble";
 import Character from "../../components/tugon/hint-system/Character";
+import QuestionTemplate from '../../components/tugon/template/QuestionTemplate.tsx';
 import { Heading, SubHeading, Text, Small } from "../../components/Typography";
 import AttemptVisualizer from "../../components/tugon/AttemptVisualizer";
 import { UserAttempt } from "../../components/tugon/input-system/UserInput";
@@ -90,17 +91,20 @@ export default function TugonPlay() {
   }, [topicId, finalCategoryId, questionId]);
 
   // Get expected answers using the new structure
-  const getExpectedAnswers = () => {
-    const topic = answersByTopicAndCategory[topicId as keyof typeof answersByTopicAndCategory];
-    if (!topic) return undefined;
-    
-    const category = topic[finalCategoryId as keyof typeof topic];
-    if (!category || !Array.isArray(category)) return undefined;
-    
-    return category; // Return the entire category array of PredefinedAnswer[]
-  };
+  const expectedAnswers = useMemo(() => {
+  const topic = answersByTopicAndCategory[topicId as keyof typeof answersByTopicAndCategory];
+  if (!topic) return undefined;
+  
+  const category = topic[finalCategoryId as keyof typeof topic];
+  if (!category || !Array.isArray(category)) return undefined;
+  
+  // FIXED: Find the specific question by questionId and return it as array
+  const specificAnswer = category.find(answer => answer.questionId === questionId);
+  return specificAnswer ? [specificAnswer] : undefined;
+}, [topicId, finalCategoryId, questionId]); // ← Add proper dependencies
 
-  const expectedAnswers = getExpectedAnswers();
+
+
   const topic = defaultTopics.find((t) => t.id === topicId);
   const topicName = topic?.name || "Question";
 
@@ -286,18 +290,32 @@ export default function TugonPlay() {
       />
 
       {/* Navbar - Responsive */}
-      <div className="h-16 sm:h-16 bg-violet-600 flex items-center justify-between px-3 sm:px-4 flex-shrink-0">
-        <SubHeading className="text-white font-semibold text-sm sm:text-base truncate">
-          TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
-        </SubHeading>
-        <button
-          onClick={() => navigate("/tugonsense")}
-          className="text-white bg-transparent border-none text-lg sm:text-xl p-1 hover:bg-white/10 rounded transition-colors"
-        >
-          ✕
-        </button>
+     <div className="h-16 bg-gradient-to-r from-[#397F85] to-[#327373] flex items-center justify-between px-4 shadow-lg flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-sm">T</span>
+          </div>
+          <SubHeading className="text-white font-bold text-lg">
+            TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
+          </SubHeading>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {/* Question Progress Indicator */}
+          <div className="hidden sm:flex items-center gap-2 text-white/80 text-sm">
+            <span>Q{questionId}</span>
+            <div className="w-1 h-4 bg-white/30 rounded-full"></div>
+            <span>Topic {topicId}</span>
+          </div>
+          
+          <button
+            onClick={() => navigate("/tugonsense")}
+            className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
+          >
+            ✕
+          </button>
+        </div>
       </div>
-
       {/* MOBILE LAYOUT (sm and below) */}
       <div className="flex-1 overflow-y-auto px-2 py-3 sm:hidden">
         <div className="w-full max-w-full mx-auto">
@@ -306,20 +324,17 @@ export default function TugonPlay() {
             <CategoryQuestion 
               topicId={topicId}
               categoryId={finalCategoryId}
+              questionId={questionId}
             />
           </div>
           
           {/* Mobile: QuestionBox with floating Character */}
           <div className="mb-3 relative" id="question-box-container-mobile">
             {/* Question Box - Full width, no flex constraints */}
-            <QuestionBox 
-              topicId={topicId}
-              categoryId={finalCategoryId}
-              questionId={questionId}
-              title={topicName}
-              fallbackText="Question not found."
+             <QuestionBox
+               key={`mobile-qb-${topicId}-${finalCategoryId}-${questionId}`} // ADD THIS KEY
+              title={`Q${questionId}: ${topicName}`}
             />
-            
             {/* Character - Floating to the right of QuestionBox */}
             <CharacterPositionedMobile />
           </div>
@@ -340,6 +355,7 @@ export default function TugonPlay() {
               topicId={topicId}
               categoryId={finalCategoryId}
               questionId={questionId}
+              mathMode={true}
             />
           </div>
         </div>
@@ -353,20 +369,28 @@ export default function TugonPlay() {
             <CategoryQuestion 
               topicId={topicId}
               categoryId={finalCategoryId}
-            />
-          </div>
-          
-          <div className="mb-4 sm:mb-6">
-            <QuestionBox 
-              topicId={topicId}
-              categoryId={finalCategoryId}
               questionId={questionId}
-              title={topicName}
-              fallbackText="Question not found."
             />
           </div>
           
-          {/* Desktop Answer Wizard */}
+       <QuestionTemplate
+  key={`template-${topicId}-${finalCategoryId}-${questionId}`}
+  topicId={topicId}
+  categoryId={finalCategoryId}
+  questionId={questionId}
+  expectedAnswers={expectedAnswers}
+  onValidationResult={(type, currentStep) => {
+    if (type === "correct" || type === "incorrect") {
+      handleAttempt({ correct: type === "correct" });
+    }
+  }}
+  onSubmit={handleSubmit}
+  onIndexChange={handleIndexChange}
+  onAnswerChange={resetIdle}
+  onAttemptUpdate={handleAttemptUpdate}
+/>
+          
+          {/* Desktop Answer Wizard 
           <div className="mb-4 sm:mb-6" id="answer-wizard-container">
             <AnswerWizard
                key={`desktop-wizard-${topicId}-${finalCategoryId}-${questionId}`} 
@@ -383,7 +407,7 @@ export default function TugonPlay() {
               categoryId={finalCategoryId}
               questionId={questionId}
             />
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -451,10 +475,7 @@ function CharacterPositionedMobile() {
         left: position.left,
       }}
     >
-      <Character 
-        name="Tugon" 
-        className="w-12 h-12 drop-shadow-lg"
-      />
+     
     </div>
   );
 }
@@ -505,10 +526,7 @@ function CharacterPositionedDesktop() {
         left: position.left,
       }}
     >
-      <Character 
-        name="Tugon" 
-        className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24"
-      />
+      
     </div>
   );
 }

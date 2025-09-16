@@ -89,6 +89,7 @@ function AppContent() {
     "/eEvaluationPhase4",
   ];
 
+
   // Use prefixes so nested paths (like /edit-quiz/:id) match correctly
   const teacherPrefixes = [
     "/teacherDashboard",

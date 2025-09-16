@@ -1,0 +1,38 @@
+Confidence level scoring system:
+
+const confidence = this.calculateConfidenceScore({
+  directEquivalence: isDirectlyEquivalent,        // 0.4 weight
+  transformationValid: transformationResult.valid, // 0.3 weight  
+  alternativeMatch: alternativeMatch.valid,        // 0.2 weight
+  finalAnswerDetected: finalAnswerDetection.detected // -0.1 penalty
+});
+
+
+High Confidence (0.8-1.0): Student clearly understands
+
+System moves to next step quickly
+Minimal hints needed
+Advanced problems offered
+Medium Confidence (0.4-0.7): Student partially understands
+
+System provides gentle guidance
+Offers related practice problems
+Shows intermediate steps
+Low Confidence (0.0-0.3): Student struggling
+
+Triggers immediate help/hints
+Provides scaffolding
+Offers simpler alternative approaches
+2. Intelligent Hint System
+
+
+// Different validation methods have different confidence levels
+return {
+  semanticallyCorrect: fallbackResult,
+  confidence: fallbackResult ? 0.7 : 0.1, // Lower confidence for fallback
+  reasoning: `Fallback validation: ${fallbackResult ? 'passed' : 'failed'}`
+};
+
+
+Direct Equivalence (0.4): "2x + 3" vs "2x + 3" → High confidence Transformation Valid (0.3): "(x+1)²" vs "x² + 2x + 1" → Medium confidence
+Alternative Match (0.2): "x = 2" vs "2 = x" → Lower confidence Fallback Method (0.1): String comparison → Very low confidence

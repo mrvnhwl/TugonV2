@@ -1,6 +1,6 @@
-import type { PredefinedAnswer, Step } from "@/components/data/answers";
+import type { PredefinedAnswer, Step } from "@/components/data/answers/types";
 import { simplify, equal, evaluate, parse } from "mathjs";
-
+import { convertLatexToAsciiMath } from 'mathlive';
 export type ValidationResult = {
   isValid: boolean;
   isCorrect: boolean;
@@ -45,14 +45,74 @@ export interface InputValidatorProps {
 }
 
 export class InputValidator {
-  public static sanitizeText = (v: string): string => {
+  // NEW: MathLive-aware text sanitization
+  public static sanitizeTextMathLive = (v: string): string => {
+    if (!v) return "";
+    
+    // Check if input contains LaTeX syntax
+    const hasLatex = v.includes('\\') || v.includes('{') || v.includes('}') || v.includes('^') || v.includes('_');
+    
+    if (hasLatex) {
+      try {
+        // Convert LaTeX to readable ASCII math notation
+        const asciiMath = convertLatexToAsciiMath(v);
+        console.log(`🔄 MathLive LaTeX conversion: "${v}" → "${asciiMath}"`);
+        return asciiMath.replace(/[\s\n\r]+/g, "").toLowerCase();
+      } catch (error) {
+        console.log(`⚠️ MathLive conversion failed for "${v}", using fallback`);
+        // Fallback to basic LaTeX cleaning
+        return InputValidator.cleanLatexFallback(v);
+      }
+    }
+    
+    // Regular text sanitization
     return (v ?? "").replace(/[\s\n\r]+/g, "").toLowerCase();
   };
-  
-  public static sanitizeArray = (lines: string[]): string[] => {
-    return lines.map(line => InputValidator.sanitizeText(line)).filter(line => line.length > 0);
+
+  // NEW: Fallback LaTeX cleaning for when MathLive conversion fails
+  public static cleanLatexFallback = (latexString: string): string => {
+    return latexString
+      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)') // \frac{a}{b} → (a)/(b)
+      .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')             // \sqrt{x} → sqrt(x)
+      .replace(/\\cdot/g, '*')                                // \cdot → *
+      .replace(/\\times/g, '*')                               // \times → *
+      .replace(/\\div/g, '/')                                 // \div → /
+      .replace(/\^{([^}]+)}/g, '^($1)')                      // ^{n} → ^(n)
+      .replace(/_{([^}]+)}/g, '_($1)')                       // _{n} → _(n)
+      .replace(/\\left\(|\\right\)/g, '')                    // Remove \left( \right)
+      .replace(/\\left\[|\\right\]/g, '')                    // Remove \left[ \right]
+      .replace(/\{|\}/g, '')                                 // Remove remaining braces
+      .replace(/\\/g, '')                                    // Remove remaining backslashes
+      .replace(/[\s\n\r]+/g, "")                            // Remove whitespace
+      .toLowerCase();
+  };
+  public static sanitizeText = (v: string): string => {
+    // First try MathLive-aware sanitization
+    return InputValidator.sanitizeTextMathLive(v);
   };
   
+ public static sanitizeArray = (lines: string[]): string[] => {
+    return lines.map(line => InputValidator.sanitizeTextMathLive(line)).filter(line => line.length > 0);
+  };
+    // NEW: Extract raw value from MathField
+  public static extractMathFieldValue = (mathFieldElement: any): string => {
+    if (!mathFieldElement) return "";
+    
+    try {
+      // Get the LaTeX representation
+      const latexValue = mathFieldElement.getValue?.() || mathFieldElement.value || "";
+      console.log(`📊 MathField raw LaTeX: "${latexValue}"`);
+      
+      // Convert to readable format
+      const readable = InputValidator.sanitizeTextMathLive(latexValue);
+      console.log(`📊 MathField converted: "${latexValue}" → "${readable}"`);
+      
+      return readable;
+    } catch (error) {
+      console.log(`❌ Failed to extract MathField value:`, error);
+      return "";
+    }
+  };
   public static arrayToString = (lines: string[]): string => {
     return lines.join('\n');
   };
@@ -138,86 +198,92 @@ public static validateStepWithTwoPhase = (
   };
 };
 public static validateStepByType = (
-  userInput: string,
-  expectedAnswer: string,
-  stepLabel: string,
-  allExpectedSteps?: Step[],
-  currentStepIndex?: number
-): boolean => {
-  const cleanUser = userInput.trim();
-  const cleanExpected = expectedAnswer.trim();
-  
-  // For text labels, use text comparison
-  if (stepLabel === "text") {
-    const normalizedUser = cleanUser.toLowerCase();
-    const normalizedExpected = cleanExpected.toLowerCase();
+    userInput: string,
+    expectedAnswer: string,
+    stepLabel: string,
+    allExpectedSteps?: Step[],
+    currentStepIndex?: number
+  ): boolean => {
+    // Clean inputs with MathLive awareness
+    const cleanUser = InputValidator.sanitizeTextMathLive(userInput.trim());
+    const cleanExpected = InputValidator.sanitizeTextMathLive(expectedAnswer.trim());
     
-    if (normalizedUser === normalizedExpected) return true;
+    console.log(`🎯 MathLive-aware step validation:`, {
+      stepLabel,
+      originalUser: userInput.trim(),
+      cleanedUser: cleanUser,
+      originalExpected: expectedAnswer.trim(),
+      cleanedExpected: cleanExpected
+    });
     
-    // Check for common text variations
-    const textVariations: { [key: string]: string[] } = {
-      'yes': ['yes', 'y', 'true', 'correct', 'passes'],
-      'no': ['no', 'n', 'false', 'incorrect', 'fails', 'does not pass'],
-      'function': ['function', 'is a function', 'is function'],
-      'not a function': ['not a function', 'not function', 'is not a function'],
-    };
+    // For text labels, use text comparison
+    if (stepLabel === "text") {
+      const normalizedUser = cleanUser.toLowerCase();
+      const normalizedExpected = cleanExpected.toLowerCase();
+      
+      if (normalizedUser === normalizedExpected) return true;
+      
+      // Check for common text variations
+      const textVariations: { [key: string]: string[] } = {
+        'yes': ['yes', 'y', 'true', 'correct', 'passes'],
+        'no': ['no', 'n', 'false', 'incorrect', 'fails', 'does not pass'],
+        'function': ['function', 'is a function', 'is function'],
+        'not a function': ['not a function', 'not function', 'is not a function'],
+      };
+      
+      for (const [, variations] of Object.entries(textVariations)) {
+        if (variations.includes(normalizedExpected) && variations.includes(normalizedUser)) {
+          return true;
+        }
+      }
+      
+      return false;
+    }
     
-    for (const [, variations] of Object.entries(textVariations)) {
-      if (variations.includes(normalizedExpected) && variations.includes(normalizedUser)) {
-        return true;
+    // For mathematical steps, use mathematical equivalence with MathLive support
+    const isMathematicallyCorrect = InputValidator.isMathematicallyEquivalentRobust(userInput.trim(), expectedAnswer.trim());
+    
+    // Final Answer Detection System (unchanged logic, but using cleaned inputs)
+    if (isMathematicallyCorrect && allExpectedSteps && currentStepIndex !== undefined) {
+      const finalStepIndex = allExpectedSteps.length - 1;
+      
+      if (currentStepIndex < finalStepIndex) {
+        const finalStep = allExpectedSteps[finalStepIndex];
+        
+        // Clean final answer for comparison
+        const cleanFinalAnswer = InputValidator.sanitizeTextMathLive(finalStep.answer);
+        
+        // String comparison with cleaned inputs
+        if (cleanUser === cleanFinalAnswer) {
+          console.log(`🚨 FINAL ANSWER DETECTION - String Match (MathLive-aware):`);
+          console.log(`   User input: "${userInput.trim()}" (cleaned: "${cleanUser}")`);
+          console.log(`   Final answer: "${finalStep.answer}" (cleaned: "${cleanFinalAnswer}")`);
+          console.log(`   Current step: ${currentStepIndex + 1}/${allExpectedSteps.length} (${stepLabel})`);
+          console.log(`   Action: Rejecting early final answer`);
+          
+          return false;
+        }
+        
+        // Mathematical equivalence check
+        const matchesFinalAnswerMathematically = InputValidator.isMathematicallyEquivalentRobust(
+          userInput.trim(), 
+          finalStep.answer
+        );
+        
+        if (matchesFinalAnswerMathematically && !isMathematicallyCorrect) {
+          console.log(`🚨 FINAL ANSWER DETECTION - Mathematical Match (MathLive-aware):`);
+          console.log(`   User input: "${userInput.trim()}" (cleaned: "${cleanUser}")`);
+          console.log(`   Final answer: "${finalStep.answer}" (cleaned: "${cleanFinalAnswer}")`);
+          console.log(`   Current step: ${currentStepIndex + 1}/${allExpectedSteps.length} (${stepLabel})`);
+          console.log(`   Action: Rejecting early final answer (math equivalent but not current step)`);
+          
+          return false;
+        }
       }
     }
     
-    return false;
-  }
-  
-  // For all mathematical steps (substitution, simplification, final, math), use mathematical equivalence
-  const isMathematicallyCorrect = InputValidator.isMathematicallyEquivalentRobust(cleanUser, cleanExpected);
-  
-  // Final Answer Detection System - Check if user is trying to jump to final answer
-  if (isMathematicallyCorrect && allExpectedSteps && currentStepIndex !== undefined) {
-    const finalStepIndex = allExpectedSteps.length - 1;
-    
-    // Only perform final answer detection if we're NOT in the final step
-    if (currentStepIndex < finalStepIndex) {
-      const finalStep = allExpectedSteps[finalStepIndex];
-      
-      // String-to-string comparison with the final answer
-      const userNormalized = cleanUser.toLowerCase().replace(/\s+/g, '');
-      const finalAnswerNormalized = finalStep.answer.toLowerCase().replace(/\s+/g, '');
-      
-      // Detect if user input matches final answer exactly (string comparison)
-      if (userNormalized === finalAnswerNormalized) {
-        console.log(`🚨 FINAL ANSWER DETECTION - String Match:`);
-        console.log(`   User input: "${cleanUser}" (normalized: "${userNormalized}")`);
-        console.log(`   Final answer: "${finalStep.answer}" (normalized: "${finalAnswerNormalized}")`);
-        console.log(`   Current step: ${currentStepIndex + 1}/${allExpectedSteps.length} (${stepLabel})`);
-        console.log(`   Action: Rejecting early final answer`);
-        
-        // Return false to indicate this is not valid for the current step
-        return false;
-      }
-      
-      // Also check mathematical equivalence to final answer
-      const matchesFinalAnswerMathematically = InputValidator.isMathematicallyEquivalentRobust(
-        cleanUser, 
-        finalStep.answer
-      );
-      
-      if (matchesFinalAnswerMathematically && !isMathematicallyCorrect) {
-        console.log(`🚨 FINAL ANSWER DETECTION - Mathematical Match:`);
-        console.log(`   User input: "${cleanUser}"`);
-        console.log(`   Final answer: "${finalStep.answer}"`);
-        console.log(`   Current step: ${currentStepIndex + 1}/${allExpectedSteps.length} (${stepLabel})`);
-        console.log(`   Action: Rejecting early final answer (math equivalent but not current step)`);
-        
-        return false;
-      }
-    }
-  }
-  
-  return isMathematicallyCorrect;
-};
+    return isMathematicallyCorrect;
+  };
 
 public static isAnswerComplete = (
   currentLines: string[], 
@@ -389,53 +455,75 @@ const calculatePercentage = (): { total: number; base: number; consolation: numb
     baseProgress: progressData.base
  };
 };
-  // Keep the robust mathematical equivalence method
+  // UPDATED: Mathematical equivalence with MathLive awareness
   public static isMathematicallyEquivalentRobust = (userExpression: string, expectedExpression: string): boolean => {
     try {
-      if (userExpression.trim() === expectedExpression.trim()) {
+      // Sanitize both inputs with MathLive awareness
+      const cleanUser = InputValidator.sanitizeTextMathLive(userExpression);
+      const cleanExpected = InputValidator.sanitizeTextMathLive(expectedExpression);
+      
+      console.log(`🔍 MathLive-aware comparison:`, {
+        originalUser: userExpression,
+        cleanedUser: cleanUser,
+        originalExpected: expectedExpression,
+        cleanedExpected: cleanExpected
+      });
+
+      // Direct string comparison first
+      if (cleanUser === cleanExpected) {
+        console.log(`✅ Direct match after MathLive cleaning`);
         return true;
       }
 
+      // Try mathematical evaluation
       try {
-        const userResult = evaluate(userExpression);
-        const expectedResult = evaluate(expectedExpression);
+        const userResult = evaluate(cleanUser);
+        const expectedResult = evaluate(cleanExpected);
         
         if (typeof userResult === 'number' && typeof expectedResult === 'number') {
           const areEqual = Math.abs(userResult - expectedResult) < 1e-10;
-          console.log(`Numerical comparison: "${userExpression}" (${userResult}) vs "${expectedExpression}" (${expectedResult}) = ${areEqual}`);
+          console.log(`🔢 Numerical comparison: "${cleanUser}" (${userResult}) vs "${cleanExpected}" (${expectedResult}) = ${areEqual}`);
           return areEqual;
         }
         
         const areEqual = String(userResult) === String(expectedResult);
-        console.log(`String result comparison: "${userExpression}" (${userResult}) vs "${expectedExpression}" (${expectedResult}) = ${areEqual}`);
+        console.log(`📝 String result comparison: "${cleanUser}" (${userResult}) vs "${cleanExpected}" (${expectedResult}) = ${areEqual}`);
         return areEqual;
       } catch (evalError) {
+        console.log(`⚠️ Evaluation failed, trying simplification...`);
+        
         try {
-          const userSimplified = simplify(userExpression).toString();
-          const expectedSimplified = simplify(expectedExpression).toString();
+          const userSimplified = simplify(cleanUser).toString();
+          const expectedSimplified = simplify(cleanExpected).toString();
           
           const areEqual = userSimplified === expectedSimplified;
-          console.log(`Simplification comparison: "${userExpression}" → "${userSimplified}" vs "${expectedExpression}" → "${expectedSimplified}" = ${areEqual}`);
+          console.log(`🔄 Simplification comparison: "${cleanUser}" → "${userSimplified}" vs "${cleanExpected}" → "${expectedSimplified}" = ${areEqual}`);
           return areEqual;
         } catch (simplifyError) {
+          console.log(`⚠️ Simplification failed, trying parse...`);
+          
           try {
-            const userParsed = parse(userExpression).toString();
-            const expectedParsed = parse(expectedExpression).toString();
+            const userParsed = parse(cleanUser).toString();
+            const expectedParsed = parse(cleanExpected).toString();
             
             const areEqual = userParsed === expectedParsed;
-            console.log(`Parse comparison: "${userExpression}" → "${userParsed}" vs "${expectedExpression}" → "${expectedParsed}" = ${areEqual}`);
+            console.log(`📖 Parse comparison: "${cleanUser}" → "${userParsed}" vs "${cleanExpected}" → "${expectedParsed}" = ${areEqual}`);
             return areEqual;
           } catch (parseError) {
-            console.log(`All Math.js methods failed for "${userExpression}" vs "${expectedExpression}"`);
-            return false;
+            console.log(`❌ All Math.js methods failed for "${cleanUser}" vs "${cleanExpected}"`);
+            
+            // Final fallback: basic string comparison
+            const basicUser = userExpression.replace(/[\s\n\r]+/g, "").toLowerCase();
+            const basicExpected = expectedExpression.replace(/[\s\n\r]+/g, "").toLowerCase();
+            return basicUser === basicExpected;
           }
         }
       }
     } catch (error) {
-      console.log(`Math.js completely failed for "${userExpression}" vs "${expectedExpression}", using string comparison`);
-      const sanitizedUser = InputValidator.sanitizeText(userExpression);
-      const sanitizedExpected = InputValidator.sanitizeText(expectedExpression);
-      return sanitizedUser === sanitizedExpected;
+      console.log(`💥 Complete failure for "${userExpression}" vs "${expectedExpression}", using basic comparison`);
+      const basicUser = userExpression.replace(/[\s\n\r]+/g, "").toLowerCase();
+      const basicExpected = expectedExpression.replace(/[\s\n\r]+/g, "").toLowerCase();
+      return basicUser === basicExpected;
     }
   };
 
