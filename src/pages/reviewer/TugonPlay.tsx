@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import QuestionBox from "../../components/tugon/question-system/QuestionBox";
 import CategoryQuestion from "../../components/tugon/question-system/CategoryQuestion";
@@ -90,17 +90,20 @@ export default function TugonPlay() {
   }, [topicId, finalCategoryId, questionId]);
 
   // Get expected answers using the new structure
-  const getExpectedAnswers = () => {
-    const topic = answersByTopicAndCategory[topicId as keyof typeof answersByTopicAndCategory];
-    if (!topic) return undefined;
-    
-    const category = topic[finalCategoryId as keyof typeof topic];
-    if (!category || !Array.isArray(category)) return undefined;
-    
-    return category; // Return the entire category array of PredefinedAnswer[]
-  };
+  const expectedAnswers = useMemo(() => {
+  const topic = answersByTopicAndCategory[topicId as keyof typeof answersByTopicAndCategory];
+  if (!topic) return undefined;
+  
+  const category = topic[finalCategoryId as keyof typeof topic];
+  if (!category || !Array.isArray(category)) return undefined;
+  
+  // FIXED: Find the specific question by questionId and return it as array
+  const specificAnswer = category.find(answer => answer.questionId === questionId);
+  return specificAnswer ? [specificAnswer] : undefined;
+}, [topicId, finalCategoryId, questionId]); // ← Add proper dependencies
 
-  const expectedAnswers = getExpectedAnswers();
+
+
   const topic = defaultTopics.find((t) => t.id === topicId);
   const topicName = topic?.name || "Question";
 
@@ -320,13 +323,17 @@ export default function TugonPlay() {
             <CategoryQuestion 
               topicId={topicId}
               categoryId={finalCategoryId}
+              questionId={questionId}
             />
           </div>
           
           {/* Mobile: QuestionBox with floating Character */}
           <div className="mb-3 relative" id="question-box-container-mobile">
             {/* Question Box - Full width, no flex constraints */}
-           
+             <QuestionBox
+               key={`mobile-qb-${topicId}-${finalCategoryId}-${questionId}`} // ADD THIS KEY
+              title={`Q${questionId}: ${topicName}`}
+            />
             {/* Character - Floating to the right of QuestionBox */}
             <CharacterPositionedMobile />
           </div>
@@ -347,6 +354,7 @@ export default function TugonPlay() {
               topicId={topicId}
               categoryId={finalCategoryId}
               questionId={questionId}
+              mathMode={true}
             />
           </div>
         </div>
@@ -360,6 +368,7 @@ export default function TugonPlay() {
             <CategoryQuestion 
               topicId={topicId}
               categoryId={finalCategoryId}
+              questionId={questionId}
             />
           </div>
           

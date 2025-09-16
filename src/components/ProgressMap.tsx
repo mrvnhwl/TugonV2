@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import type { Course } from "../components/data/question";
 import { defaultTopics } from "../components/data/question";
 import { progressService, TopicProgress } from "./tugon/services/progressServices";
@@ -42,15 +41,32 @@ type Props = {
   onActiveChange?: (course: Course) => void;
   onActiveIndexChange?: (index: number) => void;
   onStartStage?: (topicId: number, categoryId: number, questionId: number) => void;
+  // Course Card props for mobile merge
+  title?: string;
+  description?: string;
+  lessons?: number;
+  exercises?: number;
+  topicId?: number;
+  progress?: TopicProgress;
+  overallStats?: OverallStats;
 };
 
-export default function UnifiedProgressMap({ courses, onActiveChange, onActiveIndexChange, onStartStage }: Props) {
+export default function ProgressMap({ 
+  courses, 
+  onActiveChange, 
+  onActiveIndexChange, 
+  onStartStage,
+  title,
+  description,
+  lessons,
+  exercises,
+  topicId,
+  progress,
+  overallStats
+}: Props) {
   const [userProgress, setUserProgress] = useState(progressService.getUserProgress());
-  const [overallStats, setOverallStats] = useState<OverallStats>(progressService.getStatistics());
   const [isMobile, setIsMobile] = useState(false);
   const [activeTopic, setActiveTopic] = useState(0);
-  const [isScrolling, setIsScrolling] = useState(false);
-  const [viewMode, setViewMode] = useState<'overview' | 'detailed'>('detailed');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // Check for mobile viewport
@@ -80,16 +96,16 @@ export default function UnifiedProgressMap({ courses, onActiveChange, onActiveIn
     return newIndex;
   };
 
-  // Define levels from question dataset with descriptions
+  // Define levels from question dataset
   const levels: Level[] = useMemo(() => {
     const topicDescriptions = [
       "Learn to wield important tools in number sense and computation.",
       "Master advanced algebraic concepts and problem-solving techniques.",
       "Explore geometric relationships and spatial reasoning skills.",
       "Dive into statistical analysis and data interpretation methods.",
-      "Understanding calculus fundamentals and mathematical analysis."
+      "Understanding calculus fundamentals and mathematical analysis.",
     ];
-
+    
     return defaultTopics.map((topic, index) => ({
       id: topic.id,
       name: `Level ${topic.id}`,
@@ -127,10 +143,8 @@ export default function UnifiedProgressMap({ courses, onActiveChange, onActiveIn
   useEffect(() => {
     const refreshProgress = () => {
       const progress = progressService.getUserProgress();
-      const stats = progressService.getStatistics();
       if (progress) {
         setUserProgress(progress);
-        setOverallStats(stats);
       }
     };
 
@@ -144,21 +158,66 @@ export default function UnifiedProgressMap({ courses, onActiveChange, onActiveIn
     };
   }, []);
 
+  // Mobile swipe detection
+  useEffect(() => {
+    if (!isMobile || !scrollContainerRef.current) return;
+
+    let startX = 0;
+    let scrollLeft = 0;
+    let isScrolling = false;
+
+    const container = scrollContainerRef.current;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].pageX - container.offsetLeft;
+      scrollLeft = container.scrollLeft;
+      isScrolling = true;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isScrolling) return;
+      e.preventDefault();
+      const x = e.touches[0].pageX - container.offsetLeft;
+      const walk = (x - startX) * 2;
+      container.scrollLeft = scrollLeft - walk;
+    };
+
+    const handleTouchEnd = () => {
+      isScrolling = false;
+      
+      const cardWidth = container.clientWidth;
+      const currentScroll = container.scrollLeft;
+      const targetIndex = Math.round(currentScroll / cardWidth);
+      
+      container.scrollTo({
+        left: targetIndex * cardWidth,
+        behavior: 'smooth'
+      });
+      
+      setActiveTopic(Math.max(0, Math.min(targetIndex, levels.length - 1)));
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isMobile, levels.length]);
+
   // Navigation functions
   const navigateToTopic = (index: number) => {
     const clampedIndex = Math.max(0, Math.min(index, levels.length - 1));
     setActiveTopic(clampedIndex);
-    setIsScrolling(true);
     
     if (isMobile && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
         left: clampedIndex * scrollContainerRef.current.clientWidth,
         behavior: 'smooth'
       });
-      
-      setTimeout(() => setIsScrolling(false), 500);
-    } else {
-      setTimeout(() => setIsScrolling(false), 700);
     }
   };
 
@@ -190,7 +249,7 @@ export default function UnifiedProgressMap({ courses, onActiveChange, onActiveIn
     return progressService.getCategoryStats(topicId, categoryId);
   };
 
-  const getTopicProgress = (topicId: number): TopicProgress | undefined => {
+  const getTopicProgress = (topicId: number) => {
     return userProgress?.topicProgress?.find((tp: { topicId: number }) => tp.topicId === topicId);
   };
 
@@ -198,627 +257,534 @@ export default function UnifiedProgressMap({ courses, onActiveChange, onActiveIn
     return category.questions[category.currentQuestionIndex] || category.questions[0];
   };
 
-  // CourseCard helper functions
-  const getTopicIcon = (topicProgress: TopicProgress | undefined) => {
-    const completionPercentage = topicProgress?.completionPercentage || 0;
-    const isCompleted = topicProgress?.isCompleted || false;
+  const getNextQuestionId = (topicId: number, categoryId: number): number => {
+    const categoryStats = progressService.getCategoryStats(topicId, categoryId);
+    const category = levels.find(l => l.id === topicId)?.categories.find(c => c.categoryId === categoryId);
     
-    if (isCompleted) return "🏆";
-    if (completionPercentage > 75) return "🔥";
-    if (completionPercentage > 50) return "⚡";
-    if (completionPercentage > 0) return "📖";
-    return "📘";
-  };
+    if (!category) return 1;
 
-  const getCompletionColor = (topicProgress: TopicProgress | undefined) => {
-    const completionPercentage = topicProgress?.completionPercentage || 0;
-    const isCompleted = topicProgress?.isCompleted || false;
+    // Find the next unanswered question, or cycle back to the beginning
+    let nextIndex = categoryStats.currentQuestionIndex;
     
-    if (isCompleted) return "text-green-600";
-    if (completionPercentage > 75) return "text-purple-600";
-    if (completionPercentage > 50) return "text-blue-600";
-    if (completionPercentage > 0) return "text-orange-600";
-    return "text-gray-500";
-  };
-
-  const getBackgroundColor = (topicProgress: TopicProgress | undefined) => {
-    const completionPercentage = topicProgress?.completionPercentage || 0;
-    const isCompleted = topicProgress?.isCompleted || false;
+    for (let i = 0; i < category.questions.length; i++) {
+      const questionIndex = (nextIndex + i) % category.questions.length;
+      const question = category.questions[questionIndex];
+      
+      if (!question.isCompleted) {
+        return question.questionId;
+      }
+    }
     
-    if (isCompleted) return "bg-green-50 ring-1 ring-green-200";
-    if (completionPercentage > 75) return "bg-purple-50 ring-1 ring-purple-200";
-    if (completionPercentage > 50) return "bg-blue-50 ring-1 ring-blue-200";
-    if (completionPercentage > 0) return "bg-orange-50 ring-1 ring-orange-200";
-    return "bg-gray-50 ring-1 ring-gray-200";
-  };
-
-  const getProgressBarColor = (topicProgress: TopicProgress | undefined) => {
-    const completionPercentage = topicProgress?.completionPercentage || 0;
-    const isCompleted = topicProgress?.isCompleted || false;
-    
-    if (isCompleted) return 'bg-gradient-to-r from-green-500 to-emerald-500';
-    if (completionPercentage > 75) return 'bg-gradient-to-r from-purple-500 to-violet-500';
-    if (completionPercentage > 50) return 'bg-gradient-to-r from-blue-500 to-indigo-500';
-    if (completionPercentage > 0) return 'bg-gradient-to-r from-orange-500 to-red-500';
-    return 'bg-gray-300';
+    // If all questions are completed, start from the beginning
+    return category.questions[0]?.questionId || 1;
   };
 
   if (levels.length === 0) {
     return (
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-6xl mx-auto bg-white rounded-3xl ring-1 ring-black/5 shadow-xl p-6 md:p-8"
-      >
+      <div className="w-full max-w-lg mx-auto bg-white rounded-3xl ring-1 ring-black/5 shadow-xl p-6 md:p-8">
         <div className="text-center py-16">
-          <motion.div 
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full flex items-center justify-center shadow-inner"
-          >
+          <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full flex items-center justify-center shadow-inner">
             <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-          </motion.div>
+          </div>
           <div className="text-gray-500 text-sm font-medium">No topics available</div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
-  const currentLevel = levels[activeTopic];
-  const currentTopicProgress = getTopicProgress(currentLevel?.id);
+  // Mobile Layout - Merged with CourseCard
+  if (isMobile) {
+    const currentLevel = levels[activeTopic];
+    const currentTopicProgress = getTopicProgress(currentLevel?.id);
+    const stats = overallStats || progressService.getStatistics();
 
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-6xl mx-auto bg-white rounded-3xl ring-1 ring-black/5 shadow-xl overflow-hidden backdrop-blur-sm"
-    >
-      {/* Header with Topic Carousel Navigation */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="p-6 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-b border-white/20"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <motion.button
-            onClick={goToPrevious}
-            disabled={activeTopic === 0}
-            className={`flex items-center justify-center w-12 h-12 rounded-2xl border-2 transition-all duration-300 ${
-              activeTopic === 0
-                ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50'
-                : 'border-indigo-300 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 bg-white'
-            }`}
-            whileHover={activeTopic > 0 ? { scale: 1.1 } : {}}
-            whileTap={activeTopic > 0 ? { scale: 0.95 } : {}}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-          </motion.button>
-
-          <div className="flex-1 text-center">
-            <motion.div 
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className={`w-20 h-20 mx-auto mb-4 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-black/5 relative transition-all duration-300 ${getBackgroundColor(currentTopicProgress)}`}
-            >
-              <span className="text-3xl">{getTopicIcon(currentTopicProgress)}</span>
-              {currentTopicProgress?.isCompleted && (
-                <div className="absolute -top-1 -right-1 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                  <span className="text-white text-sm font-bold">✓</span>
-                </div>
-              )}
-            </motion.div>
+    return (
+      <div className="w-full mx-auto bg-white rounded-3xl ring-1 ring-black/5 shadow-xl overflow-hidden backdrop-blur-sm">
+        {/* Course Card Header - Enhanced */}
+        <div className="p-6 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-b border-white/20">
+          {/* Course Stats Row */}
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <div className="text-sm font-bold text-gray-900">{lessons || 25}</div>
+              <div className="text-xs text-gray-600">Lessons</div>
+            </div>
             
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="text-sm font-bold text-indigo-600/80 uppercase tracking-[0.15em] mb-2"
-            >
-              {currentLevel?.name}
-            </motion.div>
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div className="text-sm font-bold text-gray-900">{exercises || 150}</div>
+              <div className="text-xs text-gray-600">Exercises</div>
+            </div>
             
-            <motion.h1 
-              key={activeTopic}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight tracking-tight mb-2"
-            >
-              {currentLevel?.topic}
-            </motion.h1>
-
-           
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                </svg>
+              </div>
+              <div className="text-sm font-bold text-gray-900">{stats.streak}</div>
+              <div className="text-xs text-gray-600">Day Streak</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <div className="text-sm font-bold text-gray-900">{Math.round(stats.overallCompletionPercentage)}%</div>
+              <div className="text-xs text-gray-600">Complete</div>
+            </div>
           </div>
 
-          <motion.button
-            onClick={goToNext}
-            disabled={activeTopic === levels.length - 1}
-            className={`flex items-center justify-center w-12 h-12 rounded-2xl border-2 transition-all duration-300 ${
-              activeTopic === levels.length - 1
-                ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50'
-                : 'border-indigo-300 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 bg-white'
-            }`}
-            whileHover={activeTopic < levels.length - 1 ? { scale: 1.1 } : {}}
-            whileTap={activeTopic < levels.length - 1 ? { scale: 0.95 } : {}}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-            </svg>
-          </motion.button>
+          {/* Current Level Info */}
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-white/60 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-black/5">
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold ${
+                currentTopicProgress?.isCompleted 
+                  ? "bg-gradient-to-br from-emerald-500 to-green-600 text-white" 
+                  : currentTopicProgress?.completionPercentage && currentTopicProgress.completionPercentage > 0
+                  ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
+                  : "bg-gradient-to-br from-gray-400 to-gray-500 text-white"
+              }`}>
+                {currentTopicProgress?.isCompleted ? "✓" : currentLevel?.id}
+              </div>
+            </div>
+            
+            <div className="text-xs font-bold text-indigo-600/80 uppercase tracking-[0.15em] mb-1">
+              {currentLevel?.name}
+            </div>
+            
+            <h1 className="text-xl font-black text-gray-900 leading-tight tracking-tight mb-2">
+              {currentLevel?.topic}
+            </h1>
+            
+            <p className="text-sm text-gray-600 mb-4">
+              {currentLevel?.description}
+            </p>
+
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
+                <span>Topic Progress</span>
+                <span className="font-bold">{Math.round(currentTopicProgress?.completionPercentage || 0)}%</span>
+              </div>
+              <div className="h-2 bg-white/60 rounded-full overflow-hidden shadow-inner">
+                <div 
+                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-700 ease-out rounded-full"
+                  style={{ width: `${currentTopicProgress?.completionPercentage || 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Topic Progress Summary (CourseCard Style) */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="mb-6"
+        {/* Horizontal Scrolling Container for Topics */}
+        <div 
+          ref={scrollContainerRef}
+          className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none"
+          style={{ scrollSnapType: 'x mandatory' }}
         >
-          {/* Progress Bar */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-              <span className="font-medium">Topic Progress</span>
-              <span className={`${getCompletionColor(currentTopicProgress)} font-bold`}>
-                {Math.round(currentTopicProgress?.completionPercentage || 0)}%
-                {!currentTopicProgress?.completionPercentage && " (Not Started)"}
-              </span>
-            </div>
-            <div className="h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${currentTopicProgress?.completionPercentage || 0}%` }}
-                transition={{ duration: 1.5, ease: "easeOut" }}
-                className={`h-full transition-all duration-500 rounded-full ${getProgressBarColor(currentTopicProgress)}`}
-              />
-            </div>
-          </div>
-
-          {/* Achievement Badges */}
-          <div className="flex flex-wrap justify-center gap-2 mb-4">
-            {currentTopicProgress?.isCompleted && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full shadow-sm">
-                🏆 Topic Master
-              </span>
-            )}
+          {levels.map((level, levelIndex) => {
+            const isActive = levelIndex === activeTopic;
+            const topicProgress = getTopicProgress(level.id);
             
-            {currentTopicProgress && currentTopicProgress.categoryProgress.filter(cat => cat.isCompleted).length > 0 && !currentTopicProgress.isCompleted && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full shadow-sm">
-                ⭐ {currentTopicProgress.categoryProgress.filter(cat => cat.isCompleted).length} Stage{currentTopicProgress.categoryProgress.filter(cat => cat.isCompleted).length > 1 ? 's' : ''} Complete
-              </span>
-            )}
-            
-            {currentTopicProgress && currentTopicProgress.correctAnswers > 0 && !currentTopicProgress.isCompleted && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full shadow-sm">
-                📝 {currentTopicProgress.correctAnswers} Question{currentTopicProgress.correctAnswers > 1 ? 's' : ''} Solved
-              </span>
-            )}
-            
-            {overallStats?.streak && overallStats.streak > 1 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full shadow-sm animate-pulse">
-                🔥 {overallStats.streak} Day Streak
-              </span>
-            )}
-            
-            {(!currentTopicProgress || currentTopicProgress.completionPercentage === 0) && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                🚀 Ready to Start 
-              </span>
-            )}
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="bg-indigo-50 rounded-lg p-3">
-              <div className={`text-lg font-bold ${
-                currentTopicProgress?.completionPercentage && currentTopicProgress.completionPercentage > 0 ? 'text-indigo-600' : 'text-gray-400'
-              }`}>
-                {Math.round(currentTopicProgress?.completionPercentage || 0)}%
-              </div>
-              <div className="text-xs text-gray-500 mt-1">Complete</div>
-            </div>
-
-            <div className="bg-green-50 rounded-lg p-3">
-              <div className={`text-lg font-bold ${
-                currentTopicProgress?.correctAnswers && currentTopicProgress.correctAnswers > 0 ? 'text-green-600' : 'text-gray-400'
-              }`}>
-                {currentTopicProgress?.correctAnswers || 0}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">Solved</div>
-            </div>
-
-            <div className="bg-purple-50 rounded-lg p-3">
-              <div className={`text-lg font-bold ${
-                currentTopicProgress && currentTopicProgress.categoryProgress.filter(cat => cat.isCompleted).length > 0 ? 'text-purple-600' : 'text-gray-400'
-              }`}>
-                {currentTopicProgress ? currentTopicProgress.categoryProgress.filter(cat => cat.isCompleted).length : 0}
-                <span className="text-sm text-gray-500">
-                  /{currentTopicProgress ? currentTopicProgress.categoryProgress.length : currentLevel?.categories.length || 0}
-                </span>
-              </div>
-              <div className="text-xs text-gray-500 mt-1">Stages</div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Topic Progress Dots */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="flex justify-center gap-3"
-        >
-          {levels.map((_, index) => {
-            const topicProgress = getTopicProgress(levels[index].id);
             return (
-              <motion.button
-                key={index}
-                onClick={() => navigateToTopic(index)}
-                className={`h-3 rounded-full transition-all duration-300 flex items-center gap-2 ${
-                  index === activeTopic 
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 w-16 shadow-md px-3" 
-                    : "bg-gray-300 w-3 hover:bg-gray-400 hover:w-8"
-                }`}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                animate={{ 
-                  scale: index === activeTopic ? 1.05 : 1,
-                  opacity: index === activeTopic ? 1 : 0.7
-                }}
+              <div
+                key={level.id}
+                className="flex-shrink-0 w-full snap-center"
+                style={{ scrollSnapAlign: 'center' }}
               >
-                {index === activeTopic && (
-                  <span className="text-xs font-bold text-white">
-                    {Math.round(topicProgress?.completionPercentage || 0)}%
-                  </span>
-                )}
-              </motion.button>
-            );
-          })}
-        </motion.div>
-
-        {/* View Mode Toggle */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          className="flex justify-center mt-4"
-        >
-          <div className="flex bg-white/60 backdrop-blur-sm rounded-xl p-1 shadow-sm ring-1 ring-black/5">
-            <button
-              onClick={() => setViewMode('overview')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                viewMode === 'overview'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              📊 Overview
-            </button>
-            <button
-              onClick={() => setViewMode('detailed')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                viewMode === 'detailed'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              📝 Stages
-            </button>
-          </div>
-        </motion.div>
-      </motion.div>
-
-      {/* Main Content Area */}
-      <AnimatePresence mode="wait">
-        {viewMode === 'overview' ? (
-          /* Overview Mode - Summary Stats */
-          <motion.div
-            key="overview"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-            className="p-6"
-          >
-            <div className="text-center mb-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                Overall Learning Progress
-              </h3>
-              <p className="text-sm text-gray-600">
-                Track your journey across all mathematical topics
-              </p>
-            </div>
-
-            {/* Overall Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1 }}
-                className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 text-center shadow-sm ring-1 ring-blue-100"
-              >
-                <div className="text-3xl font-bold text-blue-600 mb-2">
-                  {overallStats.completedTopics}
-                  <span className="text-lg text-gray-500">/{overallStats.totalTopics}</span>
-                </div>
-                <div className="text-sm text-gray-600 font-medium">Topics Mastered</div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 }}
-                className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 text-center shadow-sm ring-1 ring-green-100"
-              >
-                <div className="text-3xl font-bold text-green-600 mb-2">
-                  {overallStats.completedQuestions}
-                </div>
-                <div className="text-sm text-gray-600 font-medium">Questions Solved</div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3 }}
-                className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl p-6 text-center shadow-sm ring-1 ring-purple-100"
-              >
-                <div className="text-3xl font-bold text-purple-600 mb-2">
-                  {Math.round(overallStats.overallCompletionPercentage)}%
-                </div>
-                <div className="text-sm text-gray-600 font-medium">Overall Progress</div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 }}
-                className="bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl p-6 text-center shadow-sm ring-1 ring-orange-100"
-              >
-                <div className="text-3xl font-bold text-orange-600 mb-2">
-                  {overallStats.streak}
-                </div>
-                <div className="text-sm text-gray-600 font-medium">Day Streak</div>
-              </motion.div>
-            </div>
-
-            {/* Topics Overview */}
-            <div className="space-y-4">
-              <h4 className="text-lg font-bold text-gray-900 mb-4">All Topics Progress</h4>
-              {levels.map((level, index) => {
-                const topicProgress = getTopicProgress(level.id);
-                const completionPercentage = topicProgress?.completionPercentage || 0;
-                
-                return (
-                  <motion.div
-                    key={level.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 * index }}
-                    className={`p-4 rounded-xl border transition-all duration-300 cursor-pointer hover:shadow-md ${
-                      index === activeTopic
-                        ? 'border-indigo-300 bg-indigo-50 shadow-sm'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
-                    }`}
-                    onClick={() => navigateToTopic(index)}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${getBackgroundColor(topicProgress)}`}>
-                        {getTopicIcon(topicProgress)}
-                      </div>
+                <div className="h-[70vh] bg-gradient-to-br from-white to-gray-50/30 overflow-y-auto">
+                  <div className="p-5 space-y-4">
+                    {/* Enhanced Categories */}
+                    {level.categories.map((category, categoryIndex) => {
+                      const categoryProgress = getCategoryProgress(level.id, category.categoryId);
+                      const currentQuestion = getCurrentQuestion(category);
+                      const hasProgress = categoryProgress && categoryProgress.attempts > 0;
+                      const completionPercentage = categoryProgress ? (categoryProgress.correctAnswers / category.totalQuestions) * 100 : 0;
+                      const isCompleted = categoryProgress?.isCompleted;
                       
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h5 className="font-bold text-gray-900">{level.topic}</h5>
-                          <span className={`text-sm font-bold ${getCompletionColor(topicProgress)}`}>
-                            {Math.round(completionPercentage)}%
-                          </span>
-                        </div>
-                        
-                        <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${completionPercentage}%` }}
-                            transition={{ duration: 1, delay: 0.2 * index }}
-                            className={`h-full ${getProgressBarColor(topicProgress)} rounded-full`}
-                          />
-                        </div>
-                        
-                        <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                          <span>{topicProgress?.correctAnswers || 0} questions solved</span>
-                          <span>{topicProgress ? topicProgress.categoryProgress.filter(cat => cat.isCompleted).length : 0} stages completed</span>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.div>
-        ) : (
-          /* Detailed Mode - 2x2 Grid Layout for Stage Cards */
-          <motion.div
-            key="detailed"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-            className="p-6"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-              {currentLevel?.categories.map((category, categoryIndex) => {
-                const categoryProgress = getCategoryProgress(currentLevel.id, category.categoryId);
-                const currentQuestion = getCurrentQuestion(category);
-                const hasProgress = categoryProgress && categoryProgress.attempts > 0;
-                const completionPercentage = categoryProgress ? (categoryProgress.correctAnswers / category.totalQuestions) * 100 : 0;
-                
-                return (
-                  <motion.div
-                    key={category.categoryId}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + categoryIndex * 0.1 }}
-                    className="bg-gradient-to-br from-white to-gray-50/50 rounded-2xl p-5 shadow-sm ring-1 ring-black/5 hover:shadow-md transition-all duration-300"
-                  >
-                    {/* Category Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <motion.div 
-                          whileHover={{ rotate: 360 }}
-                          transition={{ duration: 0.5 }}
-                          className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-bold shadow-sm transition-all duration-300 flex-shrink-0 ${
-                            categoryProgress?.isCompleted 
-                              ? "bg-gradient-to-br from-emerald-500 to-green-600 text-white" 
-                              : hasProgress
-                              ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
-                              : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700"
+                      return (
+                        <div 
+                          key={category.categoryId} 
+                          className={`bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md hover:ring-black/10 ${
+                            isCompleted ? 'shadow-lg ring-green-100' : hasProgress ? 'shadow-lg ring-blue-100' : ''
                           }`}
                         >
-                          {categoryProgress?.isCompleted ? "✓" : category.categoryId}
-                        </motion.div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-bold text-gray-900 mb-1">
-                            Stage {category.categoryId}
-                          </h3>
-                          <p className="text-sm text-gray-600 mb-2 line-clamp-2 leading-relaxed">
-                            {category.categoryName}
-                          </p>
-                          <div className="text-xs text-gray-500">
-                            Question {category.currentQuestionIndex + 1} of {category.totalQuestions}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-600">
-                          Progress: {categoryProgress?.correctAnswers || 0}/{category.totalQuestions}
-                        </span>
-                        <span className="text-sm font-bold text-indigo-600">
-                          {Math.round(completionPercentage)}%
-                        </span>
-                      </div>
-                      
-                      <div className="h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${completionPercentage}%` }}
-                          transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 + categoryIndex * 0.1 }}
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            categoryProgress?.isCompleted
-                              ? "bg-gradient-to-r from-emerald-500 to-green-600"
-                              : hasProgress
-                              ? "bg-gradient-to-r from-blue-500 to-indigo-600"
-                              : "bg-gradient-to-r from-gray-400 to-gray-500"
-                          }`}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Current Question Preview */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 + categoryIndex * 0.1 }}
-                      className="p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200/50 mb-4"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm flex-shrink-0 mt-0.5">
-                          {currentQuestion.questionId}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm text-gray-900 font-medium leading-relaxed mb-2 line-clamp-3">
-                            {currentQuestion.questionText}
-                          </div>
-                          <div className="flex items-center gap-4 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 bg-indigo-400 rounded-full"></div>
-                              <span>Current Question</span>
+                          {/* Category Header */}
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-300 shadow-sm ${
+                              isCompleted 
+                                ? "bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-200" 
+                                : hasProgress
+                                ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-blue-200"
+                                : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 shadow-gray-100"
+                            }`}>
+                              {isCompleted ? "✓" : category.categoryId}
                             </div>
-                            {currentQuestion.attempts && currentQuestion.attempts > 0 && (
-                              <div className="flex items-center gap-1 text-orange-600">
-                                <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                                <span>{currentQuestion.attempts} attempt{currentQuestion.attempts > 1 ? 's' : ''}</span>
+                            <div className="flex-1">
+                              <div className="text-sm font-bold text-gray-900 mb-1">
+                                Stage {category.categoryId}
+                              </div>
+                              <div className="text-xs text-gray-600 mb-2">
+                                {category.categoryName}
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className="h-1.5 w-16 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                                    <div 
+                                      className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-700 ease-out rounded-full"
+                                      style={{ width: `${completionPercentage}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-gray-500 font-medium">
+                                    {categoryProgress?.correctAnswers || 0}/{category.totalQuestions}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Q{category.currentQuestionIndex + 1}/{category.totalQuestions}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Question Preview */}
+                          <div className="p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 mb-4">
+                            <div className="flex items-start gap-3">
+                              <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black bg-gradient-to-br from-indigo-400 to-purple-600 text-white shadow-lg flex-shrink-0">
+                                {currentQuestion.questionId}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm text-gray-900 line-clamp-2 font-medium leading-relaxed mb-2">
+                                  {currentQuestion.questionText}
+                                </div>
+                                <div className="flex items-center gap-3 text-xs">
+                                  <div className="flex items-center gap-1 text-indigo-600">
+                                    <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse"></div>
+                                    <span className="font-bold">NEXT UP</span>
+                                  </div>
+                                  {currentQuestion.attempts && currentQuestion.attempts > 0 && (
+                                    <div className="flex items-center gap-1 text-orange-600">
+                                      <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+                                      <span className="font-bold">{currentQuestion.attempts} attempts</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Start Button - Positioned at bottom like in the image */}
+                          <button
+                            onClick={() => {
+                              const nextQuestionId = getNextQuestionId(level.id, category.categoryId);
+                              onStartStage?.(level.id, category.categoryId, nextQuestionId);
+                            }}
+                            className={`w-full py-4 px-6 rounded-xl font-bold text-sm transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 ${
+                              isCompleted
+                                ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white focus:ring-green-300 shadow-green-500/50"
+                                : hasProgress
+                                ? "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white focus:ring-blue-300 shadow-blue-500/50"
+                                : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white focus:ring-indigo-300 shadow-indigo-500/50"
+                            }`}
+                          >
+                            <span className="flex items-center justify-center gap-3">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1.5a1.5 1.5 0 011.5 1.5V14a1.5 1.5 0 01-3 0V10.5M15 10h.5a2 2 0 012 2V15a2 2 0 01-4 0v-2.5" />
+                              </svg>
+                              <span>
+                                {isCompleted ? "Review Stage" : hasProgress ? "Continue Stage" : "Start Stage"}
+                              </span>
+                              <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                              </svg>
+                            </span>
+                          </button>
+
+                          {/* Stats Footer */}
+                          {hasProgress && (
+                            <div className="mt-3 flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-1 text-blue-600">
+                                <span className="text-lg">⚡</span>
+                                <span className="font-bold">{categoryProgress.attempts} attempts</span>
+                              </div>
+                              {isCompleted && (
+                                <div className="flex items-center gap-1 text-green-600">
+                                  <span className="text-lg">🏆</span>
+                                  <span className="font-bold">Completed!</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Enhanced Mobile Navigation Dots */}
+        <div className="p-5 flex justify-center gap-3 bg-gradient-to-r from-gray-50 to-white border-t border-gray-100">
+          {levels.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => navigateToTopic(index)}
+              className={`h-2.5 rounded-full transition-all duration-300 ${
+                index === activeTopic 
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 w-8 shadow-md" 
+                  : "bg-gray-300 w-2.5 hover:bg-gray-400 hover:w-4"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop Layout (unchanged)
+  return (
+    <div className="w-full max-w-lg mx-auto bg-white rounded-3xl ring-1 ring-black/5 shadow-xl p-4 sm:p-5 md:p-7 backdrop-blur-sm">
+
+      {/* Enhanced Stack of Topic Cards */}
+      <div className="relative h-[62vh] overflow-hidden">
+        <div className="relative h-full">
+          {levels.map((level, levelIndex) => {
+            const isActive = levelIndex === activeTopic;
+            const isPrevious = levelIndex < activeTopic;
+            const isNext = levelIndex > activeTopic;
+            const topicProgress = getTopicProgress(level.id);
+            
+            // Enhanced stack position calculations
+            let zIndex = levels.length - Math.abs(levelIndex - activeTopic);
+            let translateY = 0;
+            let scale = 1;
+            let opacity = 1;
+            let blur = 0;
+            
+            if (isActive) {
+              translateY = 0;
+              scale = 1;
+              opacity = 1;
+              zIndex = levels.length + 1;
+              blur = 0;
+            } else if (isPrevious) {
+              const distance = activeTopic - levelIndex;
+              translateY = -distance * 10;
+              scale = Math.max(0.94 - distance * 0.03, 0.88);
+              opacity = Math.max(0.6 - distance * 0.15, 0.2);
+              blur = Math.min(distance * 0.5, 2);
+            } else if (isNext) {
+              const distance = levelIndex - activeTopic;
+              translateY = distance * 10;
+              scale = Math.max(0.94 - distance * 0.03, 0.88);
+              opacity = Math.max(0.6 - distance * 0.15, 0.2);
+              blur = Math.min(distance * 0.5, 2);
+            }
+
+            return (
+              <div
+                key={level.id}
+                className="absolute inset-0 transition-all duration-700 ease-out"
+                style={{
+                  transform: `translateY(${translateY}px) scale(${scale})`,
+                  opacity,
+                  zIndex,
+                  filter: blur > 0 ? `blur(${blur}px)` : 'none',
+                }}
+              >
+                <div
+                  className={`h-full bg-white rounded-3xl shadow-lg ring-1 transition-all duration-500 cursor-pointer overflow-y-auto ${
+                    isActive 
+                      ? 'ring-indigo-300/50 shadow-2xl shadow-indigo-100/50' 
+                      : 'ring-black/10 hover:ring-indigo-200 hover:shadow-xl'
+                  }`}
+                  onClick={() => !isActive && setActiveTopic(levelIndex)}
+                >
+                  {/* Enhanced Topic Header */}
+
+
+                  {/* Categories Content - Only show for active topic */}
+                  {isActive && (
+                    <div className="p-5 space-y-5">
+                      {level.categories.map((category, categoryIndex) => {
+                        const categoryProgress = getCategoryProgress(level.id, category.categoryId);
+                        const currentQuestion = getCurrentQuestion(category);
+                        const hasProgress = categoryProgress && categoryProgress.attempts > 0;
+                        const completionPercentage = categoryProgress ? (categoryProgress.correctAnswers / category.totalQuestions) * 100 : 0;
+                        const isCompleted = categoryProgress?.isCompleted;
+                        
+                        return (
+                          <div 
+                            key={category.categoryId} 
+                            className={`bg-gradient-to-br from-gray-50/50 to-white rounded-2xl p-4 shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-md hover:ring-black/10 ${
+                              isCompleted ? 'shadow-lg ring-green-100/50' : hasProgress ? 'shadow-lg ring-blue-100/50' : ''
+                            }`}
+                          >
+                            {/* Enhanced Category Header */}
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-4 min-w-0 flex-1">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-300 shadow-sm ${
+                                  isCompleted 
+                                    ? "bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-200" 
+                                    : hasProgress
+                                    ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-blue-200"
+                                    : "bg-gradient-to-br from-gray-200 to-gray-300 text-gray-700 shadow-gray-100"
+                                }`}>
+                                  {isCompleted ? "✓" : category.categoryId}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-bold text-gray-900 mb-1">
+                                    Stage {category.categoryId}
+                                  </div>
+                                  <div className="text-xs text-gray-600 line-clamp-2 mb-2">
+                                    {category.categoryName}
+                                  </div>
+                                  {categoryProgress && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-1.5 w-14 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                                        <div 
+                                          className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-700 ease-out rounded-full"
+                                          style={{ width: `${completionPercentage}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-xs text-gray-500 font-medium">
+                                        {categoryProgress.correctAnswers || 0}/{category.totalQuestions}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Enhanced Start Button - Positioned prominently */}
+                            <button
+                              onClick={() => {
+                                const nextQuestionId = getNextQuestionId(level.id, category.categoryId);
+                                onStartStage?.(level.id, category.categoryId, nextQuestionId);
+                              }}
+                              className={`w-full py-4 px-6 rounded-xl font-bold text-sm transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 ${
+                                isCompleted
+                                  ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white focus:ring-green-300 shadow-green-500/50"
+                                  : hasProgress
+                                  ? "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white focus:ring-blue-300 shadow-blue-500/50"
+                                  : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white focus:ring-indigo-300 shadow-indigo-500/50"
+                              }`}
+                            >
+                              <span className="flex items-center justify-center gap-3">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1.5a1.5 1.5 0 011.5 1.5V14a1.5 1.5 0 01-3 0V10.5M15 10h.5a2 2 0 012 2V15a2 2 0 01-4 0v-2.5" />
+                                </svg>
+                                <span>
+                                  {isCompleted ? "Review Stage" : hasProgress ? "Continue Stage" : "Start Stage"}
+                                </span>
+                                <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                </svg>
+                              </span>
+                            </button>
+
+                            {/* Stats Footer */}
+                            {hasProgress && (
+                              <div className="mt-3 flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1 text-blue-600">
+                                  <span className="text-lg">⚡</span>
+                                  <span className="font-bold">{categoryProgress.attempts} attempts</span>
+                                </div>
+                                {isCompleted && (
+                                  <div className="flex items-center gap-1 text-green-600">
+                                    <span className="text-lg">🏆</span>
+                                    <span className="font-bold">Completed!</span>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Enhanced Inactive Topic Preview */}
+                  {!isActive && (
+                    <div className="p-6 text-center">
+                      <div className="text-gray-500 text-sm font-medium mb-2">
+                        Click to view stages
                       </div>
-                    </motion.div>
-
-                    {/* Action Button */}
-                    <motion.button
-                      onClick={() => {
-                        onStartStage?.(currentLevel.id, category.categoryId, currentQuestion.questionId);
-                      }}
-                      className={`w-full px-6 py-3 rounded-xl font-bold text-sm transition-all duration-300 shadow-md hover:shadow-lg focus:outline-none focus:ring-4 ${
-                        hasProgress
-                          ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white focus:ring-blue-300"
-                          : "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white focus:ring-emerald-300"
-                      }`}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <span className="flex items-center justify-center gap-2">
-                        {hasProgress ? (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            Continue
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            Start
-                          </>
-                        )}
-                      </span>
-                    </motion.button>
-
-                    {/* Category Stats */}
-                    {hasProgress && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 + categoryIndex * 0.1 }}
-                        className="mt-3 flex items-center justify-between text-xs text-gray-500"
-                      >
-                        <div className="flex items-center gap-1">
-                          <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
-                          <span>{categoryProgress.attempts} attempts</span>
+                      {topicProgress && (
+                        <div className="text-xs text-gray-400 font-medium">
+                          {Math.round(topicProgress.completionPercentage || 0)}% Complete
                         </div>
-                        {categoryProgress.isCompleted && (
-                          <div className="flex items-center gap-1 text-emerald-600">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="font-medium">Completed!</span>
-                          </div>
-                        )}
-                      </motion.div>
-                    )}
-                  </motion.div>
-                );
-              })}
-            </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-           
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+      {/* Enhanced Desktop Arrow Navigation */}
+      <div className="mt-8 flex items-center justify-between">
+        {/* Enhanced Left Arrow */}
+        <button
+          onClick={goToPrevious}
+          disabled={activeTopic === 0}
+          className={`flex items-center justify-center w-12 h-12 rounded-2xl border-2 transition-all duration-300 ${
+            activeTopic === 0
+              ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50'
+              : 'border-indigo-300 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 active:scale-95 shadow-sm hover:shadow-md bg-white'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        {/* Enhanced Navigation Dots */}
+        <div className="flex justify-center gap-3">
+          {levels.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => navigateToTopic(index)}
+              className={`h-2.5 rounded-full transition-all duration-300 ${
+                index === activeTopic 
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 w-8 shadow-md" 
+                  : "bg-gray-300 w-2.5 hover:bg-gray-400 hover:w-4 hover:shadow-sm"
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* Enhanced Right Arrow */}
+        <button
+          onClick={goToNext}
+          disabled={activeTopic === levels.length - 1}
+          className={`flex items-center justify-center w-12 h-12 rounded-2xl border-2 transition-all duration-300 ${
+            activeTopic === levels.length - 1
+              ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50'
+              : 'border-indigo-300 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 active:scale-95 shadow-sm hover:shadow-md bg-white'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </div>
   );
 }

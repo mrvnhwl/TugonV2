@@ -32,6 +32,7 @@
     "types": ["node", "react", "react-dom"]
   },
   "include": [
+
     "src/**/*",
     "src/types/**/*"  // ADDED: Include types folder
   ]

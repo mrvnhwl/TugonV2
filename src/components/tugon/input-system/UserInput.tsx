@@ -17,8 +17,10 @@ type UserAttempt = {
   stepIndex: number;
   stepLabel: string;
   userInput: string;
+  sanitizedInput: string; 
   isCorrect: boolean;
   expectedAnswer: string;
+  sanitizedExpectedAnswer: string; 
   cumulativeProgress: number;
   stepStartTime: number; // When step was started
   attemptTime: number;   // When this specific attempt was made
@@ -43,7 +45,7 @@ export interface UserInputProps {
    topicId?: number;
   categoryId?: number;
   questionId?: number;
-  expectedSteps?: Step[];
+  expectedSteps: Step[];
   showHints?: boolean;
   hintText?: string;
   //mathMode?: boolean; //mathlive
@@ -226,16 +228,10 @@ export default function UserInput({
     setCurrentStepStartTime(now);
   
 
-    console.log(`⏱️ STEP TIMER STARTED: Step ${stepIndex + 1} (${stepLabel})`);
   }, [expectedSteps, stepTimings]);
   useEffect(() => {
     // Reset UserInput state when question parameters change
     if (topicId && categoryId && questionId) {
-      console.log('🔄 UserInput: Resetting state for new question:', {
-        topicId,
-        categoryId,
-        questionId
-      });
       
       // Reset to initial state
       setLines(['']);
@@ -269,8 +265,7 @@ export default function UserInput({
       // Notify parent of reset
       onChange(['']);
       onAttemptUpdate?.([]);
-      
-      console.log('✅ UserInput state reset complete');
+    
   }
 }, [topicId, categoryId, questionId]); // Dependencies
   const completeStepTimer = useCallback((stepIndex: number) => {
@@ -296,12 +291,7 @@ export default function UserInput({
       return newMap;
     });
     
-    console.log(`⏱️ STEP TIMER COMPLETED:`);
-    console.log(`   Step ${stepIndex + 1} (${existingTiming.stepLabel})`);
-    console.log(`   Duration: ${(duration / 1000).toFixed(2)} seconds`);
-    console.log(`   Start: ${new Date(existingTiming.startTime).toLocaleTimeString()}`);
-    console.log(`   End: ${new Date(now).toLocaleTimeString()}`);
-    
+  
     return duration;
   }, [stepTimings]);
 
@@ -350,13 +340,12 @@ export default function UserInput({
   const storeStepProgressionToAttempt = useCallback((stepProgression: StepProgression, stepIndex: number) => {
     const currentInput = stepProgression[1];
     const now = Date.now();
-    
+     const expectedAnswer = stepProgression[3];
     // PREVENT DUPLICATE CALLS: Check if we just processed this exact step/input
     if (lastProcessedStep.current && 
         lastProcessedStep.current.stepIndex === stepIndex &&
         lastProcessedStep.current.input === currentInput &&
         (now - lastProcessedStep.current.timestamp) < 100) {
-      console.log('🚫 DUPLICATE CALL DETECTED - IGNORING');
       return;
     }
     
@@ -372,21 +361,24 @@ export default function UserInput({
     if (stepProgression[2] === true) { // isCorrect
       timeSpentOnStep = completeStepTimer(stepIndex);
     }
-    
+    const sanitizedUserInput = InputValidator.sanitizeTextMathLive(currentInput);
+    const sanitizedExpectedAnswer = InputValidator.sanitizeTextMathLive(expectedAnswer);
     setAttemptCounter(prev => {
       const newId = prev + 1;
       
       const newUserAttempt: UserAttempt = {
-        attempt_id: newId,
-        stepIndex,
-        stepLabel: stepProgression[0],      
-        userInput: stepProgression[1],      
-        isCorrect: stepProgression[2],      
-        expectedAnswer: stepProgression[3], 
-        cumulativeProgress: stepProgression[4],
-        stepStartTime,           // When step timing started
-        attemptTime: now,        // When this attempt was made
-        timeSpentOnStep,         // Total time if step completed
+      attempt_id: newId,
+      stepIndex,
+      stepLabel: stepProgression[0],
+      userInput: sanitizedUserInput,                    // Original user input
+      sanitizedInput: sanitizedUserInput,        // ✅ ADD: Sanitized user input
+      isCorrect: stepProgression[2],
+      expectedAnswer:sanitizedExpectedAnswer,             // Original expected answer
+      sanitizedExpectedAnswer: sanitizedExpectedAnswer, // ✅ ADD: Sanitized expected answer
+      cumulativeProgress: stepProgression[4],
+      stepStartTime,           // When step timing started
+      attemptTime: now,        // When this attempt was made
+      timeSpentOnStep,         // Total time if step completed
       };
 
     setUserAttempt(prevAttempts => {
@@ -431,8 +423,6 @@ export default function UserInput({
       
       // ANALYZE BEHAVIOR AFTER EACH ATTEMPT
       setTimeout(() => {
-        console.log('⏰ TIMEOUT TRIGGERED - Calling analyzeBehaviorAndUpdateHints');
-        console.log('📊 Attempts being analyzed:', newAttempts.length);
         analyzeBehaviorAndUpdateHints(newAttempts);
       }, 150);
       
@@ -447,11 +437,6 @@ export default function UserInput({
   const validateIndividualLine = useCallback((lineIndex: number, trigger: 'enter') => {
     const line = lines[lineIndex];
     
-     // ENHANCED CHECK: Only validate if line has meaningful content
-    if (!line.trim() || line.trim().length < 2 || !expectedSteps || lineIndex >= expectedSteps.length) {
-      console.log(`⏭️ Skipping validation for line ${lineIndex}: insufficient content`);
-      return;
-    }
      // ADD: Don't validate default/placeholder values
     if (line.trim() === '7' && !trigger) {
       console.log(`⏭️ Skipping validation for default value: "${line}"`);
@@ -459,6 +444,15 @@ export default function UserInput({
     }
     const expectedStep = expectedSteps[lineIndex];
     console.log(`🔍 Validating line ${lineIndex}: "${line.trim()}" vs expected "${expectedStep.answer}"`);
+    const userInputSanitized = InputValidator.sanitizeTextMathLive(line.trim());
+    const expectedSanitized = InputValidator.sanitizeTextMathLive(expectedStep.answer);
+    console.log(`🔍 UserInput: Validating line ${lineIndex} (MathLive-aware):`, {
+      userInput: line.trim(),
+      userInputSanitized: userInputSanitized,
+      expectedAnswer: expectedStep.answer,
+      expectedSanitized: expectedSanitized,
+      stepLabel: expectedStep.label
+    });
     const validation = InputValidator.validateStepWithTwoPhase(
       line.trim(),
       expectedStep.answer,
@@ -659,7 +653,7 @@ export default function UserInput({
         }
       } else {
         // Show feedback for incorrect step
-        console.log(`❌ Step ${pendingLineCreation + 1} must be correct before proceeding to the next step.`);
+       
         showStepRequiredFeedback(pendingLineCreation);
       }
       
@@ -709,16 +703,10 @@ export default function UserInput({
 
   // Handle key events
   const handleKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-     console.log(`🔥 handleKeyDown ENTRY:`, {
-    index,
-    key: event.key,
-    isMathMode: shouldUseMathMode(index),
-    lineContent: lines[index],
-    hasExpectedSteps: !!expectedSteps
-  });
+     
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      console.log('🎯 Enter key pressed in UserInput');
+     
     
     // SET LOCAL SHOW HINTS TO TRUE WHEN ENTER IS PRESSED
     setLocalShowHints(true);
@@ -751,17 +739,24 @@ export default function UserInput({
       focusLine(index + 1);
     }
   };
-const handleMathFieldInput = useCallback((index: number, event: any) => {
-        console.log(`🔥 handleMathFieldInput called for index ${index}`);
-      const latexValue = event.target.value; // This is LaTeX string
-      handleLineChange(index, latexValue); // Your existing function works!
-    }, [handleLineChange]);
+      const handleMathFieldInput = useCallback((index: number, event: any) => {
+        const mathField = event.target;
+        
+        // Use the new MathLive-aware extraction
+        const extractedValue = InputValidator.extractMathFieldValue(mathField);
+        
+        console.log(`🧮 MathField input at index ${index}:`, {
+          rawLatex: mathField.getValue?.() || mathField.value || "",
+          extractedValue: extractedValue,
+          sanitized: InputValidator.sanitizeTextMathLive(extractedValue)
+        });
+        
+        // Use the extracted value for line change
+        handleLineChange(index, extractedValue);
+      }, [handleLineChange]);
 
     // Adapter for math-field keyboard events  
     const handleMathFieldKeyDown = useCallback((index: number, event: any) => {
-      console.log(`🔥 handleMathFieldKeyDown called for index ${index}`);
-      console.log(`   - Key pressed:`, event.key);
-      console.log(`   - Event object:`, event);
   
       // Create React-like event object
       const syntheticEvent = {
@@ -840,39 +835,38 @@ const handleMathFieldInput = useCallback((index: number, event: any) => {
       el.virtualKeyboardMode = virtualKeyboardEnabled ? 'manual' : 'off';
       
       // ✅ FIXED: Use addEventListener for input events instead of onInput option
+     
       const inputHandler = (e: any) => {
-        const newValue = e.target.getValue();
-        console.log(`🎹 MathLive input event: "${newValue}"`);
+        const mathField = e.target;
+         console.log(`✅ before input handler`);
+        // Use the MathLive-aware extraction
+        const extractedValue = InputValidator.extractMathFieldValue(mathField);
         
-        // Update the line state immediately
-        const newLines = [...lines];
-        newLines[index] = newValue;
-        setLines(newLines);
-        onChange(newLines);
+        console.log(`🧮 MathField input at index ${index}:`, {
+          rawLatex: mathField.getValue?.() || mathField.value || "",
+          extractedValue: extractedValue,
+          sanitized: InputValidator.sanitizeTextMathLive(extractedValue)
+        });
         
-        // Clear validation states when content changes
-        setLineValidationStates(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(index);
-          return newMap;
-        });
-        setValidationTriggers(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(index);
-          return newMap;
-        });
-      };
+        // Start step timer if needed
+        if (extractedValue.trim() && !stepTimings.has(index)) {
+          startStepTimer(index);
+        }
+        
+        // Use the extracted value for line change
+        handleLineChange(index, extractedValue);
+    };
       
       // ✅ FIXED: Enhanced keydown handler with proper timing
       const keydownHandler = (e: KeyboardEvent) => {
-        console.log(`⌨️ MathField ${index} keydown:`, e.key);
+        
         
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           
           // ✅ CRITICAL: Get the CURRENT value from MathLive
           const currentValue = el.getValue();
-          console.log(`✅ Enter pressed - Current MathLive value: "${currentValue}"`);
+        
           
           // ✅ CRITICAL: Update lines state BEFORE validation
           const updatedLines = [...lines];
@@ -884,8 +878,7 @@ const handleMathFieldInput = useCallback((index: number, event: any) => {
           
           // ✅ CRITICAL: Use setTimeout to ensure state update completes
           setTimeout(() => {
-            console.log(`🔍 Starting validation for index ${index} with value: "${currentValue}"`);
-            
+
             // Start step timer if needed
             if (currentValue.trim() && !stepTimings.has(index)) {
               startStepTimer(index);
@@ -926,19 +919,19 @@ const handleMathFieldInput = useCallback((index: number, event: any) => {
       
       // Other event handlers remain the same
       const focusHandler = () => {
-        console.log(`📍 MathField ${index} focused`);
+      
         setFocusedIndex(index);
         
         if (virtualKeyboardEnabled && el.virtualKeyboard) {
           setTimeout(() => {
-            console.log(`🎹 Showing virtual keyboard for MathField ${index}`);
+      
             el.virtualKeyboard.show();
           }, 100);
         }
       };
       
       const blurHandler = () => {
-        console.log(`📍 MathField ${index} blurred`);
+       
         setFocusedIndex(null);
       };
       
@@ -952,7 +945,7 @@ const handleMathFieldInput = useCallback((index: number, event: any) => {
       
       // ✅ FIXED: Update cleanup to include input handler
       el._cleanup = () => {
-        console.log(`🧹 Cleaning up MathField ${index} events`);
+      
         el.removeEventListener('input', inputHandler);
         el.removeEventListener('keydown', keydownHandler);
         el.removeEventListener('focus', focusHandler);
@@ -1063,8 +1056,7 @@ const handleMathFieldInput = useCallback((index: number, event: any) => {
     const behaviorChanged = lastBehaviorClassification !== profile.currentBehavior;
     if (behaviorChanged) {
       console.log(`🔄 BEHAVIOR CLASSIFICATION CHANGED:`);
-      console.log(`   Previous: ${lastBehaviorClassification || 'none'}`);
-       console.log(`   Current: ${profile.currentBehavior || 'none'}`);
+      
       
        // FIXED: Reset attempt count for ANY behavior change (not just problematic ones)
         if (profile.currentBehavior) {
@@ -1117,13 +1109,7 @@ const handleMathFieldInput = useCallback((index: number, event: any) => {
       setAttemptsSinceLastHint(0);
       console.log(`🔄 HINT INTERVAL RESET after showing AI hint`);
     }
-    } else {
-      console.log('❌ AI MODAL NOT TRIGGERED - Reasons:');
-      console.log('   - shouldShowAIModal:', shouldShowAIModal);
-      console.log('   - hintIntervalActive:', hintIntervalActive);
-      console.log('   - currentBehavior:', profile.currentBehavior);
-      console.log('   - attemptsSinceLastHint:', attemptsSinceLastHint);
-    }
+    } 
   }, [lines, expectedSteps, lineValidationStates, showHints, handleAIHintRequest, topicId, categoryId, questionId, lastBehaviorClassification, hintIntervalActive]);
 
   const status = getCompletionStatus(lines);
@@ -1201,37 +1187,72 @@ const handleMathFieldInput = useCallback((index: number, event: any) => {
                   {/* Line number indicator */}
                   <div className="w-8 flex-shrink-0 text-center text-xs text-gray-400 font-mono">
                     {index + 1}
-                  </div>
-                  
-                  {/* Input field */}
-                  {shouldUseMathMode(index) ? (
-                        // Math mode - for mathematical steps
-                       <math-field
-                        ref={setInputRef(index)}
-                        value={line}
-                         virtual-keyboard-mode={virtualKeyboardEnabled ? "manual" : "off"}   // FIXED: Use "off" instead of "manual"
-                        smart-fence={true}          // FIXED: Use boolean true
-                        smart-superscript={true}    // FIXED: Use boolean true
-                        smart-mode={true}           // NEW: Enable smart math mode
-                      
-                        style={{
-                          flex: 1,
-                          border: "none",
-                          background: "transparent",
-                          padding: "12px",
-                          color: "#1f2937",
-                          fontSize: "1rem",
-                          minHeight: "48px",
-                          outline: "none",
-                          cursor: "text",
-                          userSelect: "text"
-                        }}
-                        className={cn(
-                          "focus:ring-0 focus:outline-none",
-                          "placeholder-gray-400 text-gray-900",
-                          disabled && "bg-gray-50 text-gray-500"
+                                      </div>
+                                      
+                                      {/* Input field */}
+                                      {shouldUseMathMode(index) ? (
+                                          <div className="flex-1 flex items-center gap-2">
+                        {/* Math Field */}
+                        <math-field
+                          ref={setInputRef(index)}
+                          value={line}
+                          virtual-keyboard-mode={virtualKeyboardEnabled ? "manual" : "off"}
+                          smart-fence={true}
+                          smart-superscript={true}
+                          smart-mode={true}
+                          style={{
+                            flex: 1,
+                            border: "none",
+                            background: "transparent",
+                            padding: "12px",
+                            color: "#1f2937",
+                            fontSize: "1rem",
+                            minHeight: "48px",
+                            outline: "none",
+                            cursor: "text",
+                            userSelect: "text"
+                          }}
+                          className={cn(
+                            "focus:ring-0 focus:outline-none",
+                            "placeholder-gray-400 text-gray-900",
+                            disabled && "bg-gray-50 text-gray-500"
+                          )}
+                        />
+                        
+                        {/* Submit Button for Math Fields */}
+                        {virtualKeyboardEnabled && line.trim() && (
+                          <button
+                            onClick={() => {
+                                  // ✅ SIMPLE: Just simulate Enter key press on the math field
+                                  const mathField = inputRefs.current[index];
+                                  if (mathField) {
+                                    // Create and dispatch a keyboard event
+                                    const enterEvent = new KeyboardEvent('keydown', {
+                                      key: 'Enter',
+                                      code: 'Enter',
+                                      keyCode: 13,
+                                      which: 13,
+                                      bubbles: true,
+                                      cancelable: true
+                                    });
+                                    
+                                    // Dispatch the event to trigger your existing Enter handler
+                                    mathField.dispatchEvent(enterEvent);
+                                  }
+                                }}
+                            className={cn(
+                              "px-3 py-2 rounded-md text-sm font-medium transition-all duration-200",
+                              "bg-blue-500 hover:bg-blue-600 text-white",
+                              "shadow-sm hover:shadow-md",
+                              "flex items-center gap-1"
+                            )}
+                            title="Submit this step"
+                          >
+                            <span>✓</span>
+                            <span className="hidden sm:inline">Submit</span>
+                          </button>
                         )}
-                      > </math-field>
+                      </div>
                       ) : (
                         // Text mode - your existing input (keep exactly as is)
                         <input
@@ -1305,136 +1326,9 @@ const handleMathFieldInput = useCallback((index: number, event: any) => {
        {expectedSteps && expectedSteps.length > 0 && (
         <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-t border-gray-200 px-4 py-3 space-y-3">
             {/* Virtual Keyboard Toggle (Desktop Only) */}
-            {isDesktop && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Virtual Keyboard:</span>
-                  <button
-                    onClick={() => setVirtualKeyboardEnabled(!virtualKeyboardEnabled)}
-                    className={cn(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                      virtualKeyboardEnabled 
-                        ? "bg-blue-600" 
-                        : "bg-gray-200"
-                    )}
-                  >
-                    <span className={cn(
-                      "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                      virtualKeyboardEnabled ? "translate-x-6" : "translate-x-1"
-                    )} />
-                  </button>
-                  <span className="text-xs text-gray-500">
-                    {virtualKeyboardEnabled ? "ON" : "OFF"}
-                  </span>
-                </div>
-                
-                <div className="text-xs text-gray-400">
-                  💡 Toggle for math input assistance
-                </div>
-              </div>
-            )} 
+            
     {/* Main Progress Section */}
-    <div className="flex items-center gap-4">
-      {/* Progress Label with Icon */}
-      <div className="flex items-center gap-2 min-w-[80px]">
-        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-        <span className="text-sm font-medium text-gray-700">
-          Progress
-        </span>
-      </div>
-
-      {/* Enhanced Progress Bar */}
-      <div className="flex-1 relative bg-white rounded-full p-1 shadow-inner">
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
-          {/* Background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-150 to-gray-200"></div>
-          
-          {/* Progress fill with enhanced styling */}
-          <div 
-            className={cn(
-              "h-full transition-all duration-500 ease-out rounded-full relative overflow-hidden",
-              "shadow-sm",
-              status.percentage === 100 
-                ? "bg-gradient-to-r from-green-400 to-green-600 shadow-green-200"
-                : status.percentage >= 80  
-                ? "bg-gradient-to-r from-emerald-400 to-emerald-600 shadow-emerald-200"
-                : status.percentage >= 60  
-                ? "bg-gradient-to-r from-blue-400 to-blue-600 shadow-blue-200"
-                : status.percentage >= 40  
-                ? "bg-gradient-to-r from-indigo-400 to-indigo-600 shadow-indigo-200"
-                : status.percentage >= 20  
-                ? "bg-gradient-to-r from-orange-400 to-orange-600 shadow-orange-200"
-                : status.percentage > 0    
-                ? "bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-yellow-200"
-                : "bg-gray-300"
-            )}
-            style={{ width: `${status.percentage}%` }}
-          >
-            {/* Shine effect */}
-            {status.percentage > 0 && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
-            )}
-          </div>
-          
-          {/* Progress markers */}
-          {expectedSteps.map((_, index) => {
-            const markerPosition = ((index + 1) / expectedSteps.length) * 100;
-            const isCompleted = status.percentage >= markerPosition;
-            return (
-              <div
-                key={index}
-                className={cn(
-                  "absolute top-0 w-0.5 h-full transition-colors duration-300",
-                  isCompleted ? "bg-white/50" : "bg-gray-300"
-                )}
-                style={{ left: `${markerPosition}%` }}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Enhanced Progress Percentage */}
-      <div className="flex items-center gap-2 min-w-[60px]">
-        <span className={cn(
-          "text-sm font-bold transition-colors duration-300",
-          status.percentage === 100 
-            ? "text-green-600"
-            : status.percentage >= 80
-            ? "text-emerald-600"
-            : status.percentage >= 60
-            ? "text-blue-600"
-            : status.percentage >= 40
-            ? "text-indigo-600"
-            : status.percentage >= 20
-            ? "text-orange-600"
-            : status.percentage > 0
-            ? "text-yellow-600"
-            : "text-gray-500"
-        )}>
-          {status.percentage}%
-        </span>
-        
-        {/* Progress status icon */}
-        <div className="text-lg">
-          {status.percentage === 100 
-            ? "🎉"
-            : status.percentage >= 80
-            ? "🔥"
-            : status.percentage >= 60
-            ? "💪"
-            : status.percentage >= 40
-            ? "📈"
-            : status.percentage >= 20
-            ? "🎯"
-            : status.percentage > 0
-            ? "🚀"
-            : "⭐"
-          }
-        </div>
-      </div>
-        {/* TUTOR MOOD INDICATOR Add later for AI tutor later */}
-    </div>
+         
 
             
           {/* Short Hints Component */}

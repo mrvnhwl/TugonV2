@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers";
 import type { PredefinedAnswer, Step as AnswerStep } from "@/components/data/answers";
+import { getAnswerForQuestion } from "@/components/data/answers";
 import { cn } from "../../cn";
 import UserInput from './UserInput';
 import InputValidator from './UserInputValidator';
@@ -98,12 +99,36 @@ export default function AnswerWizard({
   fallbackText
 }: AnswerWizardProps) {
   // Source answers
-  const answersSource: PredefinedAnswer[] = expectedAnswers && expectedAnswers.length > 0
-    ? expectedAnswers
-    : (predefinedAnswersData || []);
+  const getExpectedStepsForQuestion = () => {
+ 
+    if (expectedAnswers && expectedAnswers.length > 0) {
+   
+      return expectedAnswers;
+    }
+    
+    // Use the helper function to get the correct answer
+    if (topicId && categoryId && questionId) {
+     
+      const steps = getAnswerForQuestion(topicId, categoryId, questionId);
+       
+      if (steps) {
+        return [{
+          questionId,
+        questionText: `Question ${questionId}`,
+        type: "multiLine" as const,
+        steps
+        }];
+        
+      }
+    }
+    
+    return [];
+  };
+  const answersSource: PredefinedAnswer[] = getExpectedStepsForQuestion();
+ 
  
   // Fixed steps derived from answers source
-  const fixedSteps: WizardStep[] = (answersSource || []).map((_, i) => {
+   const fixedSteps: WizardStep[] = (answersSource || []).map((_, i) => {
     const t: AnswerType = "multi";
     return {
       id: `s${i + 1}`,
@@ -111,6 +136,15 @@ export default function AnswerWizard({
       answerValue: [''],
     } as WizardStep;
   });
+    useEffect(() => {
+    console.log('🎯 EXPECTED STEPS DEBUG:', {
+      topicId,
+      categoryId,
+      questionId,
+      answersSource,
+      expectedSteps: answersSource?.[0]?.steps
+    });
+  }, [topicId, categoryId, questionId, answersSource]);
 
   // FIXED: Rename to avoid conflict with props
   const [wizardSteps, setWizardSteps] = useState<WizardStep[]>(fixedSteps);
@@ -495,14 +529,14 @@ export default function AnswerWizard({
               index,
               correctness[index]
             );
-            
+             
             // Apply styling based on validation state
             const inputClasses = cn(
               "transition-all duration-200",
               validationResult.isCorrect && "border-green-500 bg-green-50",
               validationResult.isWrong && "border-red-500 bg-red-50"
             );
-
+             
             return (
               <div className="space-y-2">
                

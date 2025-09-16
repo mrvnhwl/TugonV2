@@ -122,14 +122,7 @@ export default function QuestionBox({
           </div>
         )}
 
-        {/* UPDATED: Show fallback only if no image AND no text AND no children */}
-        {!showText && !children && !hasImage && (
-          <div className="mt-6 mb-3 sm:mt-8 sm:mb-4 text-center">
-            <Small className="text-muted-foreground italic">
-              No question selected
-            </Small>
-          </div>
-        )}
+      
       </div>
     </div>
   );
