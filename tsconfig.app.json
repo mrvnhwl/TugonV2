@@ -35,6 +35,6 @@
 
     "src/**/*",
     "src/types/**/*"  // ADDED: Include types folder
-  ]
+, "src/components/data/questions/.ts"  ]
    
 }

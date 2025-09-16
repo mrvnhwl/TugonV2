@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CourseCard from "../../components/CourseCard";
 import ProgressMap from "../../components/ProgressMap";
-import { courses } from "../../components/data/question";
+import { courses } from "../../components/data/questions/index";
 import StudentNavbar from "@/components/studentNavbar";
 import { useProgress } from "../../components/tugon/services/useProgress";
 

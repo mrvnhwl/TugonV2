@@ -2,15 +2,17 @@
 // Each question corresponds to the structure in question.ts
 
 export type Step = {
-  label: "substitution" | "simplification" | "final" | "math" | "text";
+  label: "substitution" | "simplification" | "final" | "math" | "text" | "domain" | "range" | "set";
   answer: string;
+  placeholder?: string; // Add optional placeholder field
 };
 
 export type PredefinedAnswer = {
-  questionId: number; // Add explicit question ID
-  questionText?: string; // Add question text for reference/validation
+  questionId: number;
+  questionText?: string;
   type: "multiLine";
   steps: Step[];
+  globalPlaceholder?: string; // Optional global placeholder for the entire question
 };
 
 // Topic 1: Introduction to Functions
@@ -238,16 +240,16 @@ export const Topic2_Category1_Answers: PredefinedAnswer[] = [
     steps: [
       { label: "substitution", answer: "2(0) + 5/25" },
       { label: "simplification", answer: "0 + 5/25" },
-      { label: "final", answer: "1/5" }
+      { label: "final", answer: "3/5" }
     ]
   },
 ];
 
 // Category 2: p(x)=x^2+4. Find p(6)
 export const Topic2_Category2_Answers: PredefinedAnswer[] = [
-  {
+  { //FIND THE DOMAIN
     questionId: 1,
-    questionText: "p(x) = x² + 4. Find p(6)",
+    questionText: "f(x)=2x+5",
     type: "multiLine",
     steps: [
       { label: "substitution", answer: "p(6) = 6² + 4" }, // Fixed from "6(6)+4"
@@ -257,7 +259,7 @@ export const Topic2_Category2_Answers: PredefinedAnswer[] = [
   },
   {
     questionId: 2,
-    questionText: "p(x) = x² + 4. Find p(3)",
+    questionText: "g(x)=1/x",
     type: "multiLine",
     steps: [
       { label: "substitution", answer: "p(3) = 3² + 4" },
@@ -267,7 +269,7 @@ export const Topic2_Category2_Answers: PredefinedAnswer[] = [
   },
   {
     questionId: 3,
-    questionText: "p(x) = x² + 4. Find p(-1)",
+    questionText: "h(x)=sqrt(x)",
     type: "multiLine",
     steps: [
       { label: "substitution", answer: "p(-1) = (-1)² + 4" },
@@ -277,7 +279,7 @@ export const Topic2_Category2_Answers: PredefinedAnswer[] = [
   },
   {
     questionId: 4,
-    questionText: "p(x) = x² + 4. Find p(0)",
+    questionText: "f(x)=1/(x-4)",
     type: "multiLine",
     steps: [
       { label: "substitution", answer: "p(0) = 0² + 4" },
@@ -289,15 +291,13 @@ export const Topic2_Category2_Answers: PredefinedAnswer[] = [
 
 // Category 3: f(x)=2x^2-3x+1. Find f(-2)
 export const Topic2_Category3_Answers: PredefinedAnswer[] = [
-  {
+  { //FIND THE RESTRICTION
     questionId: 1,
     questionText: "f(x) = 2x² - 3x + 1. Find f(-2)",
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "f(-2) = 2(-2)² - 3(-2) + 1" },
-      { label: "simplification", answer: "f(-2) = 2(4) + 6 + 1" },
-      { label: "simplification", answer: "f(-2) = 8 + 6 + 1" },
-      { label: "final", answer: "15" }
+      { label: "domain", answer: "f(-2) = 2(-2)² - 3(-2) + 1", placeholder:"{ x | x "},
+      
     ]
   },
   {
@@ -643,9 +643,7 @@ export const Topic5_Category2_Answers: PredefinedAnswer[] = [
     questionText: "Find the domain of (f ∘ g)(x) where f(x) = √x and g(x) = x - 2",
     type: "multiLine", 
     steps: [
-      { label: "text", answer: "Need g(x) ≥ 0 for f(g(x)) to be defined" },
-      { label: "substitution", answer: "x - 2 ≥ 0" },
-      { label: "final", answer: "Domain: x ≥ 2" }
+      { label: "text", answer: "Need g(x) ≥ 0 for f(g(x)) to be defined" }, { label: "substitution", answer: "x - 2 ≥ 0" }, { label: "final", answer: "Domain: x ≥ 2" }
     ]
   },
   {

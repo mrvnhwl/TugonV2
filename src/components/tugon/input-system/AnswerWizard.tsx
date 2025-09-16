@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers";
-import type { PredefinedAnswer, Step as AnswerStep } from "@/components/data/answers";
-import { getAnswerForQuestion } from "@/components/data/answers";
+import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers/index";
+import type { PredefinedAnswer, Step as AnswerStep } from "@/components/data/answers/types";
+import { getAnswerForQuestion } from "@/components/data/answers/index";
 import { cn } from "../../cn";
 import UserInput from './UserInput';
 import InputValidator from './UserInputValidator';

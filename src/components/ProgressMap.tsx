@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Course } from "../components/data/question";
-import { defaultTopics } from "../components/data/question";
+import type { Course } from "../components/data/questions/index";
+import { defaultTopics } from "../components/data/questions/index";
 import { progressService, TopicProgress } from "./tugon/services/progressServices";
 
 type Level = {

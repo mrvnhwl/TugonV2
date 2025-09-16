@@ -1,5 +1,5 @@
 import type { SVGProps } from "react";
-import { predefinedAnswers } from "./data/answers";
+import { predefinedAnswers } from "./data/answers/index";
 import logo from "./assets/images/brain.png"; // Tugon logo currently in the project
 
 // Simple inline icons (no extra dependency)

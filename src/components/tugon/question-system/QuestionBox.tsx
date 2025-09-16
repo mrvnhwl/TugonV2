@@ -2,7 +2,7 @@
 
 import { PropsWithChildren, useMemo } from "react";
 import { cn } from "../../cn";
-import { defaultTopics } from "../../data/question";
+import { defaultTopics } from "../../data/questions/index";
 import { SubHeading, Text, Small } from "../../Typography";
 
 

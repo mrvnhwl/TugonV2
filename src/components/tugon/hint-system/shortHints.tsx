@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { BehaviorType, UserBehaviorProfile } from "../input-system/UserBehaviorClassifier";
 import UserBehaviorClassifier from "../input-system/UserBehaviorClassifier";
 import type { UserAttempt } from "../input-system/UserInput";
-import { defaultTopics, type Topic, type Question, type GivenQuestion } from "../../data/question";
-import { getAnswerStringsForQuestion } from "../../data/answers";
+import {type Topic, type Question, type GivenQuestion } from "../../data/questions/types";
+import {defaultTopics} from "../../data/questions/index";
+import { getAnswerStringsForQuestion } from "../../data/answers/index";
 
 export interface ShortHintsProps {
   topicId?: number; // ← Make optional to match UserInput props

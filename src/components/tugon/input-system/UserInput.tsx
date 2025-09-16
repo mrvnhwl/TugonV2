@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "../../cn";
 import InputValidator from "./UserInputValidator";
 import type { TwoPhaseValidationResult, CompletionStatus } from "./UserInputValidator";
-import type { Step } from "@/components/data/answers";
+import type { Step } from "@/components/data/answers/types";
 import ShortHints from "../hint-system/shortHints";
 import UserBehaviorClassifier from './UserBehaviorClassifier';
 import type { UserBehaviorProfile, BehaviorType } from './UserBehaviorClassifier';

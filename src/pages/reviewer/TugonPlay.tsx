@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import QuestionBox from "../../components/tugon/question-system/QuestionBox";
 import CategoryQuestion from "../../components/tugon/question-system/CategoryQuestion";
-import { defaultTopics } from "../../components/data/question";
-import { getAnswerForQuestion, answersByTopicAndCategory } from "../../components/data/answers";
+import { defaultTopics } from "../../components/data/questions/index";
+import { getAnswerForQuestion, answersByTopicAndCategory } from "../../components/data/answers/index";
 import AnswerWizard, { Step, WizardStep } from "../../components/tugon/input-system/AnswerWizard";
 import HintBubble from "../../components/tugon/hint-system/HintBubble";
 import Character from "../../components/tugon/hint-system/Character";
+import QuestionTemplate from '../../components/tugon/template/QuestionTemplate.tsx';
 import { Heading, SubHeading, Text, Small } from "../../components/Typography";
 import AttemptVisualizer from "../../components/tugon/AttemptVisualizer";
 import { UserAttempt } from "../../components/tugon/input-system/UserInput";
@@ -372,9 +373,24 @@ export default function TugonPlay() {
             />
           </div>
           
-     
+       <QuestionTemplate
+  key={`template-${topicId}-${finalCategoryId}-${questionId}`}
+  topicId={topicId}
+  categoryId={finalCategoryId}
+  questionId={questionId}
+  expectedAnswers={expectedAnswers}
+  onValidationResult={(type, currentStep) => {
+    if (type === "correct" || type === "incorrect") {
+      handleAttempt({ correct: type === "correct" });
+    }
+  }}
+  onSubmit={handleSubmit}
+  onIndexChange={handleIndexChange}
+  onAnswerChange={resetIdle}
+  onAttemptUpdate={handleAttemptUpdate}
+/>
           
-          {/* Desktop Answer Wizard */}
+          {/* Desktop Answer Wizard 
           <div className="mb-4 sm:mb-6" id="answer-wizard-container">
             <AnswerWizard
                key={`desktop-wizard-${topicId}-${finalCategoryId}-${questionId}`} 
@@ -391,7 +407,7 @@ export default function TugonPlay() {
               categoryId={finalCategoryId}
               questionId={questionId}
             />
-          </div>
+          </div> */}
         </div>
       </div>
 

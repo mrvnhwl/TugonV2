@@ -1,4 +1,4 @@
-import type { PredefinedAnswer, Step } from "@/components/data/answers";
+import type { PredefinedAnswer, Step } from "@/components/data/answers/types";
 import { simplify, equal, evaluate, parse } from "mathjs";
 import { convertLatexToAsciiMath } from 'mathlive';
 export type ValidationResult = {

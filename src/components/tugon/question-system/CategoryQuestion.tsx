@@ -1,10 +1,10 @@
 import React from 'react';
-import { defaultTopics } from '../../data/question';
+import { defaultTopics } from '../../data/questions/index';
 import { cn } from '../../cn';
 import { Text } from '../../Typography';
 import { Card, CardContent } from "@/components/ui/card";
-import { answersByTopicAndCategory } from '../../data/answers'; // Import your answers
-
+import { answersByTopicAndCategory } from '../../data/answers/index'; // Import your answers
+import { convertToLatex } from './mathConverter';
 interface CategoryQuestionProps {
   topicId: number;
   categoryId: number;
@@ -45,7 +45,10 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
     if (!categoryAnswers || !Array.isArray(categoryAnswers)) return null;
     return categoryAnswers[0]?.steps[0]?.label || null;
   }, [topicId, categoryId]);
-   
+   const formattedCategoryText = React.useMemo(() => {
+    if (!categoryText) return "";
+    return convertToLatex(categoryText);
+  }, [categoryText]);
   if (!categoryQuestion) {
     return (
       <Card className={cn("w-full max-w-fit mx-auto rounded-2xl border-2 border-red-200 bg-red-50 shadow-lg", className)}>
@@ -65,11 +68,12 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
     )}>
       <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative">
         {/* Show category_text above the question if available */}
-        {categoryText && (
-          <div className="mb-3 text-white text-opacity-80 text-base font-medium leading-snug">
-            {categoryQuestion}
-          </div>
-        )}
+       {categoryText && questionData?.question_text&& (
+    <div className="mb-3 text-white text-opacity-80 text-base font-medium leading-snug">
+      {categoryQuestion} <span className="font-bold text-white">{questionData.question_text}</span>
+    </div>
+  )}
+
         
         {/* Conditional rendering based on label */}
         {answerLabel === "text" ? (
@@ -93,7 +97,7 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
         ) : (
           <math-field
              key={`text-${topicId}-${categoryId}-${questionId}`} // Add key for text
-            value={categoryText || ""}
+            value={formattedCategoryText || ""}
             read-only={true}
             style={{
               color: "white",

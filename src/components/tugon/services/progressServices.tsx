@@ -1,4 +1,4 @@
-import { defaultTopics } from '../../data/question';
+import { defaultTopics } from '../../data/questions/index';
 
 export interface QuestionProgress {
   questionId: number;
