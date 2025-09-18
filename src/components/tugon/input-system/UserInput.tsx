@@ -1128,6 +1128,8 @@ export default function UserInput({
     });
   };
 }, []);
+
+
   return (
     <div className={cn("border rounded-lg overflow-hidden bg-white", className)}>
       {/* Container with fixed height when scrollable */}
@@ -1184,6 +1186,7 @@ export default function UserInput({
                     return "";
                   })()
                 )}>
+            
                   {/* Line number indicator */}
                   <div className="w-8 flex-shrink-0 text-center text-xs text-gray-400 font-mono">
                     {index + 1}
@@ -1206,7 +1209,7 @@ export default function UserInput({
                             background: "transparent",
                             padding: "12px",
                             color: "#1f2937",
-                            fontSize: "1rem",
+                            fontSize: "2rem",
                             minHeight: "48px",
                             outline: "none",
                             cursor: "text",
@@ -1348,6 +1351,8 @@ export default function UserInput({
             hintIntervalActive={hintIntervalActive}
             hintIntervalThreshold={3}
           />
+          
+          
 
        
         </div>
@@ -1357,5 +1362,6 @@ export default function UserInput({
   );
   
 }
+
 
 export { type StepProgression, type UserAttempt };

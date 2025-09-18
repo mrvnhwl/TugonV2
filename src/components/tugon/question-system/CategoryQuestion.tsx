@@ -63,13 +63,13 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
 
   return (
     <Card className={cn(
-      "w-auto max-w-full mx-auto rounded-2xl border-0 bg-[#5da295] shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
+      "w-auto max-w-full mx-auto rounded-2xl border-2 border-[white] bg-[#5da295] shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
       className
     )}>
-      <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative">
+      <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative text-center">
         {/* Show category_text above the question if available */}
        {categoryText && questionData?.question_text&& (
-    <div className="mb-3 text-white text-opacity-80 text-base font-medium leading-snug">
+    <div className="mb-3 text-white text-opacity-80 text-base font-medium leading-snug text-left">
       {categoryQuestion} <span className="font-bold text-white">{questionData.question_text}</span>
     </div>
   )}
@@ -82,7 +82,7 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
             style={{
               color: "white",
               fontWeight: "bold",
-              textAlign: "left",
+              textAlign: "center",
               fontSize: "1.5rem",
               background: "transparent",
               border: "none",
@@ -90,7 +90,7 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
               pointerEvents: "none",
               fontFamily: "Arial, sans-serif"
             }}
-            className="leading-relaxed tracking-wide"
+            className="leading-relaxed tracking-wide text-center"
           >
             {categoryText}
           </div>
@@ -102,15 +102,18 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
             style={{
               color: "white",
               fontWeight: "bold",
-              textAlign: "left",
-              fontSize: "1.5rem",
+              textAlign: "center",
+              justifyContent: "center",
+              display: "flex",
+              fontSize: "2.5rem",
               background: "transparent",
               border: "none",
+      
               width: "100%",
               pointerEvents: "none",
               fontFamily: "Arial, sans-serif"
             }}
-            className="leading-relaxed tracking-wide"
+            className="leading-relaxed tracking-wide text-center"
           ></math-field>
         )}
         

@@ -507,14 +507,14 @@ export default function AnswerWizard({
 
   return (
     <div className={cn("rounded-2xl  p-4 space-y-4", className)}>
-      {/* ADD: QuestionBox Component */}
+      {/* ADD: QuestionBox Component 
       <QuestionBox
         title={title}
         topicId={topicId}
         categoryId={categoryId}
         questionId={questionId}
         fallbackText={fallbackText}
-      />
+      />*/}
 
       {/* Main input area */}
       {current && (
