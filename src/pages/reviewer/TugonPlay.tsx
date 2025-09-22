@@ -10,6 +10,7 @@ import Character from "../../components/tugon/hint-system/Character";
 import QuestionTemplate from '../../components/tugon/template/QuestionTemplate.tsx';
 import { Heading, SubHeading, Text, Small } from "../../components/Typography";
 import AttemptVisualizer from "../../components/tugon/AttemptVisualizer";
+import Feedback from "../../components/tugon/hint-system/feedback";
 import { UserAttempt } from "../../components/tugon/input-system/UserInput";
 import { useProgress } from "../../components/tugon/services/useProgress";
 import SuccessModal from "../../components/tugon/successModal"; // Add this import
@@ -45,6 +46,7 @@ export default function TugonPlay() {
 
   // Get current question progress
   const currentQuestionProgress = getQuestionProgress(topicId, finalCategoryId, questionId);
+  // For MathLive re-rendering
 
   // Initialize session start time when question changes
   useEffect(() => {
@@ -412,7 +414,7 @@ export default function TugonPlay() {
       {/* Desktop: QuestionTemplate - Middle Section - LESS WIDE, MORE HEIGHT */}
       <div className="flex-1 bg-gray-50 overflow-y-auto min-h-[50vh]">
         <div className="container mx-auto px-12 py-10">
-          <div className="max-w-l mx-auto">
+          <div className="max-w-2xl mx-auto">
             <QuestionTemplate
               key={`desktop-template-${topicId}-${finalCategoryId}-${questionId}`}
               topicId={topicId}
@@ -435,7 +437,19 @@ export default function TugonPlay() {
         </div>
       </div>
     </div>
-
+        <Feedback
+      topicId={topicId}
+      categoryId={categoryId}
+      questionId={questionId}
+      userAttempts={userAttempts}
+      currentStepIndex={currentStepIndex}
+      behaviorProfile={behaviorProfile}
+      isVisible={showFeedback}
+      onClose={() => setShowFeedback(false)}
+      feedbackIntervalActive={true}
+      attemptsSinceLastFeedback={3}
+      feedbackIntervalThreshold={3}
+    />
     {/* Attempt Visualizer - Floating Panel 
     <AttemptVisualizer 
       attempts={userAttempts} 
