@@ -1,5 +1,5 @@
 export type Step = {
-  label: "substitution" | "simplification" | "final" | "math" | "text" | "domain" | "range" | "set";
+  label: "choose" | "substitution" | "simplification" | "evaluation" | "final" | "math" | "text" | "domain" | "range" | "set";
   answer: string;
   placeholder?: string;
 };

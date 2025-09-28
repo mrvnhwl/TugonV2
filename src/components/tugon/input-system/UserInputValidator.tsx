@@ -1,6 +1,7 @@
 import type { PredefinedAnswer, Step } from "@/components/data/answers/types";
-import { simplify, equal, evaluate, parse } from "mathjs";
 import { convertLatexToAsciiMath } from 'mathlive';
+import { tokenizeMathString, generateTokenFeedback, isTokenFeedbackComplete, type TokenFeedback } from './tokenUtils';
+
 export type ValidationResult = {
   isValid: boolean;
   isCorrect: boolean;
@@ -9,11 +10,10 @@ export type ValidationResult = {
   expectedAnswer?: string | string[] | Step[];
 };
 
-export type TwoPhaseValidationResult = {
-  mathematicallyCorrect: boolean;
-  positionallyValid: boolean;
+export type SimpleValidationResult = {
+  isCorrect: boolean;
   finalAnswerDetected: boolean;
-  isCurrentStepCorrect: boolean;
+  tokenFeedback?: TokenFeedback[];
 };
 
 export type FinalAnswerDetectionResult = {
@@ -45,33 +45,42 @@ export interface InputValidatorProps {
 }
 
 export class InputValidator {
-  // NEW: MathLive-aware text sanitization
+  // NEW: MathLive-aware text sanitization with enhanced whitespace cleaning
   public static sanitizeTextMathLive = (v: string): string => {
     if (!v) return "";
     
+    // Clean invisible Unicode characters and quotes first (same as tokenizer)
+    const invisibleRegex = /[\u00A0\u1680\u180E\u2000-\u200F\u2028-\u202F\u205F\u2060\uFEFF]/g;
+    const preCleanedValue = v.replace(invisibleRegex, '').replace(/"/g, '');
+    
     // Check if input contains LaTeX syntax
-    const hasLatex = v.includes('\\') || v.includes('{') || v.includes('}') || v.includes('^') || v.includes('_');
+    const hasLatex = preCleanedValue.includes('\\') || preCleanedValue.includes('{') || preCleanedValue.includes('}') || preCleanedValue.includes('^') || preCleanedValue.includes('_');
     
     if (hasLatex) {
       try {
         // Convert LaTeX to readable ASCII math notation
-        const asciiMath = convertLatexToAsciiMath(v);
-        console.log(`🔄 MathLive LaTeX conversion: "${v}" → "${asciiMath}"`);
+        const asciiMath = convertLatexToAsciiMath(preCleanedValue);
+        console.log(`🔄 MathLive LaTeX conversion: "${preCleanedValue}" → "${asciiMath}"`);
         return asciiMath.replace(/[\s\n\r]+/g, "").toLowerCase();
       } catch (error) {
-        console.log(`⚠️ MathLive conversion failed for "${v}", using fallback`);
+        console.log(`⚠️ MathLive conversion failed for "${preCleanedValue}", using fallback`);
         // Fallback to basic LaTeX cleaning
-        return InputValidator.cleanLatexFallback(v);
+        return InputValidator.cleanLatexFallback(preCleanedValue);
       }
     }
     
-    // Regular text sanitization
-    return (v ?? "").replace(/[\s\n\r]+/g, "").toLowerCase();
+    // Regular text sanitization with enhanced whitespace cleaning
+    return (preCleanedValue ?? "").replace(/[\s\n\r]+/g, "").toLowerCase();
   };
 
   // NEW: Fallback LaTeX cleaning for when MathLive conversion fails
   public static cleanLatexFallback = (latexString: string): string => {
+    // Clean invisible Unicode characters and quotes first
+    const invisibleRegex = /[\u00A0\u1680\u180E\u2000-\u200F\u2028-\u202F\u205F\u2060\uFEFF]/g;
+    
     return latexString
+      .replace(invisibleRegex, '')                           // Remove invisible characters
+      .replace(/"/g, '')                                     // Remove quotes
       .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)') // \frac{a}{b} → (a)/(b)
       .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')             // \sqrt{x} → sqrt(x)
       .replace(/\\cdot/g, '*')                                // \cdot → *
@@ -86,15 +95,12 @@ export class InputValidator {
       .replace(/[\s\n\r]+/g, "")                            // Remove whitespace
       .toLowerCase();
   };
-  public static sanitizeText = (v: string): string => {
-    // First try MathLive-aware sanitization
-    return InputValidator.sanitizeTextMathLive(v);
-  };
+  //removed old sanitizeText method
   
  public static sanitizeArray = (lines: string[]): string[] => {
     return lines.map(line => InputValidator.sanitizeTextMathLive(line)).filter(line => line.length > 0);
   };
-    // NEW: Extract raw value from MathField
+    // NEW: Extract raw value from MathField with enhanced whitespace cleaning
   public static extractMathFieldValue = (mathFieldElement: any): string => {
     if (!mathFieldElement) return "";
     
@@ -103,8 +109,12 @@ export class InputValidator {
       const latexValue = mathFieldElement.getValue?.() || mathFieldElement.value || "";
       console.log(`📊 MathField raw LaTeX: "${latexValue}"`);
       
-      // Convert to readable format
-      const readable = InputValidator.sanitizeTextMathLive(latexValue);
+      // Clean invisible Unicode characters and quotes first (same as tokenizer)
+      const invisibleRegex = /[\u00A0\u1680\u180E\u2000-\u200F\u2028-\u202F\u205F\u2060\uFEFF]/g;
+      const cleanedLatex = latexValue.replace(invisibleRegex, '').replace(/"/g, '');
+      
+      // Convert to readable format using sanitization
+      const readable = InputValidator.sanitizeTextMathLive(cleanedLatex);
       console.log(`📊 MathField converted: "${latexValue}" → "${readable}"`);
       
       return readable;
@@ -132,159 +142,60 @@ export class InputValidator {
            'label' in arr[0] && 
            'answer' in arr[0];
   };
- // REPLACE the existing validateStepWithTwoPhase (lines 68-127) with this updated version:
-public static validateStepWithTwoPhase = (
+ // REPLACE with simple validation + token feedback:
+public static validateStepSimple = (
   userInput: string,
   expectedAnswer: string,
   stepLabel: string,
   currentStepIndex: number,
   allExpectedSteps: Step[]
-): TwoPhaseValidationResult => {
+): SimpleValidationResult => {
   
-  // Phase 1: Mathematical equivalence check with final answer detection
-  const mathematicallyCorrect = InputValidator.validateStepByType(
-    userInput.trim(), 
-    expectedAnswer.trim(),
+  // Clean inputs with MathLive awareness (keep this part!)
+  const cleanUser = InputValidator.sanitizeTextMathLive(userInput.trim());
+  const cleanExpected = InputValidator.sanitizeTextMathLive(expectedAnswer.trim());
+  
+  console.log(`🎯 Simple validation:`, {
     stepLabel,
-    allExpectedSteps,
-    currentStepIndex
-  );
+    originalUser: userInput.trim(),
+    cleanedUser: cleanUser,
+    originalExpected: expectedAnswer.trim(),
+    cleanedExpected: cleanExpected
+  });
   
-  // Initialize result
-  let positionallyValid = mathematicallyCorrect;
+  // Generate token feedback for Wordle-style overlay
+  const userTokens = tokenizeMathString(userInput.trim());
+  const expectedTokens = tokenizeMathString(expectedAnswer.trim());
+  const tokenFeedback = generateTokenFeedback(userTokens, expectedTokens);
+  
+  console.log(`🎯 Token feedback:`, {
+    userTokens,
+    expectedTokens,
+    feedback: tokenFeedback
+  });
+  
+  // Simple string comparison (REPLACE complex math)
+  const isCorrect = cleanUser === cleanExpected;
+  
+  // Simple final answer detection (REPLACE complex logic)
   let finalAnswerDetected = false;
-  let isCurrentStepCorrect = mathematicallyCorrect;
-  
-  // Check if user input matches the final answer (last step) mathematically
   if (allExpectedSteps.length > 0) {
     const finalStep = allExpectedSteps[allExpectedSteps.length - 1];
     const finalStepIndex = allExpectedSteps.length - 1;
+    const cleanFinalAnswer = InputValidator.sanitizeTextMathLive(finalStep.answer);
     
-    // Check if user input is mathematically equivalent to final answer
-    const isFinalAnswerMathematically = InputValidator.isMathematicallyEquivalentRobust(
-      userInput.trim(),
-      finalStep.answer.trim()
-    );
-    
-    if (isFinalAnswerMathematically) {
+    // Check if user input matches final answer but not in final position
+    if (cleanUser === cleanFinalAnswer && currentStepIndex < finalStepIndex) {
       finalAnswerDetected = true;
-      
-      // If user is in the final step, this is correct
-      if (currentStepIndex === finalStepIndex) {
-        isCurrentStepCorrect = true;
-        positionallyValid = true;
-      } else {
-        // Final answer in non-final position - the validateStepByType already handled this
-        // So if mathematicallyCorrect is false, it was rejected by final answer detection
-        isCurrentStepCorrect = mathematicallyCorrect;
-        positionallyValid = mathematicallyCorrect;
-      }
-    } else if (mathematicallyCorrect) {
-      // Not final answer but correct for current step
-      isCurrentStepCorrect = true;
-      positionallyValid = true;
-    } else {
-      // Not correct at all
-      isCurrentStepCorrect = false;
-      positionallyValid = false;
     }
   }
   
   return { 
-    mathematicallyCorrect, 
-    positionallyValid, 
+    isCorrect: isCorrect && !finalAnswerDetected, // Reject if final answer in wrong position
     finalAnswerDetected,
-    isCurrentStepCorrect
+    tokenFeedback
   };
 };
-public static validateStepByType = (
-    userInput: string,
-    expectedAnswer: string,
-    stepLabel: string,
-    allExpectedSteps?: Step[],
-    currentStepIndex?: number
-  ): boolean => {
-    // Clean inputs with MathLive awareness
-    const cleanUser = InputValidator.sanitizeTextMathLive(userInput.trim());
-    const cleanExpected = InputValidator.sanitizeTextMathLive(expectedAnswer.trim());
-    
-    console.log(`🎯 MathLive-aware step validation:`, {
-      stepLabel,
-      originalUser: userInput.trim(),
-      cleanedUser: cleanUser,
-      originalExpected: expectedAnswer.trim(),
-      cleanedExpected: cleanExpected
-    });
-    
-    // For text labels, use text comparison
-    if (stepLabel === "text") {
-      const normalizedUser = cleanUser.toLowerCase();
-      const normalizedExpected = cleanExpected.toLowerCase();
-      
-      if (normalizedUser === normalizedExpected) return true;
-      
-      // Check for common text variations
-      const textVariations: { [key: string]: string[] } = {
-        'yes': ['yes', 'y', 'true', 'correct', 'passes'],
-        'no': ['no', 'n', 'false', 'incorrect', 'fails', 'does not pass'],
-        'function': ['function', 'is a function', 'is function'],
-        'not a function': ['not a function', 'not function', 'is not a function'],
-      };
-      
-      for (const [, variations] of Object.entries(textVariations)) {
-        if (variations.includes(normalizedExpected) && variations.includes(normalizedUser)) {
-          return true;
-        }
-      }
-      
-      return false;
-    }
-    
-    // For mathematical steps, use mathematical equivalence with MathLive support
-    const isMathematicallyCorrect = InputValidator.isMathematicallyEquivalentRobust(userInput.trim(), expectedAnswer.trim());
-    
-    // Final Answer Detection System (unchanged logic, but using cleaned inputs)
-    if (isMathematicallyCorrect && allExpectedSteps && currentStepIndex !== undefined) {
-      const finalStepIndex = allExpectedSteps.length - 1;
-      
-      if (currentStepIndex < finalStepIndex) {
-        const finalStep = allExpectedSteps[finalStepIndex];
-        
-        // Clean final answer for comparison
-        const cleanFinalAnswer = InputValidator.sanitizeTextMathLive(finalStep.answer);
-        
-        // String comparison with cleaned inputs
-        if (cleanUser === cleanFinalAnswer) {
-          console.log(`🚨 FINAL ANSWER DETECTION - String Match (MathLive-aware):`);
-          console.log(`   User input: "${userInput.trim()}" (cleaned: "${cleanUser}")`);
-          console.log(`   Final answer: "${finalStep.answer}" (cleaned: "${cleanFinalAnswer}")`);
-          console.log(`   Current step: ${currentStepIndex + 1}/${allExpectedSteps.length} (${stepLabel})`);
-          console.log(`   Action: Rejecting early final answer`);
-          
-          return false;
-        }
-        
-        // Mathematical equivalence check
-        const matchesFinalAnswerMathematically = InputValidator.isMathematicallyEquivalentRobust(
-          userInput.trim(), 
-          finalStep.answer
-        );
-        
-        if (matchesFinalAnswerMathematically && !isMathematicallyCorrect) {
-          console.log(`🚨 FINAL ANSWER DETECTION - Mathematical Match (MathLive-aware):`);
-          console.log(`   User input: "${userInput.trim()}" (cleaned: "${cleanUser}")`);
-          console.log(`   Final answer: "${finalStep.answer}" (cleaned: "${cleanFinalAnswer}")`);
-          console.log(`   Current step: ${currentStepIndex + 1}/${allExpectedSteps.length} (${stepLabel})`);
-          console.log(`   Action: Rejecting early final answer (math equivalent but not current step)`);
-          
-          return false;
-        }
-      }
-    }
-    
-    return isMathematicallyCorrect;
-  };
-
 public static isAnswerComplete = (
   currentLines: string[], 
   expectedSteps: Step[]
@@ -295,12 +206,12 @@ public static isAnswerComplete = (
   
   if (nonEmptyLines.length < expectedSteps.length) return false;
   
-  // Check each step with two-phase validation
+  // Check each step with simple validation
   for (let i = 0; i < Math.min(nonEmptyLines.length, expectedSteps.length); i++) {
     const userLine = nonEmptyLines[i];
     const expectedStep = expectedSteps[i];
     
-    const validation = InputValidator.validateStepWithTwoPhase(
+    const validation = InputValidator.validateStepSimple(
       userLine,
       expectedStep.answer,
       expectedStep.label,
@@ -308,7 +219,7 @@ public static isAnswerComplete = (
       expectedSteps
     );
     
-    if (!validation.isCurrentStepCorrect) {
+    if (!validation.isCorrect) {
       return false;
     }
   }
@@ -320,7 +231,7 @@ public static isAnswerComplete = (
 public static getCompletionStatus = (
   currentLines: string[],
   expectedSteps: Step[],
-  lineValidationStates: Map<number, TwoPhaseValidationResult | null>,
+  lineValidationStates: Map<number, SimpleValidationResult | null>,
   validationTriggers: Map<number, 'enter' | null>
 ): CompletionStatus => {
   if (!expectedSteps || expectedSteps.length === 0) {
@@ -347,7 +258,7 @@ public static getCompletionStatus = (
   // Track final answer detection
   let finalAnswerDetected = false;
   let finalAnswerPosition = -1;
-  const finalStepIndex = totalSteps - 1;
+  
 
   // Use validated states instead of real-time validation
   for (let i = 0; i < Math.min(nonEmptyLines.length, expectedSteps.length); i++) {
@@ -355,7 +266,7 @@ public static getCompletionStatus = (
     const validatedResult = lineValidationStates.get(i);
     const isValidated = validationTriggers.get(i) === 'enter';
     
-    if (validatedResult && isValidated && validatedResult.isCurrentStepCorrect) {
+    if (validatedResult && isValidated && validatedResult.isCorrect) {
       stepCorrectness[i] = true;
       correctSteps++;
       
@@ -455,374 +366,28 @@ const calculatePercentage = (): { total: number; base: number; consolation: numb
     baseProgress: progressData.base
  };
 };
-  // UPDATED: Mathematical equivalence with MathLive awareness
-  public static isMathematicallyEquivalentRobust = (userExpression: string, expectedExpression: string): boolean => {
-    try {
-      // Sanitize both inputs with MathLive awareness
-      const cleanUser = InputValidator.sanitizeTextMathLive(userExpression);
-      const cleanExpected = InputValidator.sanitizeTextMathLive(expectedExpression);
-      
-      console.log(`🔍 MathLive-aware comparison:`, {
-        originalUser: userExpression,
-        cleanedUser: cleanUser,
-        originalExpected: expectedExpression,
-        cleanedExpected: cleanExpected
-      });
+  // REPLACE with simple string comparison:
+public static isStringEquivalent = (userExpression: string, expectedExpression: string): boolean => {
+  // Clean inputs with MathLive awareness (keep this part!)
+  const cleanUser = InputValidator.sanitizeTextMathLive(userExpression);
+  const cleanExpected = InputValidator.sanitizeTextMathLive(expectedExpression);
+  
+  console.log(`🔍 Simple string comparison:`, {
+    originalUser: userExpression,
+    cleanedUser: cleanUser,
+    originalExpected: expectedExpression,
+    cleanedExpected: cleanExpected
+  });
 
-      // Direct string comparison first
-      if (cleanUser === cleanExpected) {
-        console.log(`✅ Direct match after MathLive cleaning`);
-        return true;
-      }
+  // Simple string comparison only
+  return cleanUser === cleanExpected;
+};
 
-      // Try mathematical evaluation
-      try {
-        const userResult = evaluate(cleanUser);
-        const expectedResult = evaluate(cleanExpected);
-        
-        if (typeof userResult === 'number' && typeof expectedResult === 'number') {
-          const areEqual = Math.abs(userResult - expectedResult) < 1e-10;
-          console.log(`🔢 Numerical comparison: "${cleanUser}" (${userResult}) vs "${cleanExpected}" (${expectedResult}) = ${areEqual}`);
-          return areEqual;
-        }
-        
-        const areEqual = String(userResult) === String(expectedResult);
-        console.log(`📝 String result comparison: "${cleanUser}" (${userResult}) vs "${cleanExpected}" (${expectedResult}) = ${areEqual}`);
-        return areEqual;
-      } catch (evalError) {
-        console.log(`⚠️ Evaluation failed, trying simplification...`);
-        
-        try {
-          const userSimplified = simplify(cleanUser).toString();
-          const expectedSimplified = simplify(cleanExpected).toString();
-          
-          const areEqual = userSimplified === expectedSimplified;
-          console.log(`🔄 Simplification comparison: "${cleanUser}" → "${userSimplified}" vs "${cleanExpected}" → "${expectedSimplified}" = ${areEqual}`);
-          return areEqual;
-        } catch (simplifyError) {
-          console.log(`⚠️ Simplification failed, trying parse...`);
-          
-          try {
-            const userParsed = parse(cleanUser).toString();
-            const expectedParsed = parse(cleanExpected).toString();
-            
-            const areEqual = userParsed === expectedParsed;
-            console.log(`📖 Parse comparison: "${cleanUser}" → "${userParsed}" vs "${cleanExpected}" → "${expectedParsed}" = ${areEqual}`);
-            return areEqual;
-          } catch (parseError) {
-            console.log(`❌ All Math.js methods failed for "${cleanUser}" vs "${cleanExpected}"`);
-            
-            // Final fallback: basic string comparison
-            const basicUser = userExpression.replace(/[\s\n\r]+/g, "").toLowerCase();
-            const basicExpected = expectedExpression.replace(/[\s\n\r]+/g, "").toLowerCase();
-            return basicUser === basicExpected;
-          }
-        }
-      }
-    } catch (error) {
-      console.log(`💥 Complete failure for "${userExpression}" vs "${expectedExpression}", using basic comparison`);
-      const basicUser = userExpression.replace(/[\s\n\r]+/g, "").toLowerCase();
-      const basicExpected = expectedExpression.replace(/[\s\n\r]+/g, "").toLowerCase();
-      return basicUser === basicExpected;
-    }
-  };
-
-  // SINGLE IMPLEMENTATION: Smart step validation that prevents cross-step contamination
-  public static isStepCorrectSmart = (
-    userInput: string, 
-    expectedAnswer: string, 
-    stepLabel: string,
-    allExpectedSteps?: Step[]
-  ): boolean => {
-    const userTrimmed = userInput.trim();
-    const expectedTrimmed = expectedAnswer.trim();
-    
-    // 1. Exact string match first (case-insensitive)
-    if (userTrimmed.toLowerCase() === expectedTrimmed.toLowerCase()) {
-      return true;
-    }
-    
-    // 2. Use mathematical equivalence (this preserves the good functionality)
-    const isMathEquivalent = InputValidator.isMathematicallyEquivalentRobust(userTrimmed, expectedTrimmed);
-    
-    if (!isMathEquivalent) {
-      return false; // Not equivalent at all
-    }
-    
-    // 3. If mathematically equivalent, check for cross-step contamination
-    if (isMathEquivalent && allExpectedSteps) {
-      const currentStepAnswer = expectedTrimmed;
-      
-      for (const step of allExpectedSteps) {
-        // Skip the current step we're validating
-        if (step.answer === currentStepAnswer) continue;
-        
-        // Check if user input matches a DIFFERENT step's answer
-        const matchesOtherStep = InputValidator.isMathematicallyEquivalentRobust(
-          userTrimmed, 
-          step.answer
-        );
-        
-        if (matchesOtherStep) {
-          console.log(`🚫 Cross-step contamination detected:`);
-          console.log(`   User input: "${userTrimmed}"`);
-          console.log(`   Expected for current step (${stepLabel}): "${expectedTrimmed}"`);
-          console.log(`   But also matches step (${step.label}): "${step.answer}"`);
-          
-          // SMART DECISION: Prevent wrong-position answers
-          if (step.label === "final" && stepLabel !== "final") {
-            console.log(`   ❌ Rejecting: Final answer in wrong step position`);
-            return false;
-          }
-          
-          if (stepLabel === "final" && step.label !== "final") {
-            console.log(`   ❌ Rejecting: Intermediate step in final position`);
-            return false;
-          }
-          
-          // For other cross-contamination, also reject
-          console.log(`   ❌ Rejecting: Step order confusion`);
-          return false;
-        }
-      }
-    }
-    
-    return isMathEquivalent;
-  };
-
-  // SINGLE IMPLEMENTATION: Final answer detection
-  public static detectFinalAnswerJump(
-    userCurrentLine: string,
-    currentLineIndex: number,
-    expectedSteps: Step[],
-    allUserInput: string[]
-  ): FinalAnswerDetectionResult {
-    
-    if (!userCurrentLine?.trim() || !expectedSteps || expectedSteps.length === 0) {
-      return { isFinalAnswer: false };
-    }
-
-    const finalStep = expectedSteps[expectedSteps.length - 1];
-    
-    const matchesFinalAnswer = InputValidator.isStepCorrectSmart(
-      userCurrentLine.trim(), 
-      finalStep.answer,
-      finalStep.label,
-      expectedSteps
-    );
-
-    if (!matchesFinalAnswer) {
-      return { isFinalAnswer: false };
-    }
-    
-    const isAtFinalPosition = currentLineIndex === expectedSteps.length - 1;
-    if (isAtFinalPosition) {
-      return { isFinalAnswer: false };
-    }
-
-    const firstMissingStep = InputValidator.findFirstMissingStep(allUserInput, expectedSteps);
-    
-    if (firstMissingStep) {
-      const stepTypeMessage = InputValidator.getStepTypeMessage(firstMissingStep.step.label);
-      
-      return {
-        isFinalAnswer: true,
-        guidanceMessage: `✅ Your final answer is correct! But please show your ${stepTypeMessage} first.`,
-        nextMissingStep: firstMissingStep.step,
-        nextMissingStepIndex: firstMissingStep.stepIndex
-      };
-    }
-
-    return { isFinalAnswer: false };
-  }
-
-  // SINGLE IMPLEMENTATION: Find missing step
-  public static findFirstMissingStep(
-    allUserInput: string[], 
-    expectedSteps: Step[]
-  ): { step: Step; stepIndex: number } | null {
-    
-    for (let i = 0; i < expectedSteps.length; i++) {
-      const userLine = allUserInput[i];
-      
-      if (!userLine || !userLine.trim()) {
-        return {
-          step: expectedSteps[i],
-          stepIndex: i
-        };
-      }
-      
-      const matchesExpectedStep = InputValidator.isStepCorrectSmart(
-        userLine.trim(),
-        expectedSteps[i].answer,
-        expectedSteps[i].label,
-        expectedSteps
-      );
-      
-      if (!matchesExpectedStep) {
-        return {
-          step: expectedSteps[i],
-          stepIndex: i
-        };
-      }
-    }
-    
-    return null;
-  }
-
-  public static getStepTypeMessage(label: string): string {
-    const messages = {
-      "substitution": "substitution step (replace the variable with the given value)",
-      "simplification": "simplification step (show your calculation work)", 
-      "final": "final answer",
-      "math": "mathematical work",
-      "text": "explanation"
-    };
-    
-    return messages[label as keyof typeof messages] || "work";
-  }
-
-  // SINGLE IMPLEMENTATION: Line validation with final answer detection
-  public static validateLineWithFinalAnswerDetection(
-    userCurrentLine: string,
-    currentLineIndex: number,
-    allUserInput: string[],
-    expectedSteps: Step[]
-  ): {
-    isValid: boolean;
-    finalAnswerDetection: FinalAnswerDetectionResult;
-    normalValidation?: boolean;
-  } {
-    
-    const finalAnswerDetection = InputValidator.detectFinalAnswerJump(
-      userCurrentLine,
-      currentLineIndex, 
-      expectedSteps,
-      allUserInput
-    );
-    
-    if (finalAnswerDetection.isFinalAnswer) {
-      return {
-        isValid: false,
-        finalAnswerDetection,
-        normalValidation: false
-      };
-    }
-    
-    const expectedCurrentStep = expectedSteps[currentLineIndex];
-    if (!expectedCurrentStep) {
-      return {
-        isValid: false,
-        finalAnswerDetection,
-        normalValidation: false
-      };
-    }
-    
-    const normalValidation = InputValidator.isStepCorrectSmart(
-      userCurrentLine,
-      expectedCurrentStep.answer,
-      expectedCurrentStep.label,
-      expectedSteps
-    );
-    
-    return {
-      isValid: normalValidation,
-      finalAnswerDetection,
-      normalValidation
-    };
-  }
-
-  // SINGLE IMPLEMENTATION: Smart array validation
- 
-  public static validateAnswerArraySmart(
-    userLines: string[],
-    expectedSteps: Step[],
-    stepIndex: number
-  ): boolean {
-    console.log("=== SMART MATHEMATICAL VALIDATION ===");
-    console.log("User Lines:", userLines);
-    console.log("Expected Steps:", expectedSteps);
-    
-    if (userLines.length !== expectedSteps.length) {
-      console.log("Length mismatch:", userLines.length, "vs", expectedSteps.length);
-      return false;
-    }
-    
-    for (let i = 0; i < userLines.length; i++) {
-      const userLine = userLines[i].trim();
-      const expectedStep = expectedSteps[i];
-      
-      const isCorrect = InputValidator.isStepCorrectSmart(
-        userLine,
-        expectedStep.answer,
-        expectedStep.label,
-        expectedSteps
-      );
-      
-      if (!isCorrect) {
-        console.log(`Step ${i + 1} (${expectedStep.label}) mismatch:`, 
-          `"${userLine}" !== "${expectedStep.answer}"`);
-        return false;
-      } else {
-        console.log(`Step ${i + 1} (${expectedStep.label}) matched smartly!`);
-      }
-    }
-
-    console.log("✅ All steps match with smart validation!");
-    return true;
-  }
-
-  // Keep the regular array validation for backward compatibility
-  /*public static validateAnswerArray(
-    userLines: string[] | undefined,
-    expectedLines: string[] | undefined,
-    stepIndex: number
-  ): boolean {
-    if (!userLines || !expectedLines) return false;
-    
-    const nonEmptyUser = userLines.filter(line => line.trim().length > 0);
-    const nonEmptyExpected = expectedLines.filter(line => line.trim().length > 0);
-    
-    console.log("=== REGULAR MATHEMATICAL VALIDATION ===");
-    console.log("User Array (filtered):", nonEmptyUser);
-    console.log("Expected Array (filtered):", nonEmptyExpected);
-    
-    if (nonEmptyUser.length !== nonEmptyExpected.length) {
-      console.log("Length mismatch:", nonEmptyUser.length, "vs", nonEmptyExpected.length);
-      return false;
-    }
-    
-    for (let i = 0; i < nonEmptyUser.length; i++) {
-      const userLine = nonEmptyUser[i].trim();
-      const expectedLine = nonEmptyExpected[i].trim();
-      
-      const isMathEqual = InputValidator.isMathematicallyEquivalentRobust(userLine, expectedLine);
-      
-      if (!isMathEqual) {
-        const sanitizedUser = InputValidator.sanitizeText(userLine);
-        const sanitizedExpected = InputValidator.sanitizeText(expectedLine);
-        
-        if (sanitizedUser !== sanitizedExpected) {
-          console.log(`Line ${i + 1} mismatch (both math and string):`, 
-            `"${userLine}" !== "${expectedLine}"`);
-          return false;
-        } else {
-          console.log(`Line ${i + 1} matched via string sanitization`);
-        }
-      } else {
-        console.log(`Line ${i + 1} matched via mathematical equivalence`);
-      }
-    }
-
-    console.log("✅ All lines match!");
-    return true;
-  } */
 
   // SINGLE IMPLEMENTATION: Main validate answer method
   public static validateAnswer = (
   answerLines: string[] | undefined,
-  expectedAnswer: string | string[] | Step[] | undefined,
-  stepIndex: number
+  expectedAnswer: string | string[] | Step[] | undefined
 ): boolean => {
   if (!answerLines) return false;
   
@@ -842,8 +407,8 @@ const calculatePercentage = (): { total: number; base: number; consolation: numb
       const userLine = nonEmptyUserLines[i];
       const expectedStep = expectedSteps[i];
       
-      // Use the NEW step-aware validation
-      const validation = InputValidator.validateStepWithTwoPhase(
+      // Use simple validation
+      const validation = InputValidator.validateStepSimple(
         userLine,
         expectedStep.answer,
         expectedStep.label,
@@ -851,7 +416,7 @@ const calculatePercentage = (): { total: number; base: number; consolation: numb
         expectedSteps
       );
       
-      if (!validation.isCurrentStepCorrect) {
+      if (!validation.isCorrect) {
         console.log(`Step ${i + 1} (${expectedStep.label}) validation failed:`, 
           `"${userLine}" for expected "${expectedStep.answer}"`);
         return false;
@@ -871,36 +436,18 @@ const calculatePercentage = (): { total: number; base: number; consolation: numb
     // Simple array comparison for backward compatibility
     return nonEmptyUserLines.length === expectedAnswer.length &&
            nonEmptyUserLines.every((line, i) => 
-             InputValidator.isMathematicallyEquivalentRobust(line, expectedAnswer[i])
+             InputValidator.isStringEquivalent(line, expectedAnswer[i])
            );
   }
   
   // Single string comparison
-  return InputValidator.isMathematicallyEquivalentRobust(
+  return InputValidator.isStringEquivalent(
     nonEmptyUserLines.join(''), 
     expectedAnswer
   );
 };
 
-  // Keep other utility methods
-  public static evaluateMathExpression = (expression: string): any => {
-    try {
-      return evaluate(expression);
-    } catch (error) {
-      console.log(`Cannot evaluate expression: "${expression}"`);
-      return null;
-    }
-  };
-
-  public static simplifyMathExpression = (expression: string): string => {
-    try {
-      const simplified = simplify(expression);
-      return simplified.toString();
-    } catch (error) {
-      console.log(`Cannot simplify expression: "${expression}"`);
-      return expression;
-    }
-  };
+  // Removed complex mathematical evaluation methods - using simple string comparison instead
 
   public static getValidationResult(
     userInput: string[],
@@ -908,7 +455,7 @@ const calculatePercentage = (): { total: number; base: number; consolation: numb
     stepIndex: number = 0,
     correctnessState: boolean | null = null
   ): ValidationResult {
-    const isValid = InputValidator.validateAnswer(userInput, expectedAnswer, stepIndex);
+    const isValid = InputValidator.validateAnswer(userInput, expectedAnswer);
     const nonEmpty = userInput.some(line => line.trim().length > 0);
     const isCorrect = correctnessState === true;
     const isWrong = nonEmpty && !isValid && !isCorrect;
@@ -932,7 +479,7 @@ const calculatePercentage = (): { total: number; base: number; consolation: numb
     for (let i = 0; i < len; i++) {
       const userInput = allUserInputs[i];
       const expectedSteps = predefinedAnswers[i]?.steps;
-      correctnessArr.push(InputValidator.validateAnswer(userInput, expectedSteps, i));
+      correctnessArr.push(InputValidator.validateAnswer(userInput, expectedSteps));
     }
     
     const allCorrect = correctnessArr.length > 0 && correctnessArr.every(Boolean);
@@ -964,7 +511,7 @@ const calculatePercentage = (): { total: number; base: number; consolation: numb
       console.log("Expected Answer (String):", expectedAnswer || "Not provided");
     }
     
-    console.log("Is Valid (Mathematical):", InputValidator.validateAnswer(userInput, expectedAnswer, stepIndex));
+    console.log("Is Valid (Mathematical):", InputValidator.validateAnswer(userInput, expectedAnswer));
     console.log("==========================================");
   }
 }

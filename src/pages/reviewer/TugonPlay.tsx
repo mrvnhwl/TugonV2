@@ -437,19 +437,7 @@ export default function TugonPlay() {
         </div>
       </div>
     </div>
-        <Feedback
-      topicId={topicId}
-      categoryId={categoryId}
-      questionId={questionId}
-      userAttempts={userAttempts}
-      currentStepIndex={currentStepIndex}
-      behaviorProfile={behaviorProfile}
-      isVisible={showFeedback}
-      onClose={() => setShowFeedback(false)}
-      feedbackIntervalActive={true}
-      attemptsSinceLastFeedback={3}
-      feedbackIntervalThreshold={3}
-    />
+       
     {/* Attempt Visualizer - Floating Panel 
     <AttemptVisualizer 
       attempts={userAttempts} 

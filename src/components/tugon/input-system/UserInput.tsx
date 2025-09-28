@@ -1,30 +1,34 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "../../cn";
 import InputValidator from "./UserInputValidator";
-import type { TwoPhaseValidationResult, CompletionStatus } from "./UserInputValidator";
+import type { SimpleValidationResult, CompletionStatus } from "./UserInputValidator";
 import type { Step } from "@/components/data/answers/types";
 import ShortHints from "../hint-system/shortHints";
 import UserBehaviorClassifier from './UserBehaviorClassifier';
 import type { UserBehaviorProfile, BehaviorType } from './UserBehaviorClassifier';
 import LongHints from "../hint-system/longHints";
 import { MathfieldElement } from "mathlive"; // Ensure mathlive is installed
+import { FeedbackOverlay } from './FeedbackOverlay';
+import { tokenizeMathString } from './tokenUtils';
 
 type StepProgression = [string, string, boolean, string, number]; 
 // [stepLabel, userInput, isCorrect, expectedAnswer, totalProgress]
 
 type UserAttempt = {
-  attempt_id: number;
-  stepIndex: number;
+  attempt_id: number;              // incremental ID
+  stepIndex: number;               // which step/question
   stepLabel: string;
   userInput: string;
   sanitizedInput: string; 
-  isCorrect: boolean;
+  tokens: string[];                // tokenized input from tokenizer
+  isCorrect: boolean;              // validator result
   expectedAnswer: string;
   sanitizedExpectedAnswer: string; 
+  expectedTokens: string[];        // tokenized expected answer
   cumulativeProgress: number;
-  stepStartTime: number; // When step was started
-  attemptTime: number;   // When this specific attempt was made
-  timeSpentOnStep?: number; // Total time spent on step when completed
+  stepStartTime: number;           // when step began
+  attemptTime: number;             // timestamp (ms)
+  timeSpentOnStep?: number;        // optional: total duration when step ends
 };
 
 type StepTiming = {
@@ -71,18 +75,15 @@ export default function UserInput({
   onSpamDetected,
   onResetSpamFlag,
   expectedSteps,
-  onSubmit,
-  onSuggestSubmission,
+  onSubmit, 
   showHints = false,
-  hintText,
-  onRequestHint,
+  hintText, //might be used later
   onAttemptUpdate
 }: UserInputProps) {
   const [lines, setLines] = useState<string[]>(value);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | any)[]>([]); //mathlive
-  const [localShowHints, setLocalShowHints] = useState<boolean>(false);
-   
+  
 
   //add mathlive ref
   //const mfe = new MathfieldElement();
@@ -115,8 +116,13 @@ export default function UserInput({
   const spamThreshold = 10;
   const spamTimeWindow = 1000;
 
+  // Submission cooldown control (2s enforced cooldown)
+  const [isOnCooldown, setIsOnCooldown] = useState<boolean>(false);
+  const [lastSubmissionTime, setLastSubmissionTime] = useState<number>(0);
+  const SUBMISSION_COOLDOWN = 2000; // 2 seconds
+
   // Individual line validation state for immediate feedback
-  const [lineValidationStates, setLineValidationStates] = useState<Map<number, TwoPhaseValidationResult | null>>(new Map());
+  const [lineValidationStates, setLineValidationStates] = useState<Map<number, SimpleValidationResult | null>>(new Map());
   const [validationTriggers, setValidationTriggers] = useState<Map<number, 'enter' | null>>(new Map());
 
   // State for error feedback and timing
@@ -137,10 +143,7 @@ export default function UserInput({
   }, [value]);
 
 
-   const [showAIModal, setShowAIModal] = useState<boolean>(false)
-   const [aiHintMessage, setAiHintMessage] = useState<string>('');
-  const [isLoadingAIHint, setIsLoadingAIHint] = useState<boolean>(false);
-   
+  
 
 
   // Check if scrolling is needed
@@ -183,10 +186,38 @@ export default function UserInput({
       scrollToFocusedInput(focusedIndex);
     }
   }, [focusedIndex, isScrollable, scrollToFocusedInput]);
-  // Adapter for math-field input events
 
+  // Cooldown management functions
+  const checkCooldownStatus = useCallback((): boolean => {
+    const now = Date.now();
+    const timeSinceLastSubmission = now - lastSubmissionTime;
+    return timeSinceLastSubmission < SUBMISSION_COOLDOWN;
+  }, [lastSubmissionTime, SUBMISSION_COOLDOWN]);
 
+  const startSubmissionCooldown = useCallback(() => {
+    const now = Date.now();
+    setLastSubmissionTime(now);
+    setIsOnCooldown(true);
     
+    console.log(`🚫 COOLDOWN ACTIVE: 2s submission cooldown started at ${now}`);
+    
+    // Clear cooldown after the timeout
+    setTimeout(() => {
+      setIsOnCooldown(false);
+      console.log(`✅ COOLDOWN CLEARED: Submissions allowed again`);
+    }, SUBMISSION_COOLDOWN);
+  }, [SUBMISSION_COOLDOWN]);
+
+  const canSubmit = useCallback((): boolean => {
+    const onCooldown = checkCooldownStatus();
+    if (onCooldown) {
+      console.log(`⏳ SUBMISSION BLOCKED: Still on cooldown`);
+      return false;
+    }
+    return true;
+  }, [checkCooldownStatus]);
+
+  // Adapter for math-field input events
    const shouldUseMathMode = useCallback((lineIndex: number): boolean => {
         if (!expectedSteps || lineIndex >= expectedSteps.length) {
           return false; // Default to text mode if no step info
@@ -195,11 +226,21 @@ export default function UserInput({
         const stepLabel = expectedSteps[lineIndex].label;
         
         // Math mode for mathematical operations
-        const mathLabels = ["substitution", "simplification", "final", "math"];
+        const mathLabels = ["choose","evaluation","substitution", "simplification", "final", "math"];
   
         return mathLabels.includes(stepLabel); //mathlive
 
       }, [expectedSteps]);
+
+  // Helper function to get placeholder text for each step
+  const getStepPlaceholder = useCallback((lineIndex: number): string => {
+    if (!expectedSteps || lineIndex >= expectedSteps.length) {
+      return "Enter your expression here..."; // Generic fallback
+    }
+    
+    const step = expectedSteps[lineIndex];
+    return step.placeholder || "Enter your expression here..."; // Use step placeholder or fallback
+  }, [expectedSteps]);
 
   // Timing functions
   const startStepTimer = useCallback((stepIndex: number) => {
@@ -236,7 +277,7 @@ export default function UserInput({
       // Reset to initial state
       setLines(['']);
       setFocusedIndex(null);
-      setLocalShowHints(false);
+     
       setBehaviorProfile(null);
       setCurrentStepIndex(0);
       setUserProgressionArray([]);
@@ -251,9 +292,6 @@ export default function UserInput({
       setAttemptsSinceLastHint(0);
       setLastBehaviorClassification(null);
       setHintIntervalActive(false);
-      setShowAIModal(false);
-      setAiHintMessage('');
-      setIsLoadingAIHint(false);
       
       // Reset rapid input tracking
       setLastInputTime(0);
@@ -295,45 +333,7 @@ export default function UserInput({
     return duration;
   }, [stepTimings]);
 
-  const getTimingStatistics = useCallback(() => {
-    const completedSteps = Array.from(stepTimings.values()).filter(timing => timing.isCompleted);
-    
-    if (completedSteps.length === 0) {
-      return {
-        totalStepsCompleted: 0,
-        averageTimePerStep: 0,
-        fastestStep: null,
-        slowestStep: null,
-        totalTimeSpent: 0
-      };
-    }
-    
-    const durations = completedSteps.map(step => step.duration!);
-    const totalTime = durations.reduce((sum, duration) => sum + duration, 0);
-    const averageTime = totalTime / durations.length;
-    
-    const fastestTime = Math.min(...durations);
-    const slowestTime = Math.max(...durations);
-    
-    const fastestStep = completedSteps.find(step => step.duration === fastestTime);
-    const slowestStep = completedSteps.find(step => step.duration === slowestTime);
-    
-    return {
-      totalStepsCompleted: completedSteps.length,
-      averageTimePerStep: averageTime,
-      fastestStep: fastestStep ? {
-        stepIndex: fastestStep.stepIndex,
-        stepLabel: fastestStep.stepLabel,
-        duration: fastestTime
-      } : null,
-      slowestStep: slowestStep ? {
-        stepIndex: slowestStep.stepIndex,
-        stepLabel: slowestStep.stepLabel,
-        duration: slowestTime
-      } : null,
-      totalTimeSpent: totalTime
-    };
-  }, [stepTimings]);
+ 
 
   const lastProcessedStep = useRef<{stepIndex: number, input: string, timestamp: number} | null>(null);
 
@@ -363,6 +363,11 @@ export default function UserInput({
     }
     const sanitizedUserInput = InputValidator.sanitizeTextMathLive(currentInput);
     const sanitizedExpectedAnswer = InputValidator.sanitizeTextMathLive(expectedAnswer);
+    
+    // Tokenize both user input and expected answer for behavior analysis
+    const userTokens = tokenizeMathString(currentInput);
+    const expectedTokens = tokenizeMathString(expectedAnswer);
+    
     setAttemptCounter(prev => {
       const newId = prev + 1;
       
@@ -371,13 +376,15 @@ export default function UserInput({
       stepIndex,
       stepLabel: stepProgression[0],
       userInput: sanitizedUserInput,                    // Original user input
-      sanitizedInput: sanitizedUserInput,        // ✅ ADD: Sanitized user input
-      isCorrect: stepProgression[2],
-      expectedAnswer:sanitizedExpectedAnswer,             // Original expected answer
-      sanitizedExpectedAnswer: sanitizedExpectedAnswer, // ✅ ADD: Sanitized expected answer
+      sanitizedInput: sanitizedUserInput,              // Sanitized user input
+      tokens: userTokens,                              // Tokenized input from tokenizer
+      isCorrect: stepProgression[2],                   // Validator result
+      expectedAnswer:sanitizedExpectedAnswer,          // Original expected answer
+      sanitizedExpectedAnswer: sanitizedExpectedAnswer, // Sanitized expected answer
+      expectedTokens: expectedTokens,                  // Tokenized expected answer
       cumulativeProgress: stepProgression[4],
       stepStartTime,           // When step timing started
-      attemptTime: now,        // When this attempt was made
+      attemptTime: now,        // When this attempt was made (timestamp ms)
       timeSpentOnStep,         // Total time if step completed
       };
 
@@ -453,7 +460,7 @@ export default function UserInput({
       expectedSanitized: expectedSanitized,
       stepLabel: expectedStep.label
     });
-    const validation = InputValidator.validateStepWithTwoPhase(
+    const validation = InputValidator.validateStepSimple(
       line.trim(),
       expectedStep.answer,
       expectedStep.label,
@@ -500,7 +507,7 @@ export default function UserInput({
       const stepWeight = 100 / expectedSteps.length;
       let individualStepProgress = 0;
 
-      if (validation.isCurrentStepCorrect) {
+      if (validation.isCorrect) {
         individualStepProgress = stepWeight;
       } else if (line.trim().length > 0) {
         const expectedLength = expectedStep.answer.trim().length;
@@ -518,7 +525,7 @@ export default function UserInput({
       newArray[lineIndex] = [
         expectedStep.label,              
         line.trim(),                     
-        validation.isCurrentStepCorrect, 
+        validation.isCorrect, 
         expectedStep.answer,             
         Math.round(individualStepProgress * 100) / 100
       ];
@@ -593,7 +600,7 @@ export default function UserInput({
     
     // Check if current step is correct (NO EXCEPTIONS - applies to ALL steps)
     const currentStepValidation = lineValidationStates.get(currentIndex);
-    const isCurrentStepCorrect = currentStepValidation?.isCurrentStepCorrect === true;
+    const isCurrentStepCorrect = currentStepValidation?.isCorrect === true;
     
     return hasContent && withinLimit && notLastAndEmpty && withinStepLimit && isCurrentStepCorrect;
   }, [lines, maxLines, expectedSteps, lineValidationStates]);
@@ -631,7 +638,7 @@ export default function UserInput({
   useEffect(() => {
     if (pendingLineCreation !== null) {
       const currentStepValidation = lineValidationStates.get(pendingLineCreation);
-      const isCurrentStepCorrect = currentStepValidation?.isCurrentStepCorrect === true;
+      const isCurrentStepCorrect = currentStepValidation?.isCorrect === true;
       
       if (isCurrentStepCorrect) {
         // Check if there's already an empty line after current position
@@ -706,14 +713,22 @@ export default function UserInput({
      
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-     
+      
+      // 🚫 COOLDOWN CHECK: Block submission if still on cooldown
+      if (!canSubmit()) {
+        console.log('🚫 ENTER KEY BLOCKED: Submission cooldown active');
+        return; // Exit early, ignore the Enter key press
+      }
     
-    // SET LOCAL SHOW HINTS TO TRUE WHEN ENTER IS PRESSED
-    setLocalShowHints(true);
-    console.log('🔄 Setting localShowHints to TRUE');
-    
+      // SET LOCAL SHOW HINTS TO TRUE WHEN ENTER IS PRESSED
+      //setLocalShowHints(true);
+      console.log('🔄 Setting localShowHints to TRUE');
+      
       // Validate current line immediately on Enter
       if (lines[index].trim() && expectedSteps && index < expectedSteps.length) {
+        // ✅ START COOLDOWN: Begin 2s cooldown period
+        startSubmissionCooldown();
+        
         validateIndividualLine(index, 'enter');
         
         // Set pending line creation to be handled by useEffect
@@ -739,21 +754,7 @@ export default function UserInput({
       focusLine(index + 1);
     }
   };
-      const handleMathFieldInput = useCallback((index: number, event: any) => {
-        const mathField = event.target;
-        
-        // Use the new MathLive-aware extraction
-        const extractedValue = InputValidator.extractMathFieldValue(mathField);
-        
-        console.log(`🧮 MathField input at index ${index}:`, {
-          rawLatex: mathField.getValue?.() || mathField.value || "",
-          extractedValue: extractedValue,
-          sanitized: InputValidator.sanitizeTextMathLive(extractedValue)
-        });
-        
-        // Use the extracted value for line change
-        handleLineChange(index, extractedValue);
-      }, [handleLineChange]);
+      
 
     // Adapter for math-field keyboard events  
     const handleMathFieldKeyDown = useCallback((index: number, event: any) => {
@@ -815,7 +816,7 @@ export default function UserInput({
     } 
   }, [lines, onChange, expectedSteps, maxLines]);
   
-  // Set up input refs
+  // Set up input refs, also triggers shortHints.
   const setInputRef = (index: number) => (el: HTMLInputElement | HTMLTextAreaElement | any | null) => {
   while (inputRefs.current.length <= index) {
     inputRefs.current.push(null as any);
@@ -885,7 +886,7 @@ export default function UserInput({
             }
             
             // Set local hints to true
-            setLocalShowHints(true);
+            // remove this for now, restore when needed the ShortHints setLocalShowHints(true);
             
             // Validate with the updated content
             if (currentValue.trim() && expectedSteps && index < expectedSteps.length) {
@@ -960,88 +961,10 @@ export default function UserInput({
 };
   //mathlive
 
-  const handleAIHintRequest = useCallback(async () => {
+  //remove handleAIHintRequest from deps
 
-    console.log('🔥 handleAIHintRequest CALLED');
-    console.log('📋 Request context:', {
-      topicId,
-      categoryId,
-      questionId,
-      behaviorProfile: !!behaviorProfile,
-      userAttemptCount: userAttempt.length
-    });
-    if (!topicId || !categoryId || !questionId || !behaviorProfile) {
-      console.log('❌ Missing required data for AI hint request');
-      console.log('   - topicId:', topicId);
-    console.log('   - categoryId:', categoryId);  
-    console.log('   - questionId:', questionId);
-    console.log('   - behaviorProfile:', behaviorProfile);
-      return;
-    }
-      console.log('✅ All required data present, proceeding with AI request');
-    setIsLoadingAIHint(true);
-    setShowAIModal(true);
-    
-    try {
-      console.log('📦 Importing hints.ts...');
-      // Import hints.ts functions
-      const { getAIHint } = await import('../../data/hints');
-       console.log('✅ hints.ts imported successfully');
-      // Create step context
-      const stepContext = {
-        topicId,
-        categoryId,
-        questionId,
-        userAttempts: userAttempt,
-        currentStepIndex,
-        behaviorProfile
-      };
-      
-      console.log('🚀 Requesting AI hint with context:', stepContext);
-       console.log('📊 Step Context Details:');
-    console.log('   - topicId:', stepContext.topicId);
-    console.log('   - categoryId:', stepContext.categoryId);
-    console.log('   - questionId:', stepContext.questionId);
-    console.log('   - currentStepIndex:', stepContext.currentStepIndex);
-    console.log('   - userAttempts count:', stepContext.userAttempts.length);
-    console.log('   - behaviorProfile.currentBehavior:', stepContext.behaviorProfile?.currentBehavior);
-      // Fetch AI hint
-          console.log('🔄 Calling getAIHint with behavior:', behaviorProfile.currentBehavior);
-      const aiMessage = await getAIHint(stepContext, behaviorProfile.currentBehavior!);
-      
+  
 
-        console.log('✅ AI hint received:');
-    console.log('   - Message length:', aiMessage?.length || 0);
-    console.log('   - Message content:', aiMessage);
-    console.log('   - Message type:', typeof aiMessage);
-
-      setAiHintMessage(aiMessage);
-      console.log('✅ AI hint received:', aiMessage);
-      
-    } catch (error) {
-      console.error('❌ Error fetching AI hint:', error);
-      console.error('   - topicId:', topicId);
-      //console.error('   - Error type:', error.constructor.name);
-      //console.error('   - Full error:', error);
-      //console.error('   - Error stack:', error.stack);
-      setAiHintMessage('Sorry, I encountered an error while generating your hint. Please try again.');
-    } finally {
-      console.log('🏁 AI hint request completed');
-      setIsLoadingAIHint(false);
-    }
-  }, [topicId, categoryId, questionId, behaviorProfile, userAttempt, currentStepIndex]);
-
-  // Manual AI hint request (for button clicks)
-  const handleManualAIRequest = useCallback(() => {
-    console.log('🔘 Manual AI hint request triggered');
-    handleAIHintRequest();
-  }, [handleAIHintRequest]);
-
-  // Close AI modal
-  const handleCloseAIModal = useCallback(() => {
-    setShowAIModal(false);
-    setAiHintMessage('');
-  }, []);
                                                   //check async later for any problem
   const analyzeBehaviorAndUpdateHints = useCallback(async(attempts: UserAttempt[]) => {
     if (attempts.length === 0) return;
@@ -1052,10 +975,36 @@ export default function UserInput({
     const profile = UserBehaviorClassifier.analyzeUserBehavior(attempts);
     setBehaviorProfile(profile);
     
+    // 🎯 DETAILED BEHAVIOR DETECTION LOGGING
+    console.log('🎯 BEHAVIOR ANALYSIS RESULTS:', {
+      currentBehavior: profile.currentBehavior,
+      activeTriggers: profile.activeTriggers.length,
+      triggerDetails: profile.activeTriggers.map(t => ({
+        type: t.type,
+        severity: t.severity,
+        description: t.description,
+        evidence: t.evidence,
+        stepIndex: t.stepIndex
+      })),
+      stepBehaviors: Object.entries(profile.stepBehaviors).map(([step, behavior]) => ({
+        step: parseInt(step),
+        primaryBehavior: behavior.primaryBehavior,
+        wrongAttempts: behavior.wrongAttempts,
+        totalTime: behavior.totalTime,
+        behaviorScores: behavior.behaviorScores
+      })),
+      overallStats: {
+        accuracy: profile.overallAccuracy,
+        avgTime: profile.averageTimePerAttempt,
+        strugglingSteps: profile.strugglingSteps,
+        guessingPatterns: profile.guessingPatterns
+      }
+    });
+    
     // Check if behavior has changed (new classification)
     const behaviorChanged = lastBehaviorClassification !== profile.currentBehavior;
     if (behaviorChanged) {
-      console.log(`🔄 BEHAVIOR CLASSIFICATION CHANGED:`);
+      console.log(`🔄 BEHAVIOR CLASSIFICATION CHANGED: ${lastBehaviorClassification} → ${profile.currentBehavior}`);
       
       
        // FIXED: Reset attempt count for ANY behavior change (not just problematic ones)
@@ -1070,7 +1019,7 @@ export default function UserInput({
     // Get current step index
     const currentStep = lines.findIndex((line, index) => 
       index < (expectedSteps?.length || 0) && 
-      !lineValidationStates.get(index)?.isCurrentStepCorrect
+      !lineValidationStates.get(index)?.isCorrect
     );
     
     setCurrentStepIndex(Math.max(0, currentStep));
@@ -1096,21 +1045,8 @@ export default function UserInput({
       hintIntervalActive
     });
     
-    // TRIGGER AI MODAL FOR SPECIFIC BEHAVIORS OR HINT INTERVAL
-    if (shouldShowAIModal && topicId && categoryId && questionId) {
-    const triggerReason = shouldShowAIModalForBehavior ? 'behavior detection' : 'hint interval';
-    console.log(`🤖 Triggering AI Modal for ${triggerReason}:`, profile.currentBehavior || 'interval reached');
-    
-    await handleAIHintRequest();
-    
-    // RESET HINT INTERVAL after showing AI hint
-    if (shouldShowAIModalForInterval) {
-      setHintIntervalActive(false);
-      setAttemptsSinceLastHint(0);
-      console.log(`🔄 HINT INTERVAL RESET after showing AI hint`);
-    }
-    } 
-  }, [lines, expectedSteps, lineValidationStates, showHints, handleAIHintRequest, topicId, categoryId, questionId, lastBehaviorClassification, hintIntervalActive]);
+
+  }, [lines, expectedSteps, lineValidationStates, showHints, topicId, categoryId, questionId, lastBehaviorClassification, hintIntervalActive]);
 
   const status = getCompletionStatus(lines);
   
@@ -1169,7 +1105,7 @@ export default function UserInput({
                     // Has content and validation result
                     if (line.trim() && individualValidation && validationTrigger) {
                       // PRIORITY 1: If step is correct, always show green
-                      if (individualValidation.isCurrentStepCorrect === true) {
+                      if (individualValidation.isCorrect === true) {
                         return "border-l-4 border-l-green-400 bg-green-50";
                       }
                       
@@ -1199,6 +1135,7 @@ export default function UserInput({
                         <math-field
                           ref={setInputRef(index)}
                           value={line}
+                          placeholder={getStepPlaceholder(index)}
                           virtual-keyboard-mode={virtualKeyboardEnabled ? "manual" : "off"}
                           smart-fence={true}
                           smart-superscript={true}
@@ -1216,9 +1153,10 @@ export default function UserInput({
                             userSelect: "text"
                           }}
                           className={cn(
-                            "focus:ring-0 focus:outline-none",
+                            "focus:ring-0 focus:outline-none transition-opacity duration-200",
                             "placeholder-gray-400 text-gray-900",
-                            disabled && "bg-gray-50 text-gray-500"
+                            disabled && "bg-gray-50 text-gray-500",
+                            checkCooldownStatus() && "opacity-60 cursor-not-allowed"
                           )}
                         />
                         
@@ -1226,30 +1164,38 @@ export default function UserInput({
                         {virtualKeyboardEnabled && line.trim() && (
                           <button
                             onClick={() => {
-                                  // ✅ SIMPLE: Just simulate Enter key press on the math field
-                                  const mathField = inputRefs.current[index];
-                                  if (mathField) {
-                                    // Create and dispatch a keyboard event
-                                    const enterEvent = new KeyboardEvent('keydown', {
-                                      key: 'Enter',
-                                      code: 'Enter',
-                                      keyCode: 13,
-                                      which: 13,
-                                      bubbles: true,
-                                      cancelable: true
-                                    });
-                                    
-                                    // Dispatch the event to trigger your existing Enter handler
-                                    mathField.dispatchEvent(enterEvent);
-                                  }
-                                }}
+                              // 🚫 COOLDOWN CHECK: Block button click if on cooldown
+                              if (!canSubmit()) {
+                                console.log('🚫 SUBMIT BUTTON BLOCKED: Cooldown active');
+                                return;
+                              }
+                              
+                              // ✅ SIMPLE: Just simulate Enter key press on the math field
+                              const mathField = inputRefs.current[index];
+                              if (mathField) {
+                                // Create and dispatch a keyboard event
+                                const enterEvent = new KeyboardEvent('keydown', {
+                                  key: 'Enter',
+                                  code: 'Enter',
+                                  keyCode: 13,
+                                  which: 13,
+                                  bubbles: true,
+                                  cancelable: true
+                                });
+                                
+                                // Dispatch the event to trigger your existing Enter handler
+                                mathField.dispatchEvent(enterEvent);
+                              }
+                            }}
+                            disabled={checkCooldownStatus()}
                             className={cn(
                               "px-3 py-2 rounded-md text-sm font-medium transition-all duration-200",
-                              "bg-blue-500 hover:bg-blue-600 text-white",
-                              "shadow-sm hover:shadow-md",
-                              "flex items-center gap-1"
+                              "flex items-center gap-1",
+                              checkCooldownStatus() 
+                                ? "bg-gray-400 text-gray-200 cursor-not-allowed opacity-60" 
+                                : "bg-blue-500 hover:bg-blue-600 text-white shadow-sm hover:shadow-md"
                             )}
-                            title="Submit this step"
+                            title={checkCooldownStatus() ? "Cooldown active (2s)" : "Submit this step"}
                           >
                             <span>✓</span>
                             <span className="hidden sm:inline">Submit</span>
@@ -1267,11 +1213,12 @@ export default function UserInput({
                           onFocus={() => setFocusedIndex(index)}
                           onBlur={() => setFocusedIndex(null)}
                           disabled={disabled}
-                          placeholder={index === 0 ? placeholder : `Step ${index + 1}...`}
+                          placeholder={getStepPlaceholder(index)}
                           className={cn(
                             "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-3 px-3",
-                            "placeholder-gray-400 text-gray-900",
-                            disabled && "bg-gray-50 text-gray-500"
+                            "placeholder-gray-400 text-gray-900 transition-opacity duration-200",
+                            disabled && "bg-gray-50 text-gray-500",
+                            checkCooldownStatus() && "opacity-60 cursor-not-allowed"
                           )}
                         />
                       )} {/*mathlive*/}
@@ -1282,7 +1229,7 @@ export default function UserInput({
                       {!line.trim() ? (
                         <span className="text-gray-300">○</span>
                       ) : individualValidation && validationTrigger ? (
-                        individualValidation.isCurrentStepCorrect === true ? (
+                        individualValidation.isCorrect === true ? (
                           <span className="text-green-500" title={`Correct (validated on ${validationTrigger})`}>✅</span>
                         ) : individualValidation.finalAnswerDetected === true ? (
                           <span className="text-orange-500" title="Final answer in wrong position">⚠️</span>
@@ -1302,6 +1249,20 @@ export default function UserInput({
                     </div>
                   )}
                 </div>
+
+                {/* Token Feedback Overlay - Show only when answer is wrong */}
+                {individualValidation && validationTrigger && individualValidation.tokenFeedback && !individualValidation.isCorrect && (
+                  <div className="px-8 pb-2">
+                    <FeedbackOverlay 
+                      feedback={individualValidation.tokenFeedback}
+                      show={true}
+                      className="mt-1"
+                      userInput={line}
+                      expectedAnswer={expectedSteps[index]?.answer}
+                      showHint={true}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1334,7 +1295,7 @@ export default function UserInput({
          
 
             
-          {/* Short Hints Component */}
+          {/* Short Hints Component 
           <ShortHints 
             userAttempts={userAttempt}
             behaviorProfile={behaviorProfile}
@@ -1350,11 +1311,60 @@ export default function UserInput({
             attemptsSinceLastHint={attemptsSinceLastHint}
             hintIntervalActive={hintIntervalActive}
             hintIntervalThreshold={3}
-          />
+          />*/}
           
           
 
        
+        </div>
+      )}
+
+      {/* 🚫 COOLDOWN INDICATOR - Remove this after testing */}
+      {checkCooldownStatus() && (
+        <div className="fixed bottom-4 left-4 bg-red-500/90 text-white p-3 rounded-lg text-sm font-medium z-50 flex items-center gap-2">
+          <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+          <span>Cooldown Active (2s)</span>
+        </div>
+      )}
+
+      {/* 🎯 BEHAVIOR DEBUG PANEL - Remove this after testing */}
+      {behaviorProfile && (
+        <div className="fixed bottom-4 right-4 bg-black/90 text-white p-4 rounded-lg max-w-md text-xs font-mono z-50">
+          <div className="font-bold text-yellow-400 mb-2">🎯 Behavior Detection Debug</div>
+          
+          <div className="mb-2">
+            <span className="text-blue-300">Current Behavior:</span>
+            <span className={`ml-2 font-bold ${
+              behaviorProfile.currentBehavior === 'struggling' ? 'text-red-400' :
+              behaviorProfile.currentBehavior === 'guessing' ? 'text-orange-400' :
+              behaviorProfile.currentBehavior === 'repeating' ? 'text-yellow-400' :
+              behaviorProfile.currentBehavior === 'self-correction' ? 'text-green-400' :
+              'text-gray-400'
+            }`}>
+              {behaviorProfile.currentBehavior || 'None'}
+            </span>
+          </div>
+
+          <div className="mb-2">
+            <span className="text-blue-300">Active Triggers:</span>
+            <span className="ml-2 text-yellow-300">{behaviorProfile.activeTriggers.length}</span>
+          </div>
+
+          {behaviorProfile.activeTriggers.length > 0 && (
+            <div className="mb-2 text-orange-300">
+              {behaviorProfile.activeTriggers.map((trigger, i) => (
+                <div key={i} className="ml-2">
+                  • {trigger.type} ({trigger.severity}) - Step {(trigger.stepIndex || 0) + 1}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="text-gray-300 text-xs">
+            Accuracy: {(behaviorProfile.overallAccuracy * 100).toFixed(1)}% | 
+            Attempts: {behaviorProfile.totalAttempts} | 
+            Struggling Steps: {behaviorProfile.strugglingSteps.length}
+          </div>
         </div>
       )}
     </div>

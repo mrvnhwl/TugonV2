@@ -1,0 +1,16 @@
+/* Math-field placeholder styling */
+math-field::part(placeholder) {
+  color: #9ca3af; /* gray-400 */
+  font-style: italic;
+  opacity: 0.8;
+  font-size: 1.8rem;
+}
+
+math-field:focus::part(placeholder) {
+  opacity: 0.6;
+}
+
+/* Ensure placeholder is hidden when there's content */
+math-field:not([value=""])::part(placeholder) {
+  display: none;
+}

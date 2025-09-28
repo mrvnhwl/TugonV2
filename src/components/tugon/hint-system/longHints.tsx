@@ -11,19 +11,23 @@ export interface LongHintsProps {
   userAttempts: UserAttempt[]; // Array of user attempts for progress and stats
   behaviorProfile?: UserBehaviorProfile | null; // AI-detected user behavior profile
   currentStepIndex: number; // Current step in the question/session
+
+  // Might Remove later topicId, categoryId, questionId if deem unnecessary since hints are generated pre-session.
   topicId?: number;
   categoryId?: number;
   questionId?: number;
+  // Might Remove later
+
   preGeneratedHints?: boolean; // If true, use pre-generated hints
   isVisible?: boolean; // Controls modal visibility
-  aiMessage?: string; // The AI-generated or pre-generated hint to display
-  isLoading?: boolean; // Loading state for AI hint generation
+  aiMessage?: string; // Might Remove later due to pre-session generatedHints The AI-generated 
+  isLoading?: boolean; // Might Remove later due to the nature of Loading state for AI hint generation 
   onClose?: () => void; // Function to close the modal
-  onRequestAI?: () => void; // Function to request/generate a new AI hint
-  className?: string; // Extra CSS classes for modal styling
+  onRequestAI?: () => void; // Might Remove later Function to request/generate a new AI hint
+  className?: string; // Extra tailwindCSS classes for modal styling
 }
 
-// Helper: Render LaTeX/math and plain text in hints
+// Helper: Move to Helper files later, Render LaTeX/math and plain text in hints
 const renderMathContent = (text: string) => {
   // Split text by LaTeX delimiters and render accordingly
   const parts = text.split(/(\$[^$]+\$|\\\([^)]+\\\)|\\\[[^\]]+\\\])/g);
@@ -68,7 +72,7 @@ const renderMathContent = (text: string) => {
   });
 };
 
-// Helper: Format hint content, supporting bold sections and paragraphs
+// Helper: Move to Helper files later,Format hint content, supporting bold sections and paragraphs
 const formatHintContent = (content: string) => {
   // Split by ** for emphasis
   const sections = content.split(/\*\*([^*]+)\*\*/g);
@@ -119,7 +123,7 @@ export default function LongHints({
   const detectedBehavior: BehaviorType | null | undefined = 
     behaviorProfile?.stepBehaviors?.[currentStepIndex]?.primaryBehavior;
    
-  // Returns color/icon/title styling based on detected behavior
+  // Might move to utils later, Returns color/icon/title styling based on detected behavior 
   const getBehaviorStyling = (behavior?: BehaviorType | null) => {
     switch (behavior) {
       case 'struggling':
@@ -176,6 +180,7 @@ export default function LongHints({
         };
     }
   };
+  
 
   // Get the styling for the current detected behavior
   const styling = getBehaviorStyling(detectedBehavior);

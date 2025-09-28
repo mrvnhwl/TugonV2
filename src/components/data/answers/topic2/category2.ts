@@ -3,10 +3,10 @@ import type { PredefinedAnswer } from '../types';
 export const Topic2_Category2_Answers: PredefinedAnswer[] = [
   { //FIND THE DOMAIN
     questionId: 1,
-    questionText: "f(x)=2x+5",
+    questionText: "p(x)=x^2+4",
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "p(6) = 6² + 4" }, // Fixed from "6(6)+4"
+      { label: "substitution", answer: "p(6) = 6^2 + 5" }, // Fixed from "6(6)+4"
       { label: "simplification", answer: "p(6) = 36 + 4" },
       { label: "final", answer: "40" }
     ]

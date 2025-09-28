@@ -1,0 +1,51 @@
+Purpose: 
+ getTimingStatistics for?
+It is a utility function that calculates timing analytics for completed steps:
+  - Total steps completed
+  - Average time per step
+  - Fastest and slowest step (with labels and durations)
+  - Total time spent
+
+
+
+  
+Code: 
+const getTimingStatistics = useCallback(() => {
+    const completedSteps = Array.from(stepTimings.values()).filter(timing => timing.isCompleted);
+    
+    if (completedSteps.length === 0) {
+      return {
+        totalStepsCompleted: 0,
+        averageTimePerStep: 0,
+        fastestStep: null,
+        slowestStep: null,
+        totalTimeSpent: 0
+      };
+    }
+    
+    const durations = completedSteps.map(step => step.duration!);
+    const totalTime = durations.reduce((sum, duration) => sum + duration, 0);
+    const averageTime = totalTime / durations.length;
+    
+    const fastestTime = Math.min(...durations);
+    const slowestTime = Math.max(...durations);
+    
+    const fastestStep = completedSteps.find(step => step.duration === fastestTime);
+    const slowestStep = completedSteps.find(step => step.duration === slowestTime);
+    
+    return {
+      totalStepsCompleted: completedSteps.length,
+      averageTimePerStep: averageTime,
+      fastestStep: fastestStep ? {
+        stepIndex: fastestStep.stepIndex,
+        stepLabel: fastestStep.stepLabel,
+        duration: fastestTime
+      } : null,
+      slowestStep: slowestStep ? {
+        stepIndex: slowestStep.stepIndex,
+        stepLabel: slowestStep.stepLabel,
+        duration: slowestTime
+      } : null,
+      totalTimeSpent: totalTime
+    };
+  }, [stepTimings]);

@@ -390,6 +390,71 @@ body {
   background: #f9fafb;
 }
 
+/* Wordle-style Token Feedback Styles */
+.token-green {
+  background: #22c55e !important;
+  color: white !important;
+  border-color: #16a34a !important;
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+}
+
+.token-yellow {
+  background: #eab308 !important;
+  color: white !important;
+  border-color: #ca8a04 !important;
+  box-shadow: 0 2px 4px rgba(234, 179, 8, 0.2);
+}
+
+.token-red {
+  background: #ef4444 !important;
+  color: white !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
+.token-grey {
+  background: #6b7280 !important;
+  color: white !important;
+  border-color: #4b5563 !important;
+  box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2);
+}
+
+/* Token feedback animation */
+@keyframes tokenPop {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.token-green,
+.token-yellow,
+.token-red,
+.token-grey {
+  animation: tokenPop 0.3s ease-out;
+  min-width: 24px;
+  min-height: 24px;
+  font-family: "Courier New", monospace;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Hover effects for token feedback */
+.token-green:hover,
+.token-yellow:hover,
+.token-red:hover,
+.token-grey:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
 /*slider remove later if not used*/
 .slider::-webkit-slider-thumb {
   appearance: none;
