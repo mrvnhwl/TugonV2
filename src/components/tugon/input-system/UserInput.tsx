@@ -1073,7 +1073,7 @@ export default function UserInput({
         ref={containerRef}
         className={cn(
           "relative",
-          isScrollable ? "h-[100px]" : "min-h-[50px]"
+          isScrollable ? "h-[200px]" : "min-h-[50px]"
         )}
       >
         {/* Scrollable content */}

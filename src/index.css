@@ -483,3 +483,9 @@ body {
   border: 2px solid white;
   transition: all 0.2s ease;
 }
+
+math-field::part(placeholder) {
+  font-size: 1.2rem; /* or whatever size you want */
+  color: #888;
+  font-style: italic;
+}

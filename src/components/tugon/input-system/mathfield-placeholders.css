@@ -3,7 +3,7 @@ math-field::part(placeholder) {
   color: #9ca3af; /* gray-400 */
   font-style: italic;
   opacity: 0.8;
-  font-size: 1.8rem;
+  font-size: 0.9rem;
 }
 
 math-field:focus::part(placeholder) {

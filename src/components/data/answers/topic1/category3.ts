@@ -7,9 +7,9 @@ export const Topic1_Category3_Answers: PredefinedAnswer[] = [
     questionText: " If f(x) = 3x - 4 and g(x) = x + 5, what is (f + g)(x)?",
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "(f + g)(x) = (3x - 4) + (x + 5)", placeholder: "Pick the correct case for x = -3" }, 
-      { label: "evaluation", answer: " (f + g)(x) = (3x + x) + (-4 + 5)", placeholder: "Substitute -3 into the chosen expression" }, 
-      { label: "final", answer: "(f + g)(x) = 4x + 1", placeholder: "Write the final result clearly" }
+      { label: "substitution", answer: "(f + g)(x) = (3x - 4) + (x + 5)", placeholder: "\\text{Substitute the functions}" }, 
+      { label: "evaluation", answer: " (f + g)(x) = (3x + x) + (-4 + 5)", placeholder: "\\text{Combine like terms}" }, 
+      { label: "final", answer: "(f + g)(x) = 4x + 1", placeholder: "\\text{Write the final answer}" }
     ]
   },
 /*
@@ -25,10 +25,10 @@ Answer: (f + g)(x) = 4x + 1
     questionText: "If f(x) = 5x + 2 and g(x) = 2x - 9, what is (f - g)(x)?",
     type: "multiLine",
     steps: [
-       { label: "substitution", answer: "(f - g)(x) =(5x + 2)-(2x - 9)", placeholder: "Substitute 5 into the chosen expression" }, 
-      { label: "evaluation", answer: "(f -g)(x)=(5x+2)+(-2x+9)", placeholder: "Substitute 5 into the chosen expression" }, 
-      { label: "evaluation", answer: "(f -g)(x)=(5x - 2x) + (2 + 9)", placeholder: "Simplify step by step" },
-      { label: "final", answer: "(f -g)(x) = 3x + 11", placeholder: "Write the final result clearly" }
+      { label: "substitution", answer: "(f - g)(x) =(5x + 2)-(2x - 9)", placeholder: "\\text{Substitute the functions}" }, 
+      { label: "evaluation", answer: "(f -g)(x)=(5x+2)+(-2x+9)", placeholder: "\\text{Distribute and simplify}" }, 
+      { label: "evaluation", answer: "(f -g)(x)=(5x - 2x) + (2 + 9)", placeholder: "\\text{Combine like terms}" },
+      { label: "final", answer: "(f -g)(x) = 3x + 11", placeholder: "\\text{Write the final answer}" }
     ] 
   },
  /*
@@ -42,17 +42,17 @@ Answer: (f − g)(x) = 3x + 11
 
 */ 
  
-  {
+   {
     questionId: 3,
     questionText: " If f(x) = x² and g(x) = 4x - 3, find (f * g)(-2)",
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "(f * g)(x) = (x^2)(4x - 3)", placeholder: "Pick the correct case for x = 0" }, 
-      { label: "evaluation", answer: "(f * g)(x)=4x^3 - 3x^2", placeholder: "Substitute 0 into the chosen expression" }, 
-      { label: "evaluation", answer: "(f * g)(-2)=4(-2)^3 - 3(-2)^2", placeholder: "Simplify step by step" },
-      { label: "evaluation", answer: "(f * g)(-2)=4(-8) - 3(4)", placeholder: "Simplify step by step" },
-      { label: "evaluation", answer: "(f * g)(-2)=-32 - 12", placeholder: "Simplify step by step" },
-      { label: "final", answer: "(f * g)(-2) = -44", placeholder: "Write the final result clearly" }
+      { label: "substitution", answer: "(f * g)(x) = (x^2)(4x - 3)", placeholder: "\\text{Multiply the functions}" }, 
+      { label: "evaluation", answer: "(f * g)(x)=4x^3 - 3x^2", placeholder: "\\text{Expand the product}" }, 
+      { label: "evaluation", answer: "(f * g)(-2)=4(-2)^3 - 3(-2)^2", placeholder: "\\text{Substitute the value of x}" },
+      { label: "evaluation", answer: "(f * g)(-2)=4(-8) - 3(4)", placeholder: "\\text{Evaluate exponents and multiply}" },
+      { label: "evaluation", answer: "(f * g)(-2)=-32 - 12", placeholder: "\\text{Simplify the expression}" },
+      { label: "final", answer: "(f * g)(-2) = -44", placeholder: "\\text{Write the final answer}" }
     ]
   },
 
@@ -66,16 +66,16 @@ Simplify: 4(−8) − 3(4) = −32 − 12 = −44.
 Answer: (f * g)(−2) = −44
 
 */ 
-    {
+   {
     questionId: 4,
     questionText: "Let f(x) = 2x + 1 and g(x) = x - 3. Find (f / g)(2)",
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "(f / g)(x) = (2x + 1)/(x - 3)", placeholder: "Pick the correct case for x = 0" }, 
-      { label: "substitution", answer: "(f / g)(2) = (2(2) + 1)/(2 - 3)", placeholder: "Substitute 2 into the chosen expression" }, 
-      { label: "evaluation", answer: "(f / g)(2) = (4 + 1)/(2 - 3)", placeholder: "Evaluate the numerator and denominator" }, 
-      { label: "evaluation", answer: "(f / g)(2) = (5)/(-1)", placeholder: "Simplify step by step" },
-      { label: "final", answer: "(f / g)(2) = -5", placeholder: "Write the final result clearly" },
+      { label: "substitution", answer: "((f / g))(x) = (2x + 1)/(x - 3)", placeholder: "\\text{Write the quotient of the functions}" }, 
+      { label: "substitution", answer: "((f / g))(2) = (2(2) + 1)/(2 - 3)", placeholder: "\\text{Substitute the value of x}" }, 
+      { label: "evaluation", answer: "((f / g))(2) = (4 + 1)/(2 - 3)", placeholder: "\\text{Evaluate numerator and denominator}" }, 
+      { label: "evaluation", answer: "((f / g))(2) = (5)/(-1)", placeholder: "\\text{Simplify the expression}" },
+      { label: "final", answer: "((f / g))(2) = -5", placeholder: "\\text{Write the final answer}" },
     ]
   },
 
