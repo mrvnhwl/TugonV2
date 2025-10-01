@@ -95,7 +95,6 @@ export class InputValidator {
       .replace(/[\s\n\r]+/g, "")                            // Remove whitespace
       .toLowerCase();
   };
-  //removed old sanitizeText method
   
  public static sanitizeArray = (lines: string[]): string[] => {
     return lines.map(line => InputValidator.sanitizeTextMathLive(line)).filter(line => line.length > 0);
