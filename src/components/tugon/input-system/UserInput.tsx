@@ -1319,13 +1319,6 @@ export default function UserInput({
         </div>
       )}
 
-      {/* 🚫 COOLDOWN INDICATOR - Remove this after testing */}
-      {checkCooldownStatus() && (
-        <div className="fixed bottom-4 left-4 bg-red-500/90 text-white p-3 rounded-lg text-sm font-medium z-50 flex items-center gap-2">
-          <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-          <span>Cooldown Active (2s)</span>
-        </div>
-      )}
 
       {/* 🎯 BEHAVIOR DEBUG PANEL - Remove this after testing */}
       {behaviorProfile && (
