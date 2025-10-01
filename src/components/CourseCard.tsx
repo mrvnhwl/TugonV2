@@ -1,4 +1,5 @@
 import { TopicProgress } from "./tugon/services/progressServices";
+import color from "@/styles/color";
 
 type OverallStats = {
   totalTopics: number;
@@ -29,212 +30,235 @@ export default function CourseCard({
   progress,
   overallStats,
 }: Props) {
-  
-  // Safe progress calculation with proper fallbacks
   const isTopicCompleted = progress?.isCompleted || false;
   const completionPercentage = Math.round(progress?.completionPercentage || 0);
   const correctAnswers = progress?.correctAnswers || 0;
   const totalQuestions = progress?.totalQuestions || exercises;
-  
-  // Calculate time spent more safely (in minutes)
-  const timeSpent = progress && progress.categoryProgress ? 
-    Math.round(progress.categoryProgress.reduce((sum, cat) => 
-      sum + (cat.questionProgress || []).reduce((qSum, q) => qSum + (q.timeSpent || 0), 0), 0) / 60) : 0;
 
-  // Calculate category/stage progress safely
-  const completedStages = progress ? 
-    progress.categoryProgress.filter(cat => cat.isCompleted).length : 0;
+  const timeSpent =
+    progress && progress.categoryProgress
+      ? Math.round(
+          progress.categoryProgress.reduce(
+            (sum, cat) =>
+              sum +
+              (cat.questionProgress || []).reduce(
+                (qSum, q) => qSum + (q.timeSpent || 0),
+                0
+              ),
+            0
+          ) / 60
+        )
+      : 0;
+
+  const completedStages = progress
+    ? progress.categoryProgress.filter((cat) => cat.isCompleted).length
+    : 0;
   const totalStages = progress ? progress.categoryProgress.length : 0;
-  
-  // Get appropriate emoji/icon based on completion
-  const getTopicIcon = () => {
-    if (isTopicCompleted) return "🏆"; // Trophy for completed
-    if (completionPercentage > 75) return "🔥"; // Fire for almost done
-    if (completionPercentage > 50) return "⚡"; // Lightning for halfway
-    if (completionPercentage > 0) return "📖"; // Open book for started
-    return "📘"; // Closed book for not started
-  };
 
-  const getCompletionColor = () => {
-    if (isTopicCompleted) return "text-green-600";
-    if (completionPercentage > 75) return "text-purple-600";
-    if (completionPercentage > 50) return "text-blue-600";
-    if (completionPercentage > 0) return "text-orange-600";
-    return "text-gray-500";
-  };
+  // Palette helpers
+  const chipBg =
+    completionPercentage === 0
+      ? "#E9EEF2"
+      : isTopicCompleted
+      ? "#DCFCE7"
+      : `${color.mist}22`;
+  const chipFg =
+    completionPercentage === 0
+      ? "#475569"
+      : isTopicCompleted
+      ? "#166534"
+      : color.steel;
 
-  const getBackgroundColor = () => {
-    if (isTopicCompleted) return "bg-green-50 ring-1 ring-green-200";
-    if (completionPercentage > 75) return "bg-purple-50 ring-1 ring-purple-200";
-    if (completionPercentage > 50) return "bg-blue-50 ring-1 ring-blue-200";
-    if (completionPercentage > 0) return "bg-orange-50 ring-1 ring-orange-200";
-    return "bg-gray-50 ring-1 ring-gray-200";
-  };
+  const progressBg = "#E6EDF3";
+  const progressFill = `linear-gradient(90deg, ${color.teal}, ${color.aqua})`;
 
-  const getProgressBarColor = () => {
-    if (isTopicCompleted) return 'bg-gradient-to-r from-green-500 to-emerald-500';
-    if (completionPercentage > 75) return 'bg-gradient-to-r from-purple-500 to-violet-500';
-    if (completionPercentage > 50) return 'bg-gradient-to-r from-blue-500 to-indigo-500';
-    if (completionPercentage > 0) return 'bg-gradient-to-r from-orange-500 to-red-500';
-    return 'bg-gray-300';
-  };
-  
   return (
-    <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 p-6 md:p-8 hover:shadow-md transition-shadow duration-300">
+    <div
+      className="rounded-3xl p-6 md:p-8"
+      style={{
+        background: "white",
+        border: "1px solid #E6EDF3",
+        boxShadow: `0 12px 28px ${color.mist}22, inset 0 1px 0 #ffffff`,
+      }}
+    >
       <div className="flex items-start gap-5">
-        {/* Dynamic Topic Icon */}
-        <div className={`h-16 w-16 rounded-xl ${getBackgroundColor()} flex items-center justify-center text-2xl select-none relative transition-all duration-300`}>
-          <span className="text-2xl">{getTopicIcon()}</span>
-          {isTopicCompleted && (
-            <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-              <span className="text-white text-xs font-bold">✓</span>
-            </div>
-          )}
+        {/* Leading glyph */}
+        <div
+          className="h-14 w-14 rounded-2xl flex items-center justify-center shrink-0"
+          style={{
+            background: `${color.aqua}12`,
+            border: `1px solid ${color.aqua}3a`,
+            color: color.teal,
+          }}
+        >
+          <span className="text-xl">📘</span>
         </div>
-        
+
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2
+              className="text-2xl md:text-3xl font-extrabold tracking-tight"
+              style={{ color: color.deep }}
+            >
               {title}
             </h2>
-            {isTopicCompleted && (
-              <span className="text-green-600 text-sm font-medium bg-green-100 px-3 py-1 rounded-full shadow-sm">
-                Complete
-              </span>
-            )}
-            {completionPercentage === 0 && (
-              <span className="text-gray-500 text-sm font-medium bg-gray-100 px-3 py-1 rounded-full">
-                Not Started
-              </span>
-            )}
+            <span
+              className="px-2.5 py-1 rounded-full text-xs font-semibold"
+              style={{ background: chipBg, color: chipFg }}
+            >
+              {completionPercentage === 0
+                ? "Not Started"
+                : isTopicCompleted
+                ? "Complete"
+                : "In Progress"}
+            </span>
           </div>
-          
-          <p className="mt-2 text-sm text-gray-600 leading-relaxed">{description}</p>
-          
-          {/* Always show progress bar, even for 0% */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-              <span className="font-medium">Topic Progress</span>
-              <span className={`${getCompletionColor()} font-bold`}>
-                {completionPercentage}%
-                {completionPercentage === 0 && " (Not Started)"}
-              </span>
-            </div>
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-              <div 
-                className={`h-full transition-all duration-700 ease-out rounded-full ${getProgressBarColor()} ${
-                  completionPercentage > 0 ? 'shadow-sm' : ''
-                }`}
-                style={{ 
-                  width: `${Math.max(completionPercentage, 0)}%`,
-                  minWidth: completionPercentage > 0 && completionPercentage < 2 ? '2%' : '0%' // Show tiny progress for very small percentages
-                }}
-              >
-                {completionPercentage > 0 && (
-                  <div className="h-full bg-white/20 rounded-full animate-pulse" />
-                )}
-              </div>
-            </div>
-          </div>
-          
-        
 
-          {/* Achievement Badges */}
+          <p className="mt-2 text-sm leading-relaxed text-gray-600">
+            {description}
+          </p>
+
+          {/* Progress bar */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
+              <span>Topic Progress</span>
+              <span className="font-bold">
+                {completionPercentage}%{" "}
+                {completionPercentage === 0 && "(Not Started)"}
+              </span>
+            </div>
+            <div
+              className="h-2 rounded-full overflow-hidden"
+              style={{ background: progressBg }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-700 ease-out"
+                style={{
+                  width: `${Math.max(completionPercentage, 0)}%`,
+                  background: completionPercentage > 0 ? progressFill : "#CBD5E1",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Badges row */}
           <div className="mt-3 flex flex-wrap gap-2">
             {isTopicCompleted && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full shadow-sm">
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium"
+                style={{ background: "#ECFDF5", color: "#047857", border: "1px solid #A7F3D0" }}>
                 🏆 Topic Master
               </span>
             )}
-            
             {completedStages > 0 && !isTopicCompleted && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full shadow-sm">
-                ⭐ {completedStages} Stage{completedStages > 1 ? 's' : ''} Complete
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium"
+                style={{ background: `${color.aqua}12`, color: color.teal, border: `1px solid ${color.aqua}3a` }}>
+                ⭐ {completedStages} Stage{completedStages > 1 ? "s" : ""} Complete
               </span>
             )}
-            
             {correctAnswers > 0 && !isTopicCompleted && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full shadow-sm">
-                📝 {correctAnswers} Question{correctAnswers > 1 ? 's' : ''} Solved
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium"
+                style={{ background: "#EEF2FF", color: "#3730A3", border: "1px solid #C7D2FE" }}>
+                📝 {correctAnswers} Solved
               </span>
             )}
-            
-            {overallStats?.streak && overallStats.streak > 1 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded-full shadow-sm animate-pulse">
-                🔥 {overallStats.streak} Day Streak
-              </span>
-            )}
-            
             {completionPercentage === 0 && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                🚀 Ready to Start 
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium"
+                style={{ background: "#F1F5F9", color: "#475569", border: "1px solid #E2E8F0" }}>
+                🚀 Ready to Start
               </span>
             )}
           </div>
 
-          {/* UPDATED: Topic-Specific Progress Summary (instead of overall stats) */}
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="text-xs text-gray-500 mb-2 font-medium">Topic Progress Summary</div>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              {/* Topic Completion Percentage */}
-              <div className="bg-indigo-50 rounded-lg p-3">
-                <div className={`text-lg font-bold ${
-                  completionPercentage > 0 ? 'text-indigo-600' : 'text-gray-400'
-                }`}>
-                  {completionPercentage}%
-                </div>
-                <div className="text-xs text-gray-500 mt-1">Complete</div>
-              </div>
-
-              {/* Questions Solved in This Topic */}
-              <div className="bg-green-50 rounded-lg p-3">
-                <div className={`text-lg font-bold ${
-                  correctAnswers > 0 ? 'text-green-600' : 'text-gray-400'
-                }`}>
-                  {correctAnswers}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">Solved</div>
-              </div>
-
-              {/* Stages Completed in This Topic */}
-              <div className="bg-purple-50 rounded-lg p-3">
-                <div className={`text-lg font-bold ${
-                  completedStages > 0 ? 'text-purple-600' : 'text-gray-400'
-                }`}>
-                  {completedStages}<span className="text-sm text-gray-500">/{totalStages}</span>
-                </div>
-                <div className="text-xs text-gray-500 mt-1">Stages</div>
-              </div>
+          {/* Topic Summary */}
+          <div className="mt-5 pt-5 border-t" style={{ borderColor: "#EEF3F6" }}>
+            <div className="text-xs text-gray-500 mb-2 font-medium">
+              Topic Progress Summary
             </div>
-            
-            {/* Additional details for this specific topic */}
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <Tile
+                value={`${completionPercentage}%`}
+                label="Complete"
+                tint={`${color.aqua}12`}
+                fg={color.teal}
+              />
+              <Tile
+                value={correctAnswers}
+                label="Solved"
+                tint="#ECFDF5"
+                fg="#047857"
+              />
+              <Tile
+                value={
+                  <>
+                    {completedStages}
+                    <span className="text-[10px] text-gray-500">
+                      /{totalStages}
+                    </span>
+                  </>
+                }
+                label="Stages"
+                tint="#F5F3FF"
+                fg="#6D28D9"
+              />
+            </div>
+
+            {/* Remaining / time */}
             <div className="mt-3 text-center">
               {completionPercentage === 0 ? (
                 <p className="text-xs text-gray-500 italic">
                   🎯 Start your first question to begin tracking progress
                 </p>
               ) : completionPercentage === 100 ? (
-                <p className="text-xs text-green-600 font-medium">
+                <p className="text-xs" style={{ color: color.teal }}>
                   🎉 Congratulations! You've mastered this topic!
                 </p>
               ) : (
                 <p className="text-xs text-gray-600">
-                  📈 {totalQuestions - correctAnswers} questions remaining in this topic
+                  📈 {totalQuestions - correctAnswers} questions remaining in
+                  this topic
                 </p>
               )}
             </div>
 
-            {/* Time spent on this topic */}
             {timeSpent > 0 && (
               <div className="mt-2 text-center">
-                <div className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                <span
+                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs"
+                  style={{
+                    background: `${color.mist}15`,
+                    color: color.steel,
+                    border: `1px solid ${color.mist}40`,
+                  }}
+                >
                   ⏱️ {timeSpent} minutes spent on this topic
-                </div>
+                </span>
               </div>
             )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Tile({
+  value,
+  label,
+  tint,
+  fg,
+}: {
+  value: React.ReactNode;
+  label: string;
+  tint: string;
+  fg: string;
+}) {
+  return (
+    <div
+      className="rounded-xl p-3"
+      style={{ background: tint, color: fg, border: "1px solid #E6EDF3" }}
+    >
+      <div className="text-lg font-bold">{value}</div>
+      <div className="text-xs text-gray-600 mt-1">{label}</div>
     </div>
   );
 }
