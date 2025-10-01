@@ -1,37 +1,39 @@
 import React from 'react';
 import type { UserAttempt } from '../input-system/UserInput';
 import type { UserBehaviorProfile, BehaviorType } from '../input-system/UserBehaviorClassifier';
+import type {SessionHints} from '../services/hintGenerator'; 
 
 // Import LaTeX rendering (assuming you have KaTeX or MathJax set up)
 import 'katex/dist/katex.min.css';
 
+// Props for the LongHints modal component
 export interface LongHintsProps {
-  // Required for context
-  userAttempts: UserAttempt[];
-  behaviorProfile?: UserBehaviorProfile | null;
-  currentStepIndex: number;
+  userAttempts: UserAttempt[]; // Array of user attempts for progress and stats
+  behaviorProfile?: UserBehaviorProfile | null; // AI-detected user behavior profile
+  currentStepIndex: number; // Current step in the question/session
+
+  // Might Remove later topicId, categoryId, questionId if deem unnecessary since hints are generated pre-session.
   topicId?: number;
   categoryId?: number;
   questionId?: number;
-  
-  // Modal control
-  isVisible?: boolean;
-  aiMessage?: string;
-  isLoading?: boolean;
-  onClose?: () => void;
-  onRequestAI?: () => void;
-  className?: string;
+  // Might Remove later
+
+  preGeneratedHints?: boolean; // If true, use pre-generated hints
+  isVisible?: boolean; // Controls modal visibility
+  aiMessage?: string; // Might Remove later due to pre-session generatedHints The AI-generated 
+  isLoading?: boolean; // Might Remove later due to the nature of Loading state for AI hint generation 
+  onClose?: () => void; // Function to close the modal
+  onRequestAI?: () => void; // Might Remove later Function to request/generate a new AI hint
+  className?: string; // Extra tailwindCSS classes for modal styling
 }
 
-// Helper function to render LaTeX content
+// Helper: Move to Helper files later, Render LaTeX/math and plain text in hints
 const renderMathContent = (text: string) => {
   // Split text by LaTeX delimiters and render accordingly
   const parts = text.split(/(\$[^$]+\$|\\\([^)]+\\\)|\\\[[^\]]+\\\])/g);
-  
   return parts.map((part, index) => {
-    // Check if it's LaTeX content
+    // Inline math: $...$
     if (part.startsWith('$') && part.endsWith('$') && part.length > 2) {
-      // Inline math
       const mathContent = part.slice(1, -1);
       return (
         <span 
@@ -41,8 +43,8 @@ const renderMathContent = (text: string) => {
           {mathContent}
         </span>
       );
+    // Inline math: \( ... \)
     } else if (part.startsWith('\\(') && part.endsWith('\\)')) {
-      // Inline math alternative
       const mathContent = part.slice(2, -2);
       return (
         <span 
@@ -52,8 +54,8 @@ const renderMathContent = (text: string) => {
           {mathContent}
         </span>
       );
+    // Block math: \[ ... \]
     } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
-      // Block math
       const mathContent = part.slice(2, -2);
       return (
         <div 
@@ -63,20 +65,19 @@ const renderMathContent = (text: string) => {
           <span className="text-lg font-mono text-blue-800">{mathContent}</span>
         </div>
       );
+    // Regular text
     } else {
-      // Regular text
       return <span key={index}>{part}</span>;
     }
   });
 };
 
-// Helper function to format hint content with better structure
+// Helper: Move to Helper files later,Format hint content, supporting bold sections and paragraphs
 const formatHintContent = (content: string) => {
-  // Split by double asterisks for emphasis
+  // Split by ** for emphasis
   const sections = content.split(/\*\*([^*]+)\*\*/g);
-  
   return sections.map((section, index) => {
-    // Every odd index is emphasized content
+    // Odd indices are bold/emphasized
     if (index % 2 === 1) {
       return (
         <div key={index} className="mb-4">
@@ -86,7 +87,7 @@ const formatHintContent = (content: string) => {
         </div>
       );
     } else {
-      // Regular content - render with LaTeX support
+      // Regular content, split into paragraphs and render math
       const paragraphs = section.split('\n\n').filter(p => p.trim());
       return paragraphs.map((paragraph, pIndex) => (
         <div key={`${index}-${pIndex}`} className="mb-3 leading-relaxed">
@@ -109,18 +110,20 @@ export default function LongHints({
   isLoading = false,
   onClose,
   onRequestAI,
+  preGeneratedHints = true,
   className = ""
 }: LongHintsProps) {
 
-  // Don't render if not visible
+  // If modal is not visible, render nothing
   if (!isVisible) {
     return null;
   }
 
-  // Get detected behavior for styling
+  // Get the detected behavior for the current step (e.g., struggling, guessing)
   const detectedBehavior: BehaviorType | null | undefined = 
     behaviorProfile?.stepBehaviors?.[currentStepIndex]?.primaryBehavior;
-
+   
+  // Might move to utils later, Returns color/icon/title styling based on detected behavior 
   const getBehaviorStyling = (behavior?: BehaviorType | null) => {
     switch (behavior) {
       case 'struggling':
@@ -133,7 +136,6 @@ export default function LongHints({
           title: 'Struggling - AI Guidance',
           accentColor: 'red'
         };
-      
       case 'guessing':
         return { 
           bgClass: 'bg-gradient-to-br from-orange-50 to-orange-100', 
@@ -144,7 +146,6 @@ export default function LongHints({
           title: 'Guessing Pattern - AI Guidance',
           accentColor: 'orange'
         };
-    
       case 'repeating':
         return { 
           bgClass: 'bg-gradient-to-br from-amber-50 to-amber-100', 
@@ -155,7 +156,6 @@ export default function LongHints({
           title: 'Repeating Pattern - AI Guidance',
           accentColor: 'amber'
         };
-        
       case 'self-correction':
         return { 
           bgClass: 'bg-gradient-to-br from-green-50 to-green-100', 
@@ -166,7 +166,6 @@ export default function LongHints({
           title: 'Learning Progress - AI Support',
           accentColor: 'green'
         };
-        
       case null:
       case undefined:
       default:
@@ -181,22 +180,24 @@ export default function LongHints({
         };
     }
   };
+  
 
+  // Get the styling for the current detected behavior
   const styling = getBehaviorStyling(detectedBehavior);
 
   return (
     <>
-      {/* Modal Backdrop */}
+      {/* Modal Backdrop: darkens the background and closes modal on click */}
       <div 
         className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4"
         onClick={onClose}
       >
-        {/* Modal Content */}
+        {/* Modal Content: main dialog box, stops click bubbling */}
         <div 
           className={`w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl ${styling.bgClass} border-2 ${styling.borderClass} ${className}`}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Enhanced Modal Header */}
+          {/* Modal Header: shows icon, title, step/attempt info, close button */}
           <div className={`px-8 py-6 ${styling.headerClass} border-b-2 border-white/20`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
@@ -210,7 +211,6 @@ export default function LongHints({
                   </p>
                 </div>
               </div>
-              
               {/* Close Button */}
               <button
                 onClick={onClose}
@@ -222,9 +222,9 @@ export default function LongHints({
             </div>
           </div>
 
-          {/* Enhanced Modal Body */}
+          {/* Modal Body: shows loading, hint, or prompt to generate hint */}
           <div className="px-8 py-6 max-h-[60vh] overflow-y-auto">
-            {/* Loading State */}
+            {/* Loading spinner and message while AI is generating a hint */}
             {isLoading && (
               <div className="flex items-center justify-center py-12">
                 <div className="text-center">
@@ -235,7 +235,7 @@ export default function LongHints({
               </div>
             )}
 
-            {/* AI Message Content - Enhanced */}
+            {/* Show the AI-generated or pre-generated hint if available */}
             {!isLoading && aiMessage && (
               <div className={`${styling.textClass} space-y-4`}>
                 <div className="prose prose-lg max-w-none">
@@ -244,7 +244,7 @@ export default function LongHints({
               </div>
             )}
 
-            {/* Error/Empty State - Enhanced */}
+            {/* If no hint, show prompt to generate one */}
             {!isLoading && !aiMessage && (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">🤔</div>
@@ -264,10 +264,10 @@ export default function LongHints({
             )}
           </div>
 
-          {/* Enhanced Modal Footer */}
+          {/* Modal Footer: shows progress, behavior, and action buttons */}
           <div className="px-8 py-6 bg-white/50 border-t border-white/30">
             <div className="flex items-center justify-between">
-              {/* Progress Stats */}
+              {/* Progress Stats: correct answers, behavior, step */}
               <div className="flex items-center space-x-6 text-sm">
                 <div className="flex items-center space-x-2">
                   <span className="text-2xl">📊</span>
@@ -280,7 +280,7 @@ export default function LongHints({
                     </p>
                   </div>
                 </div>
-                
+                {/* Show detected behavior if available */}
                 {behaviorProfile && detectedBehavior && (
                   <div className="flex items-center space-x-2">
                     <span className="text-2xl">🧠</span>
@@ -292,7 +292,7 @@ export default function LongHints({
                     </div>
                   </div>
                 )}
-                
+                {/* Show current step */}
                 <div className="flex items-center space-x-2">
                   <span className="text-2xl">⏱️</span>
                   <div>
@@ -301,8 +301,7 @@ export default function LongHints({
                   </div>
                 </div>
               </div>
-              
-              {/* Action Buttons */}
+              {/* Action Buttons: get new hint, close modal */}
               <div className="flex items-center space-x-4">
                 {!isLoading && (
                   <button

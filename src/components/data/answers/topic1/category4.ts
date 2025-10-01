@@ -1,42 +1,74 @@
 
-// Category 4: COMPLETE THE TABLE
+// Category 3: OPERATIONS ON FUNCTIONS UNFINISHED
 import type { PredefinedAnswer } from '../types'; 
 export const Topic1_Category4_Answers: PredefinedAnswer[] = [
-  {
+    {
     questionId: 1,
-    questionText: "y=2x+5",
+    questionText: "If f(x) = x² + 4x \\text{ and } g(x) = 3x - 5, find (g ∘ f)(x)",
     type: "multiLine",
     steps: [
-      { label: "text", answer: "Complete table for y = 2x + 5" },
-      { label: "text", answer: "Substitute x values and calculate y" }
+      { label: "choose", answer: "f(x) = x^2 + 4x", placeholder: "Determine f(x) equation " }, 
+      { label: "substitution", answer: " g(f(x)) = 3(x^2 + 4x) - 5", placeholder: "Substitute g(f(x)) value" }, 
+      { label: "final", answer: " g(f(x)) = 3x^2 + 12x - 5", placeholder: "Substitute g(f(x)) value" }, 
     ]
   },
+/*
+2) If f(x) = x² + 4x and g(x) = 3x − 5, find (g ∘ f)(x).
+Given: f(x) = x² + 4x,   g(x) = 3x − 5
+Compute f(x): f(x) = x² + 4x.
+Substitute into g: g(f(x)) = 3(x² + 4x) − 5.
+Simplify: 3x² + 12x − 5.
+Answer: (g ∘ f)(x) = 3x² + 12x − 5
+
+*/ 
+ 
   {
     questionId: 2,
-    questionText: "x/y?",
+    questionText: "If f(x) = 1/(x - 1) and g(x) = x + 2, find (f ∘ g)(x)",
     type: "multiLine",
     steps: [
-      { label: "text", answer: "Complete ratio table" },
-      { label: "text", answer: "Calculate corresponding values" }
-    ]
+       { label: "choose", answer: "g(x) = x + 2", placeholder: "Choose the expression to substitute" }, 
+      { label: "evaluation", answer: "f(g(x)) = 1/((x + 2) - 1)", placeholder: "Substitute g(x) value to f(g(x))" }, 
+      { label: "final", answer: "(f(g(x)) = (1)/(x + 1)", placeholder: "Simplify step by step" },
+    ] 
   },
+ /*
+
+3) If f(x) = 1/(x − 1) and g(x) = x + 2, find (f ∘ g)(x).
+Given: f(x) = 1/(x − 1),   g(x) = x + 2
+Compute g(x): g(x) = x + 2.
+Substitute into f: f(g(x)) = 1/((x + 2) − 1).
+Simplify: 1/(x + 1).  (Restriction: x ≠ −1)
+Answer: (f ∘ g)(x) = 1/(x + 1)
+
+
+*/ 
+ 
   {
     questionId: 3,
-    questionText: "square root of x+9",
+    questionText: "If f(x) = 3x - 4 and g(x) = x² + 2x, find (f ∘ g)(-1)",
     type: "multiLine",
     steps: [
-      { label: "text", answer: "Complete table for √(x + 9)" },
-      { label: "text", answer: "Ensure x + 9 ≥ 0" }
+      { label: "choose", answer: "g(x) = x^2 + 2x", placeholder: "Choose the expression to substitute" }, 
+      { label: "choose", answer: "f(g(x))=3x-4", placeholder: "Choose the expression to evaluate" }, 
+      { label: "substitution", answer: "f(g(x))=3(x^2+2x)-4", placeholder: "Substitute the value of g(x)" },
+      { label: "evaluation", answer: "f(g(x))=3(x^2+2x)-4", placeholder: "Distribute 3" },
+      { label: "evaluation", answer: "f(g(x))=3x^2+6x-4", placeholder: "Substitute the value of x" },
+      { label: "evaluation", answer: "f(g(-1))=3(-1)^2+6(-1)-4", placeholder: "Evaluate the expression" },
+      { label: "evaluation", answer: "f(g(-1))=3(1)-6-4", placeholder: "Evaluate the remaining expression" },
+      { label: "evaluation", answer: "f(g(-1))=3-6-4", placeholder: "Combine the values" },
+      { label: "final", answer: "(f * g)(-2) = -7", placeholder: "Write the final result clearly" }
     ]
   },
-  {
-    questionId: 4,
-    questionText: "Real numbers",
-    type: "multiLine",
-    steps: [
-      { label: "text", answer: "Complete real number table" },
-      { label: "text", answer: "Use appropriate domain values" }
-    ]
-  },
-];
 
+  /*
+
+5) If f(x) = 3x − 4 and g(x) = x² + 2x, find (f ∘ g)(−1).
+Given: f(x) = 3x − 4,   g(x) = x² + 2x
+Evaluate g(−1): g(−1) = (−1)² + 2(−1) = 1 − 2 = −1.
+Then f(g(−1)): f(−1) = 3(−1) − 4 = −3 − 4 = −7.
+Answer: (f ∘ g)(−1) = −7
+
+
+*/ 
+];

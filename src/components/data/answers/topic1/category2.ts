@@ -1,32 +1,40 @@
-// Category 2: GRAPH A FUNCTION OR NOT?
+// Category 2: PIECEWISE FUNCTIONS
 import type { PredefinedAnswer } from '../types'; 
 export const Topic1_Category2_Answers: PredefinedAnswer[] = [
-  {
+    {
     questionId: 1,
-    questionText: "Graph 1",
-    type: "multiLine", 
+    questionText: " Let f(x) = {  x + 2,  x < 0   |   x²,  0 ≤ x ≤ 3   |   5,  x > 3  }.  Find f(-3).",
+    type: "multiLine",
     steps: [
-      { label: "text", answer: "No" },
-      { label: "text", answer: "Vertical line fails the vertical line test" }
+      { label: "choose", answer: "f(x) = x + 2", placeholder: "\\text{Pick the correct case for x = -3}" }, 
+      { label: "substitution", answer: "f(-3) = -3 + 2", placeholder: "\\text{Substitute -3 into the chosen expression}" }, 
+      { label: "final", answer: "f(-3) = -1", placeholder: "\\text{Write the final result clearly}" }
     ]
   },
+
+ 
   {
     questionId: 2,
-    questionText: "Graph 2", 
-    type: "multiLine", 
+    questionText: "Let g(x) = {  -x,  x < 1   |   x + 1,  1 ≤ x < 5   |   2x - 8,  x ≥ 5  }.  Find g(5).",
+    type: "multiLine",
     steps: [
-      { label: "text", answer: "Yes" },
-      { label: "text", answer: "Passes the vertical line test" }
-    ]
+       { label: "choose", answer: "g(x) = 2x - 8", placeholder: "\\text{Pick the correct case for x = 5}" }, 
+      { label: "substitution", answer: "g(5) = 2(5) - 8", placeholder: "\\text{Substitute 5 into the chosen expression}" }, 
+      { label: "evaluation", answer: "g(5) = 10 - 8", placeholder: "\\text{Simplify step by step}" },
+      { label: "final", answer: "g(5) = 2", placeholder: "\\text{Write the final result clearly}" }
+    ] 
   },
+ 
+ 
   {
     questionId: 3,
-    questionText: "Graph 3",
-    type: "multiLine", 
+    questionText: "Let h(x) = {  x² - 1,  x ≤ 0   |   2x + 1,  0 < x < 2   |   6,  x ≥ 2  }.  Find h(0).",
+    type: "multiLine",
     steps: [
-      { label: "text", answer: "No" },
-      { label: "text", answer: "Vertical lines through the circle intersect at two points" }
+      { label: "choose", answer: "h(x) = x^2- 1", placeholder: "\\text{Pick the correct case for x = 0}" }, 
+      { label: "substitution", answer: "h(0) = (0)^2 - 1", placeholder: "\\text{Substitute 0 into the chosen expression}" }, 
+      { label: "evaluation", answer: "h(0) = 0 - 1", placeholder: "\\text{Simplify step by step}" },
+      { label: "final", answer: "h(0) = -1", placeholder: "\\text{Write the final result clearly}" }
     ]
   },
 ];
-

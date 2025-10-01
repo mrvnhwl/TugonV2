@@ -31,6 +31,8 @@ export default function TugonPlay() {
 
   const { recordAttempt, getQuestionProgress } = useProgress();
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  // Add success modal state
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successStats, setSuccessStats] = useState<{
@@ -38,6 +40,8 @@ export default function TugonPlay() {
     timeSpent: number;
     isFirstTime: boolean;
   } | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  // Extract URL parameters
 
   const topicId = Number(searchParams.get("topic")) || 1;
   const categoryId = Number(searchParams.get("category")) || 1;
@@ -45,6 +49,9 @@ export default function TugonPlay() {
   const legacyQ = Number(searchParams.get("q"));
   const finalCategoryId = legacyQ || categoryId;
 
+  // Get current question progress
+  const currentQuestionProgress = getQuestionProgress(topicId, finalCategoryId, questionId);
+  // For MathLive re-rendering
   const currentQuestionProgress = getQuestionProgress(
     topicId,
     finalCategoryId,
@@ -221,6 +228,25 @@ export default function TugonPlay() {
     console.log("Current expected answer:", getCurrentExpectedAnswer());
   };
 
+  const handleIndexChange = (newIndex: number) => {
+    setCurrentStepIndex(newIndex); 
+    // Handle step changes if needed
+  };
+  //for feedback
+  useEffect(() => {
+  setSessionStartTime(Date.now());
+  setAttempts(0);
+  setIsCorrect(null);
+  setUserAttempts([]);
+  setCurrentStepIndex(0); // ← ADD THIS LINE
+  
+  console.log(`🎯 Starting question: Topic ${topicId}, Category ${finalCategoryId}, Question ${questionId}`);
+  
+  // ... rest of the useEffect
+}, [topicId, finalCategoryId, questionId]);
+  const handleAttemptUpdate = (attempts: UserAttempt[]) => {
+    setUserAttempts(attempts);
+    console.log('🎯 TugonPlay received attempts:', attempts);
   const handleIndexChange = (_newIndex: number) => {};
 
   const handleAttemptUpdate = (a: UserAttempt[]) => {
@@ -229,6 +255,8 @@ export default function TugonPlay() {
 
   const ProgressMonitor = () => {
     if (!currentQuestionProgress) return null;
+
+    {/* Progress Monitor Content 
     return (
       <div
         className="fixed top-20 right-4 backdrop-blur rounded-xl p-3 shadow-lg border text-xs z-40"
@@ -249,10 +277,146 @@ export default function TugonPlay() {
           <div>Time: {Math.round(currentQuestionProgress.timeSpent / 60)}m</div>
         </div>
       </div>
-    );
+    );*/}
   };
 
   return (
+  <div className="h-screen flex flex-col overflow-hidden bg-white">
+    {/* Progress Monitor - Development only */}
+    <ProgressMonitor />
+  
+    {/* Success Modal */}
+    <SuccessModal
+      isOpen={showSuccessModal}
+      onClose={handleCloseModal}
+      onNextQuestion={handleNextQuestion}
+      onBackToSense={handleBackToSense}
+      questionInfo={{
+        topicId,
+        categoryId: finalCategoryId,
+        questionId
+      }}
+      stats={successStats}
+    />
+
+    {/* MOBILE LAYOUT (sm and below) */}
+    <div className="flex-1 overflow-y-auto sm:hidden">
+      {/* Mobile: Navbar + CategoryQuestion Combined */}
+      <div className="bg-gradient-to-r from-[#397F85] to-[#327373]">
+        {/* Navbar */}
+        <div className="h-16 flex items-center justify-between px-4 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">T</span>
+            </div>
+            <SubHeading className="text-white font-bold text-lg">
+              TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
+            </SubHeading>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-white/80 text-sm">
+              <span>Q{questionId}</span>
+              <div className="w-1 h-4 bg-white/30 rounded-full"></div>
+              <span>Topic {topicId}</span>
+            </div>
+            
+            <button
+              onClick={() => navigate("/tugonsense")}
+              className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        
+        {/* CategoryQuestion - Integrated with navbar background - WIDER */}
+        <div className="px-2 pb-6">
+          <CategoryQuestion 
+            topicId={topicId}
+            categoryId={finalCategoryId}
+            questionId={questionId}
+          />
+        </div>
+      </div>
+      
+      {/* Mobile: QuestionTemplate with margin - LESS WIDE, MORE HEIGHT */}
+      <div className="px-8 py-8 min-h-[60vh]">
+        <QuestionTemplate
+          key={`mobile-template-${topicId}-${finalCategoryId}-${questionId}`}
+          topicId={topicId}
+          categoryId={finalCategoryId}
+          questionId={questionId}
+          expectedAnswers={expectedAnswers}
+          onValidationResult={(type, currentStep) => {
+            if (type === "correct" || type === "incorrect") {
+              handleAttempt({ correct: type === "correct" });
+            }
+          }}
+          onSubmit={handleSubmit}
+          onIndexChange={handleIndexChange}
+          onAnswerChange={resetIdle}
+          onAttemptUpdate={handleAttemptUpdate}
+        />
+      </div>
+    </div>
+
+    {/* DESKTOP LAYOUT (sm and above) */}
+    <div className="hidden sm:flex sm:flex-col sm:h-screen">
+      {/* Desktop: Navbar + CategoryQuestion Combined - Upper Section */}
+      <div className="bg-gradient-to-r from-[#397F85] to-[#327373] flex-shrink-0">
+        {/* Navbar */}
+        <div className="h-16 flex items-center justify-between px-6 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">T</span>
+            </div>
+            <SubHeading className="text-white font-bold text-lg">
+              TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
+            </SubHeading>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-white/80 text-sm">
+              <span>Q{questionId}</span>
+              <div className="w-1 h-4 bg-white/30 rounded-full"></div>
+              <span>Topic {topicId}</span>
+            </div>
+            
+            <button
+              onClick={() => navigate("/tugonsense")}
+              className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        
+        {/* CategoryQuestion - Expanded upper section - WIDER */}
+        <div className="px-4 py-8 min-h-[240px] flex items-center justify-center">
+          <div className="w-full max-w-4xl">
+            <CategoryQuestion 
+              topicId={topicId}
+              categoryId={finalCategoryId}
+              questionId={questionId}
+            />
+          </div>
+        </div>
+      </div>
+       {/* Feedback Container - Between sections */}
+      
+  
+      {/* Desktop: QuestionTemplate - Middle Section - LESS WIDE, MORE HEIGHT */}
+      <div className="flex-1 bg-gray-50 overflow-y-auto min-h-[50vh]">
+        <div className="container mx-auto px-12 py-10">
+          <div className="max-w-2xl mx-auto">
+            <QuestionTemplate
+              key={`desktop-template-${topicId}-${finalCategoryId}-${questionId}`}
+              topicId={topicId}
+              categoryId={finalCategoryId}
+              questionId={questionId}
+              expectedAnswers={expectedAnswers}
+              onValidationResult={(type, currentStep) => {
     <div
       className="h-screen flex flex-col overflow-hidden"
       style={{
@@ -457,6 +621,10 @@ export default function TugonPlay() {
               onAttemptUpdate={handleAttemptUpdate}
             />
           </div>
+   
+      
+        </div>
+      </div>
         </div>
       </div>
 
@@ -468,7 +636,17 @@ export default function TugonPlay() {
 
       <CharacterPositionedDesktop />
     </div>
-  );
+       
+    {/* Attempt Visualizer - Floating Panel 
+    <AttemptVisualizer 
+      attempts={userAttempts} 
+      className="animate-in slide-in-from-right duration-300"
+    />*/}
+
+    {/* Desktop Character - Only shows on desktop */}
+    <CharacterPositionedDesktop />
+  </div>
+);
 }
 
 // Mobile Character positioning (unchanged)

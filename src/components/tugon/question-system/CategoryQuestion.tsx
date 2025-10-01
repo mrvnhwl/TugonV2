@@ -3,8 +3,9 @@ import { defaultTopics } from '../../data/questions/index';
 import { cn } from '../../cn';
 import { Text } from '../../Typography';
 import { Card, CardContent } from "@/components/ui/card";
-import { answersByTopicAndCategory } from '../../data/answers/index'; // Import your answers
+import { answersByTopicAndCategory } from '../../data/answers/index';
 import { convertToLatex } from './mathConverter';
+
 interface CategoryQuestionProps {
   topicId: number;
   categoryId: number;
@@ -15,9 +16,13 @@ interface CategoryQuestionProps {
 const CategoryQuestion: React.FC<CategoryQuestionProps> = ({ 
   topicId,
   categoryId,
-  questionId, // Make sure this prop is available
+  questionId,
   className = ""
 }) => {
+  const [mathKey, setMathKey] = React.useState(0);
+  const [isMathLiveReady, setIsMathLiveReady] = React.useState(false);
+  const mathFieldRef = React.useRef<any>(null);
+
   // Find the specific category
   const categoryData = React.useMemo(() => {
     const topic = defaultTopics.find(t => t.id === topicId);
@@ -35,7 +40,7 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
 
   // Extract values
   const categoryQuestion = categoryData?.category_question || null;
-  const categoryText = questionData?.category_text || null; // Get from question object
+  const categoryText = questionData?.category_text || null;
 
   // Get the label from answers for conditional rendering
   const answerLabel = React.useMemo(() => {
@@ -45,10 +50,66 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
     if (!categoryAnswers || !Array.isArray(categoryAnswers)) return null;
     return categoryAnswers[0]?.steps[0]?.label || null;
   }, [topicId, categoryId]);
-   const formattedCategoryText = React.useMemo(() => {
+
+  const formattedCategoryText = React.useMemo(() => {
     if (!categoryText) return "";
     return convertToLatex(categoryText);
   }, [categoryText]);
+
+  // Multiple strategies to ensure MathLive renders properly
+  React.useEffect(() => {
+    // Strategy 1: Immediate re-render
+    setMathKey(k => k + 1);
+    
+    // Strategy 2: Delayed re-render
+    const timer1 = setTimeout(() => {
+      setMathKey(k => k + 1);
+    }, 50);
+    
+    // Strategy 3: Double delayed re-render
+    const timer2 = setTimeout(() => {
+      setMathKey(k => k + 1);
+      setIsMathLiveReady(true);
+    }, 200);
+    
+    // Strategy 4: Force value update on math field if ref exists
+    const timer3 = setTimeout(() => {
+      if (mathFieldRef.current && formattedCategoryText) {
+        try {
+          mathFieldRef.current.value = formattedCategoryText;
+          mathFieldRef.current.focus();
+          mathFieldRef.current.blur();
+        } catch (e) {
+          console.log('MathField update failed:', e);
+        }
+      }
+      setMathKey(k => k + 1);
+    }, 300);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+  }, [formattedCategoryText, topicId, categoryId, questionId]);
+
+  // Additional effect for window load
+  React.useEffect(() => {
+    const handleLoad = () => {
+      setTimeout(() => {
+        setMathKey(k => k + 1);
+      }, 100);
+    };
+
+    if (document.readyState === 'complete') {
+      handleLoad();
+    } else {
+      window.addEventListener('load', handleLoad);
+    }
+
+    return () => window.removeEventListener('load', handleLoad);
+  }, []);
+
   if (!categoryQuestion) {
     return (
       <Card className={cn("w-full max-w-fit mx-auto rounded-2xl border-2 border-red-200 bg-red-50 shadow-lg", className)}>
@@ -63,26 +124,25 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
 
   return (
     <Card className={cn(
-      "w-auto max-w-full mx-auto rounded-2xl border-0 bg-[#5da295] shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
+      "w-auto max-w-full mx-auto rounded-2xl border-2 border-[white] bg-[#5da295] shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]",
       className
     )}>
-      <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative">
+      <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative text-center">
         {/* Show category_text above the question if available */}
-       {categoryText && questionData?.question_text&& (
-    <div className="mb-3 text-white text-opacity-80 text-base font-medium leading-snug">
-      {categoryQuestion} <span className="font-bold text-white">{questionData.question_text}</span>
-    </div>
-  )}
+        {categoryText && questionData?.question_text && (
+          <div className="mb-3 text-white text-opacity-80 text-base font-medium leading-snug text-left">
+            {categoryQuestion} <span className="font-bold text-white">{questionData.question_text}</span>
+          </div>
+        )}
 
-        
         {/* Conditional rendering based on label */}
         {answerLabel === "text" ? (
           <div
-            key={`text-${topicId}-${categoryId}-${questionId}`} // Add key for text
+            key={`text-${topicId}-${categoryId}-${questionId}`}
             style={{
               color: "white",
               fontWeight: "bold",
-              textAlign: "left",
+              textAlign: "center",
               fontSize: "1.5rem",
               background: "transparent",
               border: "none",
@@ -90,28 +150,61 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
               pointerEvents: "none",
               fontFamily: "Arial, sans-serif"
             }}
-            className="leading-relaxed tracking-wide"
+            className="leading-relaxed tracking-wide text-center"
           >
             {categoryText}
           </div>
         ) : (
-          <math-field
-             key={`text-${topicId}-${categoryId}-${questionId}`} // Add key for text
-            value={formattedCategoryText || ""}
-            read-only={true}
-            style={{
-              color: "white",
-              fontWeight: "bold",
-              textAlign: "left",
-              fontSize: "1.5rem",
-              background: "transparent",
-              border: "none",
-              width: "100%",
-              pointerEvents: "none",
-              fontFamily: "Arial, sans-serif"
-            }}
-            className="leading-relaxed tracking-wide"
-          ></math-field>
+          <div className="relative">
+            {/* Backup rendering while MathLive loads */}
+            {!isMathLiveReady && (
+              <div
+                style={{
+                  color: "white",
+                  fontWeight: "bold",
+                  textAlign: "center",
+                  fontSize: "1.8rem",
+                  background: "transparent",
+                  width: "100%",
+                  fontFamily: "monospace",
+                  opacity: 0.7
+                }}
+                className="leading-relaxed tracking-wide text-center"
+              >
+                {categoryText}
+              </div>
+            )}
+            
+            {/* MathLive field */}
+            <math-field
+              ref={mathFieldRef}
+              key={`mathfield-${mathKey}-${topicId}-${categoryId}-${questionId}-${Date.now()}`}
+              value={formattedCategoryText || ""}
+              read-only={true}
+              style={{
+                color: "white",
+                fontWeight: "bold",
+                textAlign: "center",
+                justifyContent: "center",
+                display: "flex",
+                fontSize: "2.5rem",
+                background: "transparent",
+                border: "none",
+                width: "100%",
+                pointerEvents: "none",
+                fontFamily: "Arial, sans-serif",
+                opacity: isMathLiveReady ? 1 : 0,
+                position: isMathLiveReady ? 'static' : 'absolute',
+                top: 0,
+                left: 0
+              }}
+              className="leading-relaxed tracking-wide text-center"
+              onLoad={() => {
+                setIsMathLiveReady(true);
+                setMathKey(k => k + 1);
+              }}
+            ></math-field>
+          </div>
         )}
         
         {/* Subtle accent line */}

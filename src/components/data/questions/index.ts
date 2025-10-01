@@ -31,7 +31,7 @@ export const defaultTopics: Topic[] = [
     description: "Learn about functions, notation, domain, and range.",
     level: [
       Topic1_Category1,
-        Topic1_Category2,
+      Topic1_Category2,
       Topic1_Category3,
       Topic1_Category4
     ]
