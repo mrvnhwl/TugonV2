@@ -1320,8 +1320,8 @@ export default function UserInput({
       )}
 
 
-      {/* 🎯 BEHAVIOR DEBUG PANEL - Remove this after testing */}
-      {behaviorProfile && (
+      {/* 🎯 BEHAVIOR DEBUG PANEL - Only show in development */}
+      {process.env.NODE_ENV === "development" && behaviorProfile && (
         <div className="fixed bottom-4 right-4 bg-black/90 text-white p-4 rounded-lg max-w-md text-xs font-mono z-50">
           <div className="font-bold text-yellow-400 mb-2">🎯 Behavior Detection Debug</div>
           
