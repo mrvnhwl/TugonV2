@@ -10,7 +10,6 @@ import Character from "../../components/tugon/hint-system/Character";
 import QuestionTemplate from '../../components/tugon/template/QuestionTemplate.tsx';
 import { Heading, SubHeading, Text, Small } from "../../components/Typography";
 import AttemptVisualizer from "../../components/tugon/AttemptVisualizer";
-import Feedback from "../../components/tugon/hint-system/feedback";
 import { UserAttempt } from "../../components/tugon/input-system/UserInput";
 import { useProgress } from "../../components/tugon/services/useProgress";
 import SuccessModal from "../../components/tugon/successModal"; // Add this import
