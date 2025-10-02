@@ -10,6 +10,8 @@ import LongHints from "../hint-system/longHints";
 import { MathfieldElement } from "mathlive"; // Ensure mathlive is installed
 import { FeedbackOverlay } from './FeedbackOverlay';
 import { tokenizeMathString } from './tokenUtils';
+import toast from 'react-hot-toast';
+import { BehaviorAnalyzer } from './BehaviorAnalyzer';
 
 type StepProgression = [string, string, boolean, string, number]; 
 // [stepLabel, userInput, isCorrect, expectedAnswer, totalProgress]
@@ -103,6 +105,11 @@ export default function UserInput({
   const [userProgressionArray, setUserProgressionArray] = useState<StepProgression[]>([]);
   const [userAttempt, setUserAttempt] = useState<UserAttempt[]>([]);
   const [attemptCounter, setAttemptCounter] = useState<number>(0);
+  
+  // Wrong attempt tracking for toast notifications
+  const [wrongAttemptCounter, setWrongAttemptCounter] = useState<number>(0);
+  const [attemptHistory, setAttemptHistory] = useState<string[]>([]);
+  const lastToastTime = useRef<number>(0); // Debounce guard for duplicate toasts
   
   // Scrolling refs and state
   const containerRef = useRef<HTMLDivElement>(null);
@@ -241,6 +248,126 @@ export default function UserInput({
     const step = expectedSteps[lineIndex];
     return step.placeholder || "Enter your expression here..."; // Use step placeholder or fallback
   }, [expectedSteps]);
+
+  // Smart hint message system using behavior analysis
+  const showHintMessage = useCallback((
+    userInput: string, 
+    correctAnswer: string, 
+    attemptHistory: string[]
+  ) => {
+    // Debounce guard: prevent duplicate toasts within 500ms
+    const now = Date.now();
+    if (now - lastToastTime.current < 500) {
+      console.log('Toast blocked: too soon after previous toast');
+      return; // Exit early if toast was just shown
+    }
+    lastToastTime.current = now; // Update last toast time
+    
+    // Analyze user behavior
+    const analysis = BehaviorAnalyzer.analyze(userInput, correctAnswer, attemptHistory);
+    
+    // Generate curated hint based on behavior type
+    let hint = "";
+    let icon = "💡";
+    
+    switch(analysis.type) {
+      case 'sign-error':
+        hint = "⚠️ Double-check your signs (+ or -). The magnitude looks right!";
+        icon = "⚠️";
+        break;
+        
+      case 'repetition':
+        hint = `🔁 You've tried "${userInput}" multiple times. Try a different approach or review the problem steps.`;
+        icon = "🔁";
+        break;
+        
+      case 'close-attempt':
+        hint = "🎯 You're getting close! Review your calculations carefully—you might have a small arithmetic error.";
+        icon = "🎯";
+        break;
+        
+      case 'magnitude-error':
+        hint = "📏 Your answer seems off by a factor of 10 or more. Check your decimal point or unit conversions.";
+        icon = "📏";
+        break;
+        
+      case 'guessing':
+        hint = "🎲 Your attempts seem random. Take a moment to work through the problem step by step on paper.";
+        icon = "🎲";
+        break;
+        
+      case 'random':
+        hint = `💭 Your answer "${userInput}" doesn't match. Try breaking the problem into smaller steps.`;
+        icon = "💭";
+        break;
+        
+      case 'default':
+      default:
+        hint = `💡 "${userInput}" isn't quite right. Review the problem and check your work.`;
+        icon = "💡";
+        break;
+    }
+    
+    // Debug logging
+    console.log(`🔔 TOAST TRIGGERED:`, {
+      type: analysis.type,
+      userInput,
+      correctAnswer,
+      hint,
+      icon,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Display toast with curated message
+    toast(hint, {
+      icon: icon,
+      duration: 3500, // 3.5 seconds (CHANGED)
+      style: {
+        borderRadius: "10px",
+        background: "#333",
+        color: "#fff",
+        padding: "16px",
+        fontSize: "15px",
+        maxWidth: "500px",
+        textAlign: "center",
+      },
+    });
+  }, []);
+
+  // Varied success messages for positive reinforcement
+  const showSuccessMessage = useCallback((attemptCount: number) => {
+    const messages = [
+      "✅ Perfect! You got it!",
+      "🎉 Excellent work!",
+      "⭐ That's correct! Well done!",
+      "💯 Nailed it!",
+      "🏆 Great job! That's right!",
+    ];
+    
+    // If they got it on first try
+    if (attemptCount === 0) {
+      toast.success("🌟 First try! Impressive!", {
+        duration: 3500, // 3.5 seconds for consistency
+        style: {
+          borderRadius: "10px",
+          background: "#10b981",
+          color: "#fff",
+          fontSize: "15px",
+        },
+      });
+      return;
+    }
+    
+    // Random success message for other cases
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    toast.success(randomMessage, {
+      duration: 3500, // 3.5 seconds for consistency
+      style: {
+        borderRadius: "10px",
+        fontSize: "15px",
+      },
+    });
+  }, []);
 
   // Timing functions
   const startStepTimer = useCallback((stepIndex: number) => {
@@ -480,6 +607,53 @@ export default function UserInput({
       newMap.set(lineIndex, trigger);
       return newMap;
     });
+
+    // Handle wrong attempt counter and intelligent toast notifications
+    if (validation.isCorrect) {
+      // ✅ CORRECT ANSWER - Reset counters and show success message
+      const attemptCount = attemptHistory.length;
+      
+      console.log(`✅ CORRECT ANSWER:`, {
+        attemptCount,
+        resettingCounter: true,
+        clearingHistory: true
+      });
+      
+      showSuccessMessage(attemptCount);
+      setWrongAttemptCounter(0);
+      setAttemptHistory([]); // Clear history on correct answer
+    } else {
+      // ❌ WRONG ANSWER - Track attempt and increment counter
+      const sanitizedInput = line.trim();
+      const correctAnswer = expectedStep.answer;
+      
+      // Update attempt history
+      setAttemptHistory(prev => [...prev, sanitizedInput]);
+      
+      // Increment wrong attempt counter
+      setWrongAttemptCounter(prev => {
+        const newCount = prev + 1;
+        
+        console.log(`📊 WRONG ATTEMPT COUNTER:`, {
+          previousCount: prev,
+          newCount,
+          shouldTriggerToast: newCount % 3 === 0,
+          userInput: sanitizedInput,
+          correctAnswer,
+          attemptHistoryLength: attemptHistory.length
+        });
+        
+        // Show intelligent hint on every 3rd wrong attempt
+        if (newCount % 3 === 0) {
+          console.log(`🎯 TRIGGERING TOAST - 3rd attempt reached`);
+          // Use current attempt history for analysis (before reset)
+          const currentHistory = [...attemptHistory, sanitizedInput];
+          showHintMessage(sanitizedInput, correctAnswer, currentHistory);
+        }
+        
+        return newCount;
+      });
+    }
 
     // THEN get completion status with ALL validation states (not just current one)
     const updatedValidationStates = new Map(lineValidationStates);
@@ -1153,10 +1327,11 @@ export default function UserInput({
                             userSelect: "text"
                           }}
                           className={cn(
-                            "focus:ring-0 focus:outline-none transition-opacity duration-200",
+                            "focus:ring-0 focus:outline-none transition-all duration-200",
                             "placeholder-gray-400 text-gray-900",
                             disabled && "bg-gray-50 text-gray-500",
-                            checkCooldownStatus() && "opacity-60 cursor-not-allowed"
+                            checkCooldownStatus() && "opacity-60 cursor-not-allowed",
+                            wrongAttemptCounter >= 3 && !disabled && "ring-2 ring-red-500 ring-opacity-50"
                           )}
                         />
                         
@@ -1216,9 +1391,10 @@ export default function UserInput({
                           placeholder={getStepPlaceholder(index)}
                           className={cn(
                             "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-3 px-3",
-                            "placeholder-gray-400 text-gray-900 transition-opacity duration-200",
+                            "placeholder-gray-400 text-gray-900 transition-all duration-200",
                             disabled && "bg-gray-50 text-gray-500",
-                            checkCooldownStatus() && "opacity-60 cursor-not-allowed"
+                            checkCooldownStatus() && "opacity-60 cursor-not-allowed",
+                            wrongAttemptCounter >= 3 && !disabled && "ring-2 ring-red-500 ring-opacity-50"
                           )}
                         />
                       )} {/*mathlive*/}
