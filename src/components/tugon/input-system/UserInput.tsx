@@ -1595,7 +1595,22 @@ export default function UserInput({
 
 
 
-
+      {/* 🎯 BEHAVIOR DEBUG PANEL - Only show in development */}
+      {process.env.NODE_ENV === "development" && behaviorProfile && (
+        <div className="fixed bottom-4 right-4 bg-black/90 text-white p-4 rounded-lg max-w-md text-xs font-mono z-50">
+          <div className="font-bold text-yellow-400 mb-2">🎯 Behavior Detection Debug</div>
+          
+          <div className="mb-2">
+            <span className="text-blue-300">Current Behavior:</span>
+            <span className={`ml-2 font-bold ${
+              behaviorProfile.currentBehavior === 'struggling' ? 'text-red-400' :
+              behaviorProfile.currentBehavior === 'guessing' ? 'text-orange-400' :
+              behaviorProfile.currentBehavior === 'repeating' ? 'text-yellow-400' :
+              behaviorProfile.currentBehavior === 'self-correction' ? 'text-green-400' :
+              'text-gray-400'
+            }`}>
+              {behaviorProfile.currentBehavior || 'None'}
+            </span>
           </div>
         )}
 
