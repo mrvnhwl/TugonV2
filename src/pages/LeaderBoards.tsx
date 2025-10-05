@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Trophy, Loader2, ArrowLeft, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -6,7 +6,6 @@ import { useAuth } from "../hooks/useAuth";
 import color from "../styles/color";
 import Lottie from "lottie-react";
 
-// Local Lottie animations
 import trophyAnim from "../components/assets/animations/Trophy.json";
 import winnerAnim from "../components/assets/animations/Winner.json";
 import winner1Anim from "../components/assets/animations/Winner (1).json";
@@ -30,7 +29,6 @@ interface LeaderboardEntry {
 
 type PerQuizBoards = Record<string, LeaderboardEntry[]>;
 
-// Mask usernames
 const maskName = (input: string): string => {
   if (!input) return "";
   const base = input.includes("@") ? input.split("@")[0] : input;
@@ -39,7 +37,6 @@ const maskName = (input: string): string => {
   return base.slice(0, visible) + maskedPart;
 };
 
-// Podium Lottie (1 -> Trophy, 2 -> Winner.json, 3 -> Winner (1).json)
 function PodiumLottie({
   place,
   size = 96,
@@ -62,7 +59,7 @@ function PodiumLottie({
 
 export default function Leaderboards() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  useAuth(); // keep session hydrated if you need it later
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +88,7 @@ export default function Leaderboards() {
           return;
         }
 
-        // Fetch per-quiz highest scores per user
+        // Fetch per-quiz highest scores per user via RPC (your function)
         const results = await Promise.all(
           quizzesList.map(async (quiz) => {
             const { data, error } = await supabase.rpc("get_highest_scores_for_quiz", {
@@ -143,7 +140,6 @@ export default function Leaderboards() {
     })();
   }, []);
 
-  // Palette
   const gradient = `linear-gradient(135deg, ${color.ocean} 0%, ${color.teal} 55%, ${color.aqua} 100%)`;
   const cardBorder = `${color.mist}66`;
   const ink = color.deep;
@@ -214,35 +210,12 @@ export default function Leaderboards() {
                 </p>
               ) : (
                 <>
-                  {/* Podium (2,1,3) with true height stagger */}
+                  {/* Podium with mobile-first 1-2-3 order; on ≥sm: 2-1-3 heights */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8 items-end">
-                    {/* 2nd — silver tone, smaller, lower */}
-                    {overallBoard[1] && (
-                      <div
-                        className="rounded-2xl px-5 pt-5 pb-6 text-center ring-1 flex flex-col items-center translate-y-6"
-                        style={{
-                          background: `linear-gradient(135deg, #ffffff, ${color.mist}11)`,
-                          borderColor: cardBorder,
-                          minHeight: 220,
-                        }}
-                      >
-                        <PodiumLottie place={2} size={96} />
-                        <div className="mt-2 text-xs font-semibold uppercase tracking-wide" style={{ color: sub }}>
-                          2nd Place
-                        </div>
-                        <div className="text-lg font-bold leading-tight" style={{ color: ink }}>
-                          {maskName(overallBoard[1].user_email ?? overallBoard[1].user_id)}
-                        </div>
-                        <div className="mt-1 font-semibold" style={{ color: color.teal }}>
-                          {overallBoard[1].score} pts
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 1st — big, lifted, teal accent */}
+                    {/* 1st — order first on mobile, middle on sm+ */}
                     {overallBoard[0] && (
                       <div
-                        className="rounded-2xl px-8 pt-8 pb-9 text-center ring-1 flex flex-col items-center -translate-y-4"
+                        className="order-1 sm:order-2 rounded-2xl px-8 pt-8 pb-9 text-center ring-1 flex flex-col items-center -translate-y-0 sm:-translate-y-4"
                         style={{
                           background: `linear-gradient(135deg, ${color.teal}12, #ffffff)`,
                           borderColor: color.teal,
@@ -263,10 +236,33 @@ export default function Leaderboards() {
                       </div>
                     )}
 
-                    {/* 3rd — bronze tone, smaller, lower */}
+                    {/* 2nd — left on sm+ */}
+                    {overallBoard[1] && (
+                      <div
+                        className="order-2 sm:order-1 rounded-2xl px-5 pt-5 pb-6 text-center ring-1 flex flex-col items-center sm:translate-y-6"
+                        style={{
+                          background: `linear-gradient(135deg, #ffffff, ${color.mist}11)`,
+                          borderColor: cardBorder,
+                          minHeight: 220,
+                        }}
+                      >
+                        <PodiumLottie place={2} size={96} />
+                        <div className="mt-2 text-xs font-semibold uppercase tracking-wide" style={{ color: sub }}>
+                          2nd Place
+                        </div>
+                        <div className="text-lg font-bold leading-tight" style={{ color: ink }}>
+                          {maskName(overallBoard[1].user_email ?? overallBoard[1].user_id)}
+                        </div>
+                        <div className="mt-1 font-semibold" style={{ color: color.teal }}>
+                          {overallBoard[1].score} pts
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3rd — right on sm+ */}
                     {overallBoard[2] && (
                       <div
-                        className="rounded-2xl px-5 pt-5 pb-6 text-center ring-1 flex flex-col items-center translate-y-6"
+                        className="order-3 sm:order-3 rounded-2xl px-5 pt-5 pb-6 text-center ring-1 flex flex-col items-center sm:translate-y-6"
                         style={{
                           background: `linear-gradient(135deg, #ffffff, ${color.mist}11)`,
                           borderColor: cardBorder,

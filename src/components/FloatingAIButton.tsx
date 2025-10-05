@@ -1,27 +1,15 @@
-import { useRive } from '@rive-app/react-canvas';
+import { useRive } from "@rive-app/react-canvas";
 
+/* ========= Browser SpeechRecognition ambient types ========= */
 declare global {
   interface Window {
     SpeechRecognition: SpeechRecognitionConstructor | undefined;
     webkitSpeechRecognition: SpeechRecognitionConstructor | undefined;
   }
-
-  interface SpeechRecognitionEvent extends Event {
-    results: SpeechRecognitionResultList;
-  }
-
-  interface SpeechRecognitionResultList {
-    0: SpeechRecognitionResult;
-  }
-
-  interface SpeechRecognitionResult {
-    0: SpeechRecognitionAlternative;
-  }
-
-  interface SpeechRecognitionAlternative {
-    readonly transcript: string;
-  }
-
+  interface SpeechRecognitionEvent extends Event { results: SpeechRecognitionResultList; }
+  interface SpeechRecognitionResultList { 0: SpeechRecognitionResult; }
+  interface SpeechRecognitionResult { 0: SpeechRecognitionAlternative; }
+  interface SpeechRecognitionAlternative { readonly transcript: string; }
   type SpeechRecognitionConstructor = new () => SpeechRecognition;
   type SpeechRecognition = {
     lang: string;
@@ -33,14 +21,13 @@ declare global {
     onerror: (event: Event) => void;
   };
 }
+export {}; // keep this a module
 
-export {}; // Ensure this file is treated as a module
-
-import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom"; // soft navigation
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import color from "../styles/color";
 
-// ⚠️ your existing key + API call kept intact
+/* ========= Tugon AI (kept as-is, just wrapped) ========= */
 const apiKey = "AIzaSyAj2V_O5fndQJWcAJ5SbMZQyfcfOJ1YBUQ";
 
 export const askTugonAI = async (prompt: string): Promise<string> => {
@@ -67,14 +54,44 @@ interface FloatingAIButtonProps {
   onWrongAnswer?: (questionId: string) => void;
 }
 
-const FloatingAIButton: React.FC<FloatingAIButtonProps> = ({ onWrongAnswer }) => {
+/** Utility: clamp a number between min/max */
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+const useViewport = () => {
+  const [vw, setVw] = useState<number>(window.innerWidth);
+  const [vh, setVh] = useState<number>(window.innerHeight);
+  useEffect(() => {
+    const onResize = () => {
+      setVw(window.innerWidth);
+      setVh(window.innerHeight);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return { vw, vh };
+};
+
+const FloatingAIButton: React.FC<FloatingAIButtonProps> = () => {
   const navigate = useNavigate();
+  const { vw, vh } = useViewport();
 
   const [isOpen, setIsOpen] = useState(false);
   const [userInput, setUserInput] = useState("");
   const [chatHistory, setChatHistory] = useState<{ sender: string; text: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
   const chatRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<HTMLDivElement | HTMLButtonElement | null>(null);
+
+  // position (from bottom-right)
+  const [pos, setPos] = useState<{ x: number; y: number }>({ x: 16, y: 16 });
+  // keep within viewport on resize
+  useEffect(() => {
+    setPos((p) => ({
+      x: clamp(p.x, 8, Math.max(8, vw - 80)),
+      y: clamp(p.y, 8, Math.max(8, vh - 80)),
+    }));
+  }, [vw, vh]);
 
   const { rive, RiveComponent } = useRive({
     src: "/tugon.riv",
@@ -103,28 +120,26 @@ const FloatingAIButton: React.FC<FloatingAIButtonProps> = ({ onWrongAnswer }) =>
     return FAQs[normalized] || null;
   };
 
-  // Voice input (unchanged logic)
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+  // Voice input
+  const SpeechRecognition = typeof window !== "undefined"
+    ? window.SpeechRecognition || window.webkitSpeechRecognition
+    : undefined;
+  const recognition = useMemo(() => (SpeechRecognition ? new SpeechRecognition() : null), [SpeechRecognition]);
 
   const handleVoiceInput = () => {
     if (!recognition) {
       setChatHistory((prev) => [...prev, { sender: "tugonAI", text: "❌ Voice input is not supported in your browser." }]);
       return;
     }
-
     recognition.lang = "en-US";
     recognition.interimResults = false;
-
     recognition.onstart = () => {
       setChatHistory((prev) => [...prev, { sender: "tugonAI", text: "🎙️ Listening... please speak clearly." }]);
     };
-
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = event.results[0][0].transcript;
       setUserInput(transcript);
     };
-
     recognition.onerror = (event: Event) => {
       setChatHistory((prev) => [
         ...prev,
@@ -138,122 +153,30 @@ const FloatingAIButton: React.FC<FloatingAIButtonProps> = ({ onWrongAnswer }) =>
         },
       ]);
     };
-
     recognition.start();
   };
 
-  // ✅ Expanded navigation routes: includes Leaderboards and synonyms
+  // NAV
   const NAVIGATION_ROUTES: Record<string, string> = {
-    // Core / landing
-    home: "/",
-    main: "/",
-    start: "/",
-    landing: "/",
-
-    // Student dashboard
-    dashboard: "/studentDashboard",
-    "student dashboard": "/studentDashboard",
-    student: "/studentDashboard",
-    "user dashboard": "/studentDashboard",
-
-    // AI tutor
-    tugon: "/tugonSense",
-    tugonsense: "/tugonSense",
-    "ai tutor": "/tugonSense",
-    sense: "/tugonSense",
-    "tugon sense": "/tugonSense",
-
-    // Challenges / quizzes
-    challenge: "/challenge",
-    challenges: "/challenge",
-    quiz: "/challenge",
-    quizzes: "/challenge",
-    "take quiz": "/challenge",
-    "practice quiz": "/challenge",
-    "quiz section": "/challenge",
-
-    // 🚀 Leaderboards (added + synonyms)
-    leaderboard: "/leaderboards",
-    leaderboards: "/leaderboards",
-    rankings: "/leaderboards",
-    ranking: "/leaderboards",
-    scoreboard: "/leaderboards",
-    scores: "/leaderboards",
-    "top players": "/leaderboards",
-
-    // Profile / settings (if present in your router)
-    profile: "/profile",
-    account: "/profile",
-    settings: "/settings",
-
-    // Info / support
-    help: "/help",
-    support: "/help",
-    contact: "/contact",
-    about: "/about",
-
-    // Topics
-    introduction: "/introductiontopic",
-    "introduction to functions": "/introductiontopic",
-    intro: "/introductiontopic",
-    "functions intro": "/introductiontopic",
-
-    operations: "/operationstopic",
-    "operations on functions": "/operationstopic",
-    "function operations": "/operationstopic",
-    "apply operations": "/operationstopic",
-
-    evaluation: "/evaluationtopic",
-    "evaluate functions": "/evaluationtopic",
-    "function evaluation": "/evaluationtopic",
-
-    composition: "/compositiontopic",
-    "composition of functions": "/compositiontopic",
-    "composite functions": "/compositiontopic",
-    "function composition": "/compositiontopic",
-
-    rational: "/rationaltopic",
-    "rational functions": "/rationaltopic",
-    "rational expressions": "/rationaltopic",
-
-    asymptotes: "/asymptotestopic",
-    "vertical asymptotes": "/asymptotestopic",
-    "horizontal asymptotes": "/asymptotestopic",
-    "oblique asymptotes": "/asymptotestopic",
-    "graph asymptotes": "/asymptotestopic",
-
-    solving: "/rationalinequalitiestopic",
-    "solve rational equations": "/rationalinequalitiestopic",
-    "rational inequalities": "/rationalinequalitiestopic",
-    "solving rational": "/rationalinequalitiestopic",
-
-    inverse: "/inversetopic",
-    "inverse functions": "/inversetopic",
-    "inverse of function": "/inversetopic",
-
-    exponential: "/exponentialandlogtopic",
-    logarithmic: "/exponentialandlogtopic",
-    "exponential functions": "/exponentialandlogtopic",
-    "logarithmic functions": "/exponentialandlogtopic",
-
-    "problem solving": "/problemsolvingfunctopic",
-    "function word problems": "/problemsolvingfunctopic",
-    "word problems": "/problemsolvingfunctopic",
-
-    graphs: "/graphstopic",
-    "graphing functions": "/graphstopic",
-    "function graphs": "/graphstopic",
-    "graphs of functions": "/graphstopic",
-
-    // Extras (only if defined in your router)
-    modules: "/modules",
-    topics: "/topics",
-    resources: "/resources",
-    notes: "/notes",
-    calculator: "/calculator",
-    formula: "/formula",
-    "formula sheet": "/formula",
-    references: "/references",
+    home: "/", main: "/", start: "/", landing: "/",
+    dashboard: "/studentDashboard", "student dashboard": "/studentDashboard", student: "/studentDashboard", "user dashboard": "/studentDashboard",
+    tugon: "/tugonSense", tugonsense: "/tugonSense", "ai tutor": "/tugonSense", sense: "/tugonSense", "tugon sense": "/tugonSense",
+    challenge: "/challenge", challenges: "/challenge", quiz: "/challenge", quizzes: "/challenge", "take quiz": "/challenge", "practice quiz": "/challenge", "quiz section": "/challenge",
+    leaderboard: "/leaderboards", leaderboards: "/leaderboards", rankings: "/leaderboards", ranking: "/leaderboards", scoreboard: "/leaderboards", scores: "/leaderboards", "top players": "/leaderboards",
+    profile: "/profile", account: "/profile", settings: "/settings",
+    help: "/help", support: "/help", contact: "/contact", about: "/about",
+    introduction: "/introductiontopic", "introduction to functions": "/introductiontopic", intro: "/introductiontopic", "functions intro": "/introductiontopic",
+    operations: "/operationstopic", "operations on functions": "/operationstopic", "function operations": "/operationstopic", "apply operations": "/operationstopic",
+    evaluation: "/evaluationtopic", "evaluate functions": "/evaluationtopic", "function evaluation": "/evaluationtopic",
+    composition: "/compositiontopic", "composition of functions": "/compositiontopic", "composite functions": "/compositiontopic", "function composition": "/compositiontopic",
+    rational: "/rationaltopic", "rational functions": "/rationaltopic", "rational expressions": "/rationaltopic",
+    asymptotes: "/asymptotestopic", "vertical asymptotes": "/asymptotestopic", "horizontal asymptotes": "/asymptotestopic", "oblique asymptotes": "/asymptotestopic", "graph asymptotes": "/asymptotestopic",
+    solving: "/rationalinequalitiestopic", "solve rational equations": "/rationalinequalitiestopic", "rational inequalities": "/rationalinequalitiestopic", "solving rational": "/rationalinequalitiestopic",
+    inverse: "/inversetopic", "inverse functions": "/inversetopic", "inverse of function": "/inversetopic",
+    exponential: "/exponentialandlogtopic", logarithmic: "/exponentialandlogtopic", "exponential functions": "/exponentialandlogtopic", "logarithmic functions": "/exponentialandlogtopic",
+    "problem solving": "/problemsolvingfunctopic", "function word problems": "/problemsolvingfunctopic", "word problems": "/problemsolvingfunctopic",
+    graphs: "/graphstopic", "graphing functions": "/graphstopic", "function graphs": "/graphstopic", "graphs of functions": "/graphstopic",
+    modules: "/modules", topics: "/topics", resources: "/resources", notes: "/notes", calculator: "/calculator", formula: "/formula", "formula sheet": "/formula", references: "/references",
   };
 
   const sendMessage = async () => {
@@ -263,21 +186,12 @@ const FloatingAIButton: React.FC<FloatingAIButtonProps> = ({ onWrongAnswer }) =>
     const normalizedInput = trimmedInput.toLowerCase();
 
     const navigationIntentPhrases = [
-      "go to",
-      "navigate to",
-      "take me to",
-      "open",
-      "where is",
-      "show me",
-      "bring me to",
-      "redirect to",
-      "navigate me to",
+      "go to", "navigate to", "take me to", "open", "where is",
+      "show me", "bring me to", "redirect to", "navigate me to",
     ];
-
     const hasNavigationIntent = navigationIntentPhrases.some((p) => normalizedInput.includes(p));
     const matchedRoute = Object.keys(NAVIGATION_ROUTES).find((keyword) => normalizedInput.includes(keyword));
 
-    // Soft navigation (prevents logout)
     if (matchedRoute && hasNavigationIntent) {
       const path = NAVIGATION_ROUTES[matchedRoute];
       setChatHistory((prev) => [
@@ -326,51 +240,99 @@ If it's not a known page, respond with: “Hmm, I couldn’t find that page. Try
   };
 
   useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatHistory]);
+
+  /* ========= DRAG LOGIC =========
+     You can drag the closed FAB anywhere; when open, drag by header bar.
+  */
+  useEffect(() => {
+    const el = dragRef.current;
+    if (!el) return;
+
+    let startX = 0, startY = 0, startRight = pos.x, startBottom = pos.y;
+    let dragging = false;
+
+    const onPointerDown = (e: PointerEvent) => {
+      dragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startRight = pos.x;
+      startBottom = pos.y;
+      (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      const nextX = clamp(startRight - dx, 8, Math.max(8, vw - 80));  // right distance
+      const nextY = clamp(startBottom - dy, 8, Math.max(8, vh - 80)); // bottom distance
+      setPos({ x: nextX, y: nextY });
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      dragging = false;
+      (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
+    };
+
+    el.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      el.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [pos.x, pos.y, vw, vh]);
+
+  // Responsive chat panel size
+  const panelWidth = Math.min(380, Math.floor(vw * 0.9));
+  const panelHeight = Math.min(560, Math.floor(vh * 0.78));
 
   return (
     <>
+      {/* ===== FAB (closed) ===== */}
       {!isOpen && (
         <button
-          onClick={() => setIsOpen(!isOpen)}
+          ref={(el) => (dragRef.current = el)}
+          onClick={() => setIsOpen(true)}
           style={{
             position: "fixed",
-            bottom: "20px",
-            right: "20px",
+            bottom: `${pos.y}px`,
+            right: `${pos.x}px`,
             background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
             border: "none",
             padding: 0,
-            cursor: "pointer",
+            cursor: "grab",
             zIndex: 1000,
             width: 64,
             height: 64,
             borderRadius: "50%",
             boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
             transition: "transform .18s ease, box-shadow .18s ease",
+            touchAction: "none",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.06)")}
           onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
           aria-label="Open TugonAI"
         >
           <RiveComponent
-            style={{ width: 40, height: 40, display: "block", margin: "12px auto" }}
+            style={{ width: 40, height: 40, display: "block", margin: "12px auto", pointerEvents: "none" }}
             onMouseEnter={() => rive && rive.pause()}
             onMouseLeave={() => rive && rive.play()}
           />
         </button>
       )}
 
+      {/* ===== Panel (open) ===== */}
       {isOpen && (
         <div
           style={{
             position: "fixed",
-            bottom: "20px",
-            right: "20px",
-            width: "380px",
-            height: "560px",
+            bottom: `${pos.y}px`,
+            right: `${pos.x}px`,
+            width: `${panelWidth}px`,
+            height: `${panelHeight}px`,
             backgroundColor: "#fff",
             border: `1px solid ${color.mist}55`,
             borderRadius: "20px",
@@ -380,10 +342,12 @@ If it's not a known page, respond with: “Hmm, I couldn’t find that page. Try
             fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
             overflow: "hidden",
             zIndex: 1000,
+            touchAction: "none",
           }}
         >
-          {/* Header */}
+          {/* Header (drag handle) */}
           <div
+            ref={(el) => (dragRef.current = el)}
             style={{
               background: `linear-gradient(135deg, ${color.ocean}, ${color.teal})`,
               padding: "12px 14px",
@@ -391,7 +355,10 @@ If it's not a known page, respond with: “Hmm, I couldn’t find that page. Try
               alignItems: "center",
               justifyContent: "space-between",
               color: "#fff",
+              cursor: "grab",
+              userSelect: "none",
             }}
+            title="Drag to move"
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div
@@ -451,9 +418,7 @@ If it's not a known page, respond with: “Hmm, I couldn’t find that page. Try
                 onClick={() => {
                   setChatHistory((prev) => [...prev, { sender: "user", text: q }]);
                   const answer = findFAQAnswer(q);
-                  if (answer) {
-                    setChatHistory((prev) => [...prev, { sender: "tugonAI", text: answer }]);
-                  }
+                  if (answer) setChatHistory((prev) => [...prev, { sender: "tugonAI", text: answer }]);
                 }}
                 style={{
                   padding: "8px 12px",

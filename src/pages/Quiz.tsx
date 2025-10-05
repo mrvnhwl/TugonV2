@@ -25,6 +25,13 @@ interface Answer {
   is_correct: boolean;
 }
 
+/** Per-question recorded outcome (idempotent) */
+type AnswerRecord = {
+  selectedAnswerId: string;
+  isCorrect: boolean;
+  awarded: number; // points awarded for this question (incl. time bonus)
+};
+
 // ✅ Helper to auto-wrap math expressions for MathJax
 const wrapMath = (str: string | undefined | null) => {
   if (!str) return "";
@@ -51,8 +58,9 @@ function Quiz() {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
 
-  const [score, setScore] = useState<number>(0);
-  const [correctCount, setCorrectCount] = useState<number>(0);
+  /** Stores the SINGLE, locked-in result per question (prevents double counting) */
+  const [answerLog, setAnswerLog] = useState<Record<string, AnswerRecord>>({});
+
   const [showResult, setShowResult] = useState(false);
 
   const returnTo = (location.state as any)?.returnTo || "/challenge";
@@ -95,8 +103,7 @@ function Quiz() {
           setQuestions(qs);
           setCurrentQuestion(qs[0]);
           setQuestionIndex(0);
-          setScore(0);
-          setCorrectCount(0);
+          setAnswerLog({}); // reset recorded results for fresh run
         } else {
           setQuestions([]);
           setCurrentQuestion(null);
@@ -109,7 +116,7 @@ function Quiz() {
     run();
   }, [id, user, navigate]);
 
-  // Load answers when the current question changes
+  // Load answers when the current question changes and sync isAnswered from log
   useEffect(() => {
     const loadAnswers = async (questionId: string) => {
       try {
@@ -129,10 +136,12 @@ function Quiz() {
     if (currentQuestion) {
       const start = currentQuestion.time_limit || 30;
       setTimeLeft(start);
-      setIsAnswered(false);
+      // If already answered before, reflect that so UI shows solution and disables clicks
+      setIsAnswered(!!answerLog[currentQuestion.id]);
       loadAnswers(currentQuestion.id);
     }
-  }, [currentQuestion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuestion, answerLog]);
 
   // Countdown
   useEffect(() => {
@@ -141,7 +150,8 @@ function Quiz() {
       return () => clearInterval(timer);
     }
     if (!isAnswered && timeLeft === 0) {
-      setIsAnswered(true); // timeout
+      setIsAnswered(true); // timeout locks the question (no points added)
+      // note: we don't write to answerLog on timeout; no points awarded
     }
   }, [timeLeft, isAnswered]);
 
@@ -155,20 +165,58 @@ function Quiz() {
     [questionIndex, questions.length]
   );
 
+  /** Derived, idempotent score from answerLog */
+  const score = useMemo(
+    () => Object.values(answerLog).reduce((sum, r) => sum + (r.awarded || 0), 0),
+    [answerLog]
+  );
+
+  /** Derived correct count from answerLog */
+  const correctCount = useMemo(
+    () => Object.values(answerLog).reduce((sum, r) => sum + (r.isCorrect ? 1 : 0), 0),
+    [answerLog]
+  );
+
   const handleAnswer = (answer: Answer) => {
-    if (isAnswered || !currentQuestion) return;
+    if (!currentQuestion) return;
+
+    // If this question was already recorded, don't award again (idempotent)
+    if (answerLog[currentQuestion.id]) {
+      setIsAnswered(true);
+      return;
+    }
+
+    // Lock this question; compute awarded points ONCE
     setIsAnswered(true);
 
     if (answer.is_correct) {
       const base = currentQuestion.points || 0;
       const limit = currentQuestion.time_limit || 30;
       const timeBonus = Math.floor((timeLeft / Math.max(1, limit)) * base);
-      setScore((prev) => prev + timeBonus);
-      setCorrectCount((c) => c + 1);
+      // Record result exactly once
+      setAnswerLog((prev) => ({
+        ...prev,
+        [currentQuestion.id]: {
+          selectedAnswerId: answer.id,
+          isCorrect: true,
+          awarded: timeBonus,
+        },
+      }));
+    } else {
+      // Record incorrect attempt (0 points)
+      setAnswerLog((prev) => ({
+        ...prev,
+        [currentQuestion.id]: {
+          selectedAnswerId: answer.id,
+          isCorrect: false,
+          awarded: 0,
+        },
+      }));
     }
   };
 
   const nextQuestion = () => {
+    if (!questions.length) return;
     if (questionIndex < questions.length - 1) {
       const nextIndex = questionIndex + 1;
       setQuestionIndex(nextIndex);
@@ -179,6 +227,7 @@ function Quiz() {
   };
 
   const prevQuestion = () => {
+    if (!questions.length) return;
     if (questionIndex > 0) {
       const prevIndex = questionIndex - 1;
       setQuestionIndex(prevIndex);
@@ -191,7 +240,7 @@ function Quiz() {
       await supabase.from("user_progress").insert({
         user_id: user?.id,
         quiz_id: id,
-        score,
+        score, // ← derived score (safe)
         user_email: user?.email,
       });
     } catch (e) {
@@ -268,25 +317,29 @@ function Quiz() {
           {/* Answers */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             {answers.map((answer) => {
-              const isCorrect = answer.is_correct;
+              const recorded = answerLog[currentQuestion.id];
+              const wasAnswered = !!recorded;
+              const isCorrectChoice = answer.is_correct;
+
               const base =
                 "p-4 rounded-xl text-left transition-all border-2 focus:outline-none focus-visible:ring-2";
               const neutral =
                 "bg-gray-50 hover:bg-gray-100 border-transparent focus-visible:ring-[rgba(0,0,0,.06)]";
-              const whenAnswered = isCorrect ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500";
+              const whenAnswered = isCorrectChoice ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500";
+
               return (
                 <button
                   key={answer.id}
                   onClick={() => handleAnswer(answer)}
-                  disabled={isAnswered}
-                  className={`${base} ${isAnswered ? whenAnswered : neutral}`}
+                  disabled={isAnswered || wasAnswered}
+                  className={`${base} ${(isAnswered || wasAnswered) ? whenAnswered : neutral}`}
                 >
                   <div className="flex items-center">
                     <span className="flex-grow" style={{ color: color.deep }}>
                       <MathJax dynamic inline>{wrapMath(answer.answer)}</MathJax>
                     </span>
-                    {isAnswered &&
-                      (isCorrect ? (
+                    {(isAnswered || wasAnswered) &&
+                      (isCorrectChoice ? (
                         <CheckCircle className="h-5 w-5 text-green-600" />
                       ) : (
                         <XCircle className="h-5 w-5 text-red-600" />
@@ -366,8 +419,9 @@ function Quiz() {
                     setShowResult(false);
                     setQuestionIndex(0);
                     setCurrentQuestion(questions[0]);
-                    setScore(0);
-                    setCorrectCount(0);
+                    setAnswerLog({});
+                    setIsAnswered(false);
+                    setTimeLeft(questions[0]?.time_limit || 30);
                   }}
                   className="px-4 py-2 rounded-lg border font-semibold"
                   style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
