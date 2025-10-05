@@ -13,6 +13,8 @@ import AttemptVisualizer from "../../components/tugon/AttemptVisualizer";
 import Feedback from "../../components/tugon/hint-system/feedback";
 import { UserAttempt } from "../../components/tugon/input-system/UserInput";
 import { useProgress } from "../../components/tugon/services/useProgress";
+import { progressService } from "../../components/tugon/services/progressServices";
+import QuestionSuccessNotification from "../../components/tugon/QuestionSuccessNotification";
 import SuccessModal from "../../components/tugon/successModal"; // Add this import
 
 const FALLBACK_HINT_TEXT = "Try isolating y. Start by substituting x = 2.";
@@ -31,10 +33,19 @@ export default function TugonPlay() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   // Add success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successStats, setSuccessStats] = useState<{
-    attempts: number;
-    timeSpent: number;
-    isFirstTime: boolean;
+  const [showQuickNotification, setShowQuickNotification] = useState(false);
+  const [categoryStats, setCategoryStats] = useState<{
+    categoryCompleted: boolean;
+    totalQuestions: number;
+    questionsDetails: Array<{
+      questionId: number;
+      attempts: number;
+      timeSpent: number;
+      colorCodedHintsUsed: number;
+      shortHintMessagesUsed: number;
+    }>;
+    totalTimeSpent: number;
+    totalAttempts: number;
   } | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   // Extract URL parameters
@@ -145,17 +156,17 @@ export default function TugonPlay() {
   setAttempts(sessionAttempts);
   setIsCorrect(correct);
   
-  // Check if this is first time completing this question
-  const wasAlreadyCompleted = currentQuestionProgress?.isCompleted || false;
-  
-  // Record the attempt in progress system
+  // Record the attempt in progress system (TODO: Add hint tracking later)
   recordAttempt({
     topicId,
     categoryId: finalCategoryId,
     questionId,
     isCorrect: correct,
     timeSpent,
-    score: correct ? 100 : 0
+    score: correct ? 100 : 0,
+    // TODO: Track actual hints used from UI
+    colorCodedHintsUsed: 0,
+    shortHintMessagesUsed: 0
   });
 
   // Console logging for monitoring
@@ -171,18 +182,51 @@ export default function TugonPlay() {
   if (correct) {
     console.log('✅ Question completed successfully!');
     
-    // Prepare success modal data
-    const modalStats = {
-      attempts: sessionAttempts,
-      timeSpent,
-      isFirstTime: !wasAlreadyCompleted
-    };
+    // Check if category is completed
+    const isCategoryComplete = progressService.isCategoryCompleted(topicId, finalCategoryId);
     
-    console.log('🎊 Showing success modal with stats:', modalStats);
+    console.log('🔍 Checking category completion:', {
+      topicId,
+      categoryId: finalCategoryId,
+      isComplete: isCategoryComplete
+    });
     
-    // Set modal data and show modal
-    setSuccessStats(modalStats);
-    setShowSuccessModal(true);
+    if (isCategoryComplete) {
+      // Category completed - show full modal with all question details
+      console.log('🎊 CATEGORY COMPLETED! Showing full success modal');
+      
+      const questionDetails = progressService.getCategoryQuestionDetails(topicId, finalCategoryId);
+      const totalTime = questionDetails.reduce((sum: number, q: any) => sum + q.timeSpent, 0);
+      const totalAttempts = questionDetails.reduce((sum: number, q: any) => sum + q.attempts, 0);
+      
+      const stats = {
+        categoryCompleted: true,
+        totalQuestions: questionDetails.length,
+        questionsDetails: questionDetails.map(q => ({
+          questionId: q.questionId,
+          attempts: q.attempts,
+          timeSpent: q.timeSpent,
+          colorCodedHintsUsed: q.colorCodedHintsUsed || 0,
+          shortHintMessagesUsed: q.shortHintMessagesUsed || 0,
+        })),
+        totalTimeSpent: totalTime,
+        totalAttempts
+      };
+      
+      console.log('📊 Category stats:', stats);
+      
+      setCategoryStats(stats);
+      setShowSuccessModal(true);
+    } else {
+      // Question completed but category not done - show quick notification
+      console.log('✨ Question correct! Showing quick notification and moving to next...');
+      setShowQuickNotification(true);
+      
+      // Auto-navigate to next question after notification
+      setTimeout(() => {
+        handleNextQuestion();
+      }, 3000);
+    }
     
     setHint("Great job! 🎉 You solved it correctly.");
     return;
@@ -290,7 +334,14 @@ export default function TugonPlay() {
     {/* Progress Monitor - Development only */}
     <ProgressMonitor />
   
-    {/* Success Modal */}
+    {/* Quick Success Notification - Shows for individual question completion */}
+    <QuestionSuccessNotification
+      isOpen={showQuickNotification}
+      onClose={() => setShowQuickNotification(false)}
+      autoCloseDelay={3000}
+    />
+  
+    {/* Success Modal - Shows only when category is completed */}
     <SuccessModal
       isOpen={showSuccessModal}
       onClose={handleCloseModal}
@@ -301,7 +352,7 @@ export default function TugonPlay() {
         categoryId: finalCategoryId,
         questionId
       }}
-      stats={successStats}
+      categoryStats={categoryStats}
     />
 
     {/* MOBILE LAYOUT (sm and below) */}
@@ -354,8 +405,17 @@ export default function TugonPlay() {
           questionId={questionId}
           expectedAnswers={expectedAnswers}
           onValidationResult={(type, currentStep) => {
-            if (type === "correct" || type === "incorrect") {
-              handleAttempt({ correct: type === "correct" });
+            console.log(`📱 Mobile onValidationResult callback:`, { type, currentStep });
+            // Only trigger handleAttempt when all steps are complete (correct or all incorrect)
+            if (type === "correct") {
+              console.log(`✅ All steps completed correctly!`);
+              handleAttempt({ correct: true });
+            } else if (type === "partial") {
+              console.log(`⏳ Step ${currentStep} correct, but more steps needed`);
+              // Don't call handleAttempt yet - waiting for all steps
+            } else {
+              console.log(`❌ Step ${currentStep} incorrect`);
+              // Optionally handle wrong answers here if needed
             }
           }}
           onSubmit={handleSubmit}
@@ -422,8 +482,17 @@ export default function TugonPlay() {
               questionId={questionId}
               expectedAnswers={expectedAnswers}
               onValidationResult={(type, currentStep) => {
-                if (type === "correct" || type === "incorrect") {
-                  handleAttempt({ correct: type === "correct" });
+                console.log(`🖥️ Desktop onValidationResult callback:`, { type, currentStep });
+                // Only trigger handleAttempt when all steps are complete (correct or all incorrect)
+                if (type === "correct") {
+                  console.log(`✅ All steps completed correctly!`);
+                  handleAttempt({ correct: true });
+                } else if (type === "partial") {
+                  console.log(`⏳ Step ${currentStep} correct, but more steps needed`);
+                  // Don't call handleAttempt yet - waiting for all steps
+                } else {
+                  console.log(`❌ Step ${currentStep} incorrect`);
+                  // Optionally handle wrong answers here if needed
                 }
               }}
               onSubmit={handleSubmit}

@@ -64,6 +64,7 @@ export interface UserInputProps {
   onSuggestSubmission?: (lines: string[]) => void;
   onRequestHint?: () => void;
   onAttemptUpdate?: (attempts: UserAttempt[]) => void;
+  onValidationResult?: (type: 'correct' | 'incorrect' | 'partial', currentStep: number) => void;
 }
 
 export default function UserInput({
@@ -82,7 +83,8 @@ export default function UserInput({
   onSubmit,
   showHints = false,
   hintText, //might be used later
-  onAttemptUpdate
+  onAttemptUpdate,
+  onValidationResult
 }: UserInputProps) {
   const [lines, setLines] = useState<string[]>(value);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
@@ -817,9 +819,24 @@ export default function UserInput({
       console.log(`   📊 Base: ${completionStatus.baseProgress}% | Consolation: ${completionStatus.consolationProgress}%`);
       console.log('=====================================');
       storeStepProgressionToAttempt(newArray[lineIndex], lineIndex);
+      
+      // Notify parent component (TugonPlay) about validation result
+      if (onValidationResult) {
+        if (completionStatus.allCorrect && completionStatus.isComplete) {
+          console.log('🎉 All steps complete and correct - notifying parent');
+          onValidationResult('correct', lineIndex);
+        } else if (validation.isCorrect) {
+          console.log('✅ Current step correct but more steps needed - notifying parent as partial');
+          onValidationResult('partial', lineIndex);
+        } else {
+          console.log('❌ Current step incorrect - notifying parent');
+          onValidationResult('incorrect', lineIndex);
+        }
+      }
+      
       return newArray;
     });
-  }, [lines, expectedSteps, storeStepProgressionToAttempt, lineValidationStates, validationTriggers]);
+  }, [lines, expectedSteps, storeStepProgressionToAttempt, lineValidationStates, validationTriggers, onValidationResult]);
 
   // Check if answer is complete using validator
   const isAnswerComplete = useCallback((currentLines: string[]): boolean => {

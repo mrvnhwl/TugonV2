@@ -8,6 +8,9 @@ export interface QuestionProgress {
   timeSpent: number; // in seconds
   lastAttemptDate: Date;
   bestScore?: number; // percentage if applicable
+  // NEW: Hint tracking
+  colorCodedHintsUsed: number;
+  shortHintMessagesUsed: number;
 }
 
 export interface CategoryProgress {
@@ -51,6 +54,9 @@ export interface AttemptResult {
   isCorrect: boolean;
   timeSpent: number;
   score?: number; // percentage if applicable
+  // NEW: Hint tracking for this attempt
+  colorCodedHintsUsed?: number;
+  shortHintMessagesUsed?: number;
 }
 
 class ProgressService {
@@ -191,6 +197,8 @@ class ProgressService {
         correctAnswers: 0,
         timeSpent: 0,
         lastAttemptDate: new Date(),
+        colorCodedHintsUsed: 0,
+        shortHintMessagesUsed: 0,
       };
       categoryProgress.questionProgress.push(questionProgress);
     }
@@ -236,6 +244,14 @@ class ProgressService {
     questionProgress.timeSpent += attemptResult.timeSpent;
     questionProgress.lastAttemptDate = new Date();
     
+    // Track hints used
+    if (attemptResult.colorCodedHintsUsed !== undefined) {
+      questionProgress.colorCodedHintsUsed += attemptResult.colorCodedHintsUsed;
+    }
+    if (attemptResult.shortHintMessagesUsed !== undefined) {
+      questionProgress.shortHintMessagesUsed += attemptResult.shortHintMessagesUsed;
+    }
+    
     // Update category attempts
     categoryProgress.attempts++;
     
@@ -268,6 +284,36 @@ class ProgressService {
     // Recalculate progress
     this.recalculateProgress(progress);
     this.saveProgress(progress);
+  }
+
+  // Check if category is completed (all questions answered)
+  isCategoryCompleted(topicId: number, categoryId: number): boolean {
+    const categoryProgress = this.getCategoryProgress(topicId, categoryId);
+    if (!categoryProgress) return false;
+    
+    // Get total questions from topic data
+    const topicData = defaultTopics.find(t => t.id === topicId);
+    const categoryData = topicData?.level.find(cat => cat.category_id === categoryId);
+    const totalQuestions = categoryData?.given_question.length || 0;
+    
+    // Count completed questions
+    const completedQuestions = categoryProgress.questionProgress.filter(qp => qp.isCompleted).length;
+    
+    console.log(`📊 Category ${categoryId} completion check:`, {
+      totalQuestions,
+      completedQuestions,
+      isComplete: completedQuestions >= totalQuestions && totalQuestions > 0
+    });
+    
+    return completedQuestions >= totalQuestions && totalQuestions > 0;
+  }
+
+  // Get all question progress for a category (for display in success modal)
+  getCategoryQuestionDetails(topicId: number, categoryId: number): QuestionProgress[] {
+    const categoryProgress = this.getCategoryProgress(topicId, categoryId);
+    if (!categoryProgress) return [];
+    
+    return categoryProgress.questionProgress;
   }
 
   // Mark a category as completed

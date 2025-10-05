@@ -81,20 +81,19 @@ export default function ProgressMap({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Get random question index for each category using progress service
-  const getRandomQuestionIndex = (questions: QuestionInfo[], topicId: number, categoryId: number): number => {
+  // Get next sequential incomplete question index for each category (FIXED: No longer random)
+  const getNextQuestionIndex = (questions: QuestionInfo[]): number => {
     if (questions.length === 0) return 0;
     
-    const categoryStats = progressService.getCategoryStats(topicId, categoryId);
+    // Find the first incomplete question
+    const firstIncompleteIndex = questions.findIndex(q => !q.isCompleted);
     
-    if (categoryStats.currentQuestionIndex >= 0 && categoryStats.currentQuestionIndex < questions.length) {
-      return categoryStats.currentQuestionIndex;
+    // If all questions are complete, return the first question
+    if (firstIncompleteIndex === -1) {
+      return 0;
     }
     
-    const newIndex = Math.floor(Math.random() * questions.length);
-    progressService.updateCurrentQuestionIndex(topicId, categoryId, newIndex);
-    
-    return newIndex;
+    return firstIncompleteIndex;
   };
 
   // Define levels from question dataset
@@ -127,7 +126,7 @@ export default function ProgressMap({
           };
         });
 
-        const currentQuestionIndex = getRandomQuestionIndex(questions, topic.id, category.category_id);
+        const currentQuestionIndex = getNextQuestionIndex(questions);
 
         return {
           categoryId: category.category_id,
