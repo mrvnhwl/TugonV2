@@ -119,7 +119,7 @@ export default function ProgressMap({
             ?.categoryProgress?.find((cp: { categoryId: number }) => cp.categoryId === category.category_id)
             ?.questionProgress?.find((qp: { questionId: number }) => qp.questionId === question.question_id);
 
-        return {
+          return {
             questionId: question.question_id,
             questionText: question.question_text || `Question ${question.question_id}`,
             isCompleted: progressData?.isCompleted || false,
@@ -349,7 +349,7 @@ export default function ProgressMap({
           className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none"
           style={{ scrollSnapType: "x mandatory" }}
         >
-          {levels.map((level, levelIndex) => {
+          {levels.map((level) => {
             const topicProgress = getTopicProgress(level.id);
             return (
               <div key={level.id} className="flex-shrink-0 w-full snap-center">
@@ -406,28 +406,33 @@ export default function ProgressMap({
                             </div>
                           </div>
 
-                          {/* Progress Section with Better Visual Hierarchy */}
+                          {/* Progress Section */}
                           <div className="space-y-3 mb-4">
-                            {/* Progress Bar */}
                             <div>
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-semibold text-gray-700">Progress</span>
-                                <span className={`text-xs font-bold ${
-                                  isCompleted ? 'text-emerald-600' : hasProgress ? 'text-teal-600' : 'text-gray-500'
-                                }`}>
+                                <span
+                                  className={`text-xs font-bold ${
+                                    isCompleted
+                                      ? "text-emerald-600"
+                                      : hasProgress
+                                      ? "text-teal-600"
+                                      : "text-gray-500"
+                                  }`}
+                                >
                                   {Math.round(completionPercentage)}%
                                 </span>
                               </div>
                               <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-                                <div 
+                                <div
                                   className="h-full transition-all duration-700 ease-out rounded-full shadow-sm"
-                                  style={{ 
+                                  style={{
                                     width: `${completionPercentage}%`,
-                                    background: isCompleted 
-                                      ? 'linear-gradient(to right, #10b981, #059669)' 
-                                      : hasProgress 
-                                      ? 'linear-gradient(to right, #14b8a6, #0d9488)' 
-                                      : 'linear-gradient(to right, #a855f7, #9333ea)'
+                                    background: isCompleted
+                                      ? "linear-gradient(to right, #10b981, #059669)"
+                                      : hasProgress
+                                      ? "linear-gradient(to right, #14b8a6, #0d9488)"
+                                      : "linear-gradient(to right, #a855f7, #9333ea)",
                                   }}
                                 />
                               </div>
@@ -456,17 +461,18 @@ export default function ProgressMap({
                                     setPopupCategoryId(null);
                                   }}
                                   className="w-full py-5 px-6 rounded-xl font-bold text-base transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-xl hover:shadow-2xl focus:outline-none focus:ring-4 text-white"
-                                  style={{ 
-                                    backgroundColor: isCompleted ? '#10b981' : '#14b8a6',
-                                    boxShadow: isCompleted ? '0 8px 24px rgba(16, 185, 129, 0.5)' : '0 8px 24px rgba(20, 184, 166, 0.5)'
+                                  style={{
+                                    backgroundColor: isCompleted ? "#10b981" : "#14b8a6",
+                                    boxShadow: isCompleted
+                                      ? "0 8px 24px rgba(16, 185, 129, 0.5)"
+                                      : "0 8px 24px rgba(20, 184, 166, 0.5)",
                                   }}
                                 >
                                   {isCompleted ? "Review Stage" : hasProgress ? "Continue Stage" : "Start Stage"}
                                 </button>
                               </div>
                             </div>
-                          )}
-
+                          </div>
 
                           {/* Question preview */}
                           <div
@@ -530,20 +536,11 @@ export default function ProgressMap({
                           {/* Footer mini-stats */}
                           {hasProgress && (
                             <div className="mt-3 flex items-center justify-between text-xs">
-                              <div className="text-gray-600">
-                                ⚡ {categoryProgress.attempts} attempts
-                              </div>
-                              {isCompleted && (
-                                <div className="text-emerald-600">🏆 Completed</div>
-                              )}
+                              <div className="text-gray-600">⚡ {categoryProgress.attempts} attempts</div>
+                              {isCompleted && <div className="text-emerald-600">🏆 Completed</div>}
                             </div>
-                            <svg className={`w-5 h-5 transition-transform duration-300 group-hover:translate-x-1 ${
-                              isCompleted ? 'text-emerald-500' : hasProgress ? 'text-teal-500' : 'text-indigo-500'
-                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                            </svg>
-                          </div>
-                        </button>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -774,27 +771,35 @@ export default function ProgressMap({
                               </span>
                             </button>
 
-                            {hasProgress && (
-                              <div className="mt-3 flex items-center justify-between text-xs">
-                                <div className="text-gray-600">⚡ {categoryProgress.attempts} attempts</div>
-                                {isCompleted && <div className="text-emerald-600">🏆 Completed</div>}
-                              </div>
-                            )}
-
                             {/* Action Footer with Status */}
                             <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                              <div className={`text-xs font-bold uppercase tracking-wider ${
-                                isCompleted ? 'text-emerald-600' : hasProgress ? 'text-teal-600' : 'text-indigo-600'
-                              }`}>
-                                {isCompleted ? '✓ Complete' : hasProgress ? '⚡ In Progress' : '▶ Start Now'}
+                              <div
+                                className={`text-xs font-bold uppercase tracking-wider ${
+                                  isCompleted
+                                    ? "text-emerald-600"
+                                    : hasProgress
+                                    ? "text-teal-600"
+                                    : "text-indigo-600"
+                                }`}
+                              >
+                                {isCompleted ? "✓ Complete" : hasProgress ? "⚡ In Progress" : "▶ Start Now"}
                               </div>
-                              <svg className={`w-5 h-5 transition-transform duration-300 group-hover:translate-x-1 ${
-                                isCompleted ? 'text-emerald-500' : hasProgress ? 'text-teal-500' : 'text-indigo-500'
-                              }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg
+                                className={`w-5 h-5 transition-transform duration-300 group-hover:translate-x-1 ${
+                                  isCompleted
+                                    ? "text-emerald-500"
+                                    : hasProgress
+                                    ? "text-teal-500"
+                                    : "text-indigo-500"
+                                }`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                               </svg>
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -802,9 +807,7 @@ export default function ProgressMap({
 
                   {!isActive && (
                     <div className="p-6 text-center">
-                      <div className="text-gray-500 text-sm font-medium mb-2">
-                        Click to view stages
-                      </div>
+                      <div className="text-gray-500 text-sm font-medium mb-2">Click to view stages</div>
                       {topicProgress && (
                         <div className="text-xs text-gray-400 font-medium">
                           {Math.round(topicProgress.completionPercentage || 0)}% Complete
@@ -863,8 +866,7 @@ export default function ProgressMap({
             borderColor: activeTopic === levels.length - 1 ? "#E2E8F0" : `${color.aqua}55`,
             background: "white",
             color: activeTopic === levels.length - 1 ? "#94A3B8" : color.teal,
-            boxShadow:
-              activeTopic === levels.length - 1 ? "none" : `0 6px 16px ${color.mist}22`,
+            boxShadow: activeTopic === levels.length - 1 ? "none" : `0 6px 16px ${color.mist}22`,
           }}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
