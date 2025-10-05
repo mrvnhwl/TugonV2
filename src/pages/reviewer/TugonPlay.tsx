@@ -1,17 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import QuestionBox from "../../components/tugon/question-system/QuestionBox";
 import CategoryQuestion from "../../components/tugon/question-system/CategoryQuestion";
 import { defaultTopics } from "../../components/data/questions/index";
 import {
   getAnswerForQuestion,
   answersByTopicAndCategory,
 } from "../../components/data/answers/index";
-import AnswerWizard, {
-  Step,
-  WizardStep,
-} from "../../components/tugon/input-system/AnswerWizard";
-import QuestionTemplate from "../../components/tugon/template/QuestionTemplate.tsx";
+import QuestionTemplate from "../../components/tugon/template/QuestionTemplate";
 import { SubHeading } from "../../components/Typography";
 import AttemptVisualizer from "../../components/tugon/AttemptVisualizer";
 import { UserAttempt } from "../../components/tugon/input-system/UserInput";
@@ -25,121 +20,65 @@ export default function TugonPlay() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [attempts, setAttempts] = useState(0);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [userAttempts, setUserAttempts] = useState<UserAttempt[]>([]);
-  const idleTimer = useRef<number | null>(null);
-
-  const { recordAttempt, getQuestionProgress } = useProgress();
-
-  const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showQuickNotification, setShowQuickNotification] = useState(false);
-  const [categoryStats, setCategoryStats] = useState<{
-    categoryCompleted: boolean;
-    totalQuestions: number;
-    questionsDetails: Array<{
-      questionId: number;
-      attempts: number;
-      timeSpent: number;
-      colorCodedHintsUsed: number;
-      shortHintMessagesUsed: number;
-    }>;
-    totalTimeSpent: number;
-    totalAttempts: number;
-  } | null>(null);
-  const [showFeedback, setShowFeedback] = useState(false);
-
-  // URL params
+  // ===== URL params =====
   const topicId = Number(searchParams.get("topic")) || 1;
   const categoryId = Number(searchParams.get("category")) || 1;
   const questionId = Number(searchParams.get("question")) || 1;
-  const legacyQ = Number(searchParams.get("q"));
-  const finalCategoryId = legacyQ || categoryId;
 
-  // Progress for this question
-  const currentQuestionProgress = getQuestionProgress(
-    topicId,
-    finalCategoryId,
-    questionId
+  // ===== State management =====
+  const [attempts, setAttempts] = useState(0);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [userAttempts, setUserAttempts] = useState<UserAttempt[]>([]);
+  const [hint, setHint] = useState(FALLBACK_HINT_TEXT);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successStats, setSuccessStats] = useState<{
+    attempts: number;
+    timeSpent: number;
+    isFirstTime: boolean;
+  } | null>(null);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
+
+  const idleTimer = useRef<number | null>(null);
+  const { recordAttempt, getQuestionProgress } = useProgress();
+
+  // ===== Question Data =====
+  const topic = defaultTopics.find((t) => t.id === topicId);
+  const category = topic?.level.find((c) => c.category_id === categoryId);
+  const currentQuestion = category?.given_question.find(
+    (q) => q.question_id === questionId
   );
 
-  // Reset state when question changes (single effect)
+  // ===== Progress =====
+  const currentQuestionProgress = getQuestionProgress(topicId, categoryId, questionId);
+
+  // ===== Expected answer =====
+  const expectedAnswers = useMemo(() => {
+    const topicSet = answersByTopicAndCategory[topicId];
+    if (!topicSet) return undefined;
+    const categorySet = topicSet[categoryId];
+    if (!categorySet || !Array.isArray(categorySet)) return undefined;
+    const specificAnswer = categorySet.find(
+      (a) => a.questionId === questionId
+    );
+    return specificAnswer ? [specificAnswer] : undefined;
+  }, [topicId, categoryId, questionId]);
+
+  // ===== Reset on question change =====
   useEffect(() => {
     setSessionStartTime(Date.now());
     setAttempts(0);
     setIsCorrect(null);
     setUserAttempts([]);
     setCurrentStepIndex(0);
+    setHint(currentQuestion?.guide_text || FALLBACK_HINT_TEXT);
+  }, [topicId, categoryId, questionId, currentQuestion?.guide_text]);
 
-    if (currentQuestionProgress) {
-      console.log("📊 Current question progress:", {
-        completed: currentQuestionProgress.isCompleted,
-        attempts: currentQuestionProgress.attempts,
-        correctAnswers: currentQuestionProgress.correctAnswers,
-        timeSpent: Math.round(currentQuestionProgress.timeSpent / 60) + " minutes",
-      });
-    } else {
-      console.log("📊 No previous progress for this question");
-    }
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topicId, finalCategoryId, questionId]);
-
-  const getGuideText = () => {
-    const topic = defaultTopics.find((t) => t.id === topicId);
-    if (topic) {
-      const category = topic.level.find((q) => q.category_id === finalCategoryId);
-      if (category) {
-        const specificQuestion = category.given_question.find(
-          (gq) => gq.question_id === questionId
-        );
-        return specificQuestion?.guide_text || FALLBACK_HINT_TEXT;
-      }
-    }
-    return FALLBACK_HINT_TEXT;
-  };
-
-  const [hint, setHint] = useState(getGuideText());
-
-  useEffect(() => {
-    setHint(getGuideText());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topicId, finalCategoryId, questionId]);
-
-  const expectedAnswers = useMemo(() => {
-    const topic =
-      answersByTopicAndCategory[
-        topicId as keyof typeof answersByTopicAndCategory
-      ];
-    if (!topic) return undefined;
-    const category = topic[finalCategoryId as keyof typeof topic];
-    if (!category || !Array.isArray(category)) return undefined;
-    const specificAnswer = category.find(
-      (answer) => answer.questionId === questionId
-    );
-    return specificAnswer ? [specificAnswer] : undefined;
-  }, [topicId, finalCategoryId, questionId]);
-
-  const topic = defaultTopics.find((t) => t.id === topicId);
-  const topicName = topic?.name || "Question";
-
-  const getCurrentExpectedAnswer = () => {
-    return getAnswerForQuestion(topicId, finalCategoryId, questionId);
-  };
-
-  const steps: Step[] = [
-    { id: "s1", label: "Short answer", placeholder: "Enter a single-line answer" },
-    { id: "m1", label: "Explain your steps", placeholder: "Explain in detail", rows: 4 },
-    { id: "g1", label: "Graph your function" },
-  ];
-
+  // ===== Idle hint =====
   const resetIdle = () => {
     if (idleTimer.current) window.clearTimeout(idleTimer.current);
     idleTimer.current = window.setTimeout(() => {
-      if (!isCorrect) setHint(`Stuck? ${getGuideText()}`);
+      if (!isCorrect) setHint(`Need help? ${currentQuestion?.guide_text || FALLBACK_HINT_TEXT}`);
     }, 20000);
   };
 
@@ -148,22 +87,20 @@ export default function TugonPlay() {
     return () => {
       if (idleTimer.current) window.clearTimeout(idleTimer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ===== Handle Attempts =====
   const handleAttempt = ({ correct }: { correct: boolean }) => {
-    const currentTime = Date.now();
-    const timeSpent = Math.round((currentTime - sessionStartTime) / 1000);
-    const sessionAttempts = attempts + 1;
+    const now = Date.now();
+    const timeSpent = Math.round((now - sessionStartTime) / 1000);
+    const newAttempts = attempts + 1;
 
-    setAttempts(sessionAttempts);
+    setAttempts(newAttempts);
     setIsCorrect(correct);
-
-    const wasAlreadyCompleted = currentQuestionProgress?.isCompleted || false;
 
     recordAttempt({
       topicId,
-      categoryId: finalCategoryId,
+      categoryId,
       questionId,
       isCorrect: correct,
       timeSpent,
@@ -171,54 +108,38 @@ export default function TugonPlay() {
     });
 
     if (correct) {
-      const modalStats = {
-        attempts: sessionAttempts,
+      setSuccessStats({
+        attempts: newAttempts,
         timeSpent,
-        isFirstTime: !wasAlreadyCompleted,
-      };
-      setSuccessStats(modalStats);
+        isFirstTime: !currentQuestionProgress?.isCompleted,
+      });
       setShowSuccessModal(true);
-      setHint("Great job! 🎉 You solved it correctly.");
-      return;
+      setHint("Great job! 🎉 You solved it!");
+    } else {
+      setHint(`Try again! ${currentQuestion?.guide_text || FALLBACK_HINT_TEXT}`);
     }
-
-    const baseGuideText = getGuideText();
-    setHint(() => {
-      if (attempts === 0) return `Hint: ${baseGuideText}`;
-      if (attempts === 1) return `Try again: ${baseGuideText}`;
-      return `Keep trying: ${baseGuideText}`;
-    });
-    resetIdle();
   };
 
+  // ===== Navigation Controls =====
   const handleNextQuestion = () => {
-    const t = defaultTopics.find((tt) => tt.id === topicId);
-    if (t) {
-      const category = t.level.find((c) => c.category_id === finalCategoryId);
-      if (category) {
-        const currentQuestionIndex = category.given_question.findIndex(
-          (q) => q.question_id === questionId
+    if (!topic || !category) return;
+    const questionIndex = category.given_question.findIndex(
+      (q) => q.question_id === questionId
+    );
+    const nextQuestion = category.given_question[questionIndex + 1];
+
+    if (nextQuestion) {
+      navigate(
+        `/tugonplay?topic=${topicId}&category=${categoryId}&question=${nextQuestion.question_id}`
+      );
+    } else {
+      const nextCategory = topic.level[topic.level.indexOf(category) + 1];
+      if (nextCategory && nextCategory.given_question.length > 0) {
+        navigate(
+          `/tugonplay?topic=${topicId}&category=${nextCategory.category_id}&question=${nextCategory.given_question[0].question_id}`
         );
-        const nextQuestion = category.given_question[currentQuestionIndex + 1];
-
-        if (nextQuestion) {
-          navigate(
-            `/tugonplay?topic=${topicId}&category=${finalCategoryId}&question=${nextQuestion.question_id}`
-          );
-        } else {
-          const currentCategoryIndex = t.level.findIndex(
-            (c) => c.category_id === finalCategoryId
-          );
-          const nextCategory = t.level[currentCategoryIndex + 1];
-
-          if (nextCategory && nextCategory.given_question.length > 0) {
-            navigate(
-              `/tugonplay?topic=${topicId}&category=${nextCategory.category_id}&question=${nextCategory.given_question[0].question_id}`
-            );
-          } else {
-            navigate("/tugonsense");
-          }
-        }
+      } else {
+        navigate("/tugonsense");
       }
     }
     setShowSuccessModal(false);
@@ -234,48 +155,60 @@ export default function TugonPlay() {
     setSessionStartTime(Date.now());
   };
 
-  const handleSubmit = (finalSteps: WizardStep[]) => {
-    console.log("Wizard steps:", finalSteps);
-    console.log("Current expected answer:", getCurrentExpectedAnswer());
+  // ===== Attempt Visualizer Update =====
+  const handleAttemptUpdate = (attempts: UserAttempt[]) => {
+    setUserAttempts(attempts);
   };
 
-  const handleIndexChange = (newIndex: number) => {
-    setCurrentStepIndex(newIndex);
+  const handleSubmit = (steps: any) => {
+    console.log("Submitted Steps:", steps);
   };
 
-  const handleAttemptUpdate = (a: UserAttempt[]) => {
-    setUserAttempts(a);
-    console.log("🎯 TugonPlay received attempts:", a);
+  const handleIndexChange = (i: number) => {
+    setCurrentStepIndex(i);
   };
 
-  // Small dev monitor; safe JSX usage (no stray comments)
+  // ===== Dev Overlay =====
   const ProgressMonitor = () => {
     if (!currentQuestionProgress) return null;
     return (
       <div
-        className="fixed top-20 right-4 backdrop-blur rounded-xl p-3 shadow-lg border text-xs z-40"
+        className="fixed top-20 right-4 p-3 text-xs text-white rounded-xl shadow-lg z-50"
         style={{
-          background: `${color.deep}dd`,
-          borderColor: `${color.ocean}66`,
-          color: "white",
+          background: `${color.deep}cc`,
+          border: `1px solid ${color.teal}55`,
         }}
       >
-        <div className="text-white/80 font-medium mb-1">Progress Monitor</div>
-        <div className="space-y-1">
-          <div>Attempts: {currentQuestionProgress.attempts}</div>
-          <div>Correct: {currentQuestionProgress.correctAnswers}</div>
-          <div>
-            Status: {currentQuestionProgress.isCompleted ? "✅ Complete" : "⏳ In Progress"}
-          </div>
-          <div>Time: {Math.round(currentQuestionProgress.timeSpent / 60)}m</div>
+        <div className="font-bold mb-1">Progress Monitor</div>
+        <div>Attempts: {currentQuestionProgress.attempts}</div>
+        <div>Correct: {currentQuestionProgress.correctAnswers}</div>
+        <div>
+          Status:{" "}
+          {currentQuestionProgress.isCompleted ? "✅ Complete" : "⏳ In Progress"}
         </div>
+        <div>Time: {Math.round(currentQuestionProgress.timeSpent / 60)}m</div>
       </div>
     );
   };
 
+  // ===== Blank Handling =====
+  if (!currentQuestion) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen text-gray-600">
+        <h2 className="text-lg font-semibold mb-2">Question not found</h2>
+        <button
+          onClick={() => navigate("/tugonsense")}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition"
+        >
+          Back to Topics
+        </button>
+      </div>
+    );
+  }
+
+  // ===== MAIN RENDER =====
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-white">
-      {/* Progress Monitor - Development only */}
       <ProgressMonitor />
 
       {/* Success Modal */}
@@ -284,67 +217,58 @@ export default function TugonPlay() {
         onClose={handleCloseModal}
         onNextQuestion={handleNextQuestion}
         onBackToSense={handleBackToSense}
-        questionInfo={{
-          topicId,
-          categoryId: finalCategoryId,
-          questionId,
-        }}
+        questionInfo={{ topicId, categoryId, questionId }}
         stats={successStats}
       />
 
-      {/* MOBILE (sm and below) */}
-      <div className="flex-1 overflow-y-auto sm:hidden">
-        {/* Mobile: Navbar + CategoryQuestion Combined */}
-        <div className="bg-gradient-to-r from-[#397F85] to-[#327373]">
-          {/* Navbar */}
-          <div className="h-16 flex items-center justify-between px-4 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">T</span>
-              </div>
-              <SubHeading className="text-white font-bold text-lg">
-                TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
-              </SubHeading>
+      {/* HEADER */}
+      <div className="bg-gradient-to-r from-[#397F85] to-[#327373] shadow-lg">
+        <div className="h-16 flex items-center justify-between px-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">T</span>
             </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-white/80 text-sm">
-                <span>Q{questionId}</span>
-                <div className="w-1 h-4 bg-white/30 rounded-full"></div>
-                <span>Topic {topicId}</span>
-              </div>
-
-              <button
-                onClick={() => navigate("/tugonsense")}
-                className="text-white bg-white/10 hover:bg白/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
-              >
-                ✕
-              </button>
-            </div>
+            <SubHeading className="text-white font-bold text-lg">
+              TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
+            </SubHeading>
           </div>
 
-          {/* CategoryQuestion */}
-          <div className="px-2 pb-6">
-            <CategoryQuestion
-              topicId={topicId}
-              categoryId={finalCategoryId}
-              questionId={questionId}
-            />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-white/80 text-sm">
+              <span>Q{questionId}</span>
+              <div className="w-1 h-4 bg-white/30 rounded-full"></div>
+              <span>Topic {topicId}</span>
+            </div>
+
+            <button
+              onClick={() => navigate("/tugonsense")}
+              className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
+            >
+              ✕
+            </button>
           </div>
         </div>
 
-        {/* Mobile: QuestionTemplate */}
-        <div className="px-8 py-8 min-h-[60vh]">
-          <QuestionTemplate
-            key={`mobile-template-${topicId}-${finalCategoryId}-${questionId}`}
+        {/* Category header */}
+        <div className="px-6 py-6">
+          <CategoryQuestion
             topicId={topicId}
-            categoryId={finalCategoryId}
+            categoryId={categoryId}
+            questionId={questionId}
+          />
+        </div>
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div className="flex-1 bg-gray-50 overflow-y-auto py-10 px-6">
+        <div className="max-w-2xl mx-auto">
+          <QuestionTemplate
+            topicId={topicId}
+            categoryId={categoryId}
             questionId={questionId}
             expectedAnswers={expectedAnswers}
             onValidationResult={(type) => {
-              if (type === "correct" || type === "incorrect") {
-                handleAttempt({ correct: type === "correct" });
-              }
+              handleAttempt({ correct: type === "correct" });
             }}
             onSubmit={handleSubmit}
             onIndexChange={handleIndexChange}
@@ -354,172 +278,11 @@ export default function TugonPlay() {
         </div>
       </div>
 
-      {/* DESKTOP (sm and above) */}
-      <div className="hidden sm:flex sm:flex-col sm:h-screen">
-        {/* Top gradient section */}
-        <div className="bg-gradient-to-r from-[#397F85] to-[#327373] flex-shrink-0">
-          {/* Navbar */}
-          <div className="h-16 flex items-center justify-between px-6 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">T</span>
-              </div>
-              <SubHeading className="text-white font-bold text-lg">
-                TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
-              </SubHeading>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-white/80 text-sm">
-                <span>Q{questionId}</span>
-                <div className="w-1 h-4 bg-white/30 rounded-full"></div>
-                <span>Topic {topicId}</span>
-              </div>
-
-              <button
-                onClick={() => navigate("/tugonsense")}
-                className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-
-          {/* CategoryQuestion */}
-          <div className="px-4 py-8 min-h-[240px] flex items-center justify-center">
-            <div className="w-full max-w-4xl">
-              <CategoryQuestion
-                topicId={topicId}
-                categoryId={finalCategoryId}
-                questionId={questionId}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Middle section */}
-        <div className="flex-1 bg-gray-50 overflow-y-auto min-h-[50vh]">
-          <div className="container mx-auto px-12 py-10">
-            <div className="max-w-2xl mx-auto">
-              <div
-                id="answer-wizard-container" /* desktop anchor for CharacterPositionedDesktop */
-                className="rounded-2xl ring-1 ring-black/5 shadow-sm"
-                style={{
-                  background: `linear-gradient(135deg, ${color.mist}22 0%, ${color.aqua}22 100%)`,
-                }}
-              >
-                <QuestionTemplate
-                  key={`desktop-template-${topicId}-${finalCategoryId}-${questionId}`}
-                  topicId={topicId}
-                  categoryId={finalCategoryId}
-                  questionId={questionId}
-                  expectedAnswers={expectedAnswers}
-                  onValidationResult={(type) => {
-                    if (type === "correct" || type === "incorrect") {
-                      handleAttempt({ correct: type === "correct" });
-                    }
-                  }}
-                  onSubmit={handleSubmit}
-                  onIndexChange={handleIndexChange}
-                  onAnswerChange={resetIdle}
-                  onAttemptUpdate={handleAttemptUpdate}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Attempt Visualizer */}
       <AttemptVisualizer
         attempts={userAttempts}
         className="animate-in slide-in-from-right duration-300"
       />
-
-      {/* Desktop Character */}
-      <CharacterPositionedDesktop />
     </div>
-  );
-}
-
-// Mobile Character positioning (unchanged)
-function CharacterPositionedMobile() {
-  const [position, setPosition] = useState({ top: "50%", left: "50%" });
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const updatePosition = () => {
-      const screenWidth = window.innerWidth;
-      setIsMobile(screenWidth < 640);
-      if (screenWidth < 640) {
-        const questionBoxElement = document.querySelector(
-          "#question-box-container-mobile .bg-white, #question-box-container-mobile .border, #question-box-container-mobile > div"
-        );
-        if (questionBoxElement) {
-          const rect = (questionBoxElement as HTMLElement).getBoundingClientRect();
-          setPosition({
-            top: `${rect.top + 35}px`,
-            left: `${rect.right - 60}px`,
-          });
-        }
-      }
-    };
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition);
-    const timer = setTimeout(updatePosition, 100);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition);
-      clearTimeout(timer);
-    };
-  }, []);
-
-  if (!isMobile) return null;
-
-  return (
-    <div
-      className="fixed z-50 transition-all duration-300 sm:hidden"
-      style={{ top: position.top, left: position.left }}
-    />
-  );
-}
-
-// Desktop Character positioning (unchanged)
-function CharacterPositionedDesktop() {
-  const [position, setPosition] = useState({ top: "50%", left: "50%" });
-  const [isDesktop, setIsDesktop] = useState(false);
-
-  useEffect(() => {
-    const updatePosition = () => {
-      const screenWidth = window.innerWidth;
-      setIsDesktop(screenWidth >= 640);
-      if (screenWidth >= 640) {
-        const container = document.getElementById("answer-wizard-container");
-        if (container) {
-          const rect = container.getBoundingClientRect();
-          setPosition({
-            top: `${rect.top + rect.height / 2}px`,
-            left: `${rect.right + 16}px`,
-          });
-        }
-      }
-    };
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition);
-    };
-  }, []);
-
-  if (!isDesktop) return null;
-
-  return (
-    <div
-      className="fixed z-50 transform -translate-y-1/2 transition-all duration-300"
-      style={{ top: position.top, left: position.left }}
-    />
   );
 }

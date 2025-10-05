@@ -42,7 +42,6 @@ type Props = {
   onActiveChange?: (course: Course) => void;
   onActiveIndexChange?: (index: number) => void;
   onStartStage?: (topicId: number, categoryId: number, questionId: number) => void;
-  // merged CourseCard props (mobile)
   title?: string;
   description?: string;
   lessons?: number;
@@ -68,7 +67,6 @@ export default function ProgressMap({
   const [userProgress, setUserProgress] = useState(progressService.getUserProgress());
   const [isMobile, setIsMobile] = useState(false);
   const [activeTopic, setActiveTopic] = useState(0);
-  const [popupCategoryId, setPopupCategoryId] = useState<number | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -158,49 +156,14 @@ export default function ProgressMap({
     };
   }, []);
 
-  // Mobile swipe
-  useEffect(() => {
-    if (!isMobile || !scrollContainerRef.current) return;
-
-    let startX = 0;
-    let scrollLeft = 0;
-    let isScrolling = false;
-    const container = scrollContainerRef.current;
-
-    const handleTouchStart = (e: TouchEvent) => {
-      startX = e.touches[0].pageX - container.offsetLeft;
-      scrollLeft = container.scrollLeft;
-      isScrolling = true;
-    };
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!isScrolling) return;
-      e.preventDefault();
-      const x = e.touches[0].pageX - container.offsetLeft;
-      const walk = (x - startX) * 2;
-      container.scrollLeft = scrollLeft - walk;
-    };
-    const handleTouchEnd = () => {
-      isScrolling = false;
-      const cardWidth = container.clientWidth;
-      const currentScroll = container.scrollLeft;
-      const targetIndex = Math.round(currentScroll / cardWidth);
-      container.scrollTo({ left: targetIndex * cardWidth, behavior: "smooth" });
-      setActiveTopic(Math.max(0, Math.min(targetIndex, levels.length - 1)));
-    };
-
-    container.addEventListener("touchstart", handleTouchStart, { passive: false });
-    container.addEventListener("touchmove", handleTouchMove, { passive: false });
-    container.addEventListener("touchend", handleTouchEnd);
-    return () => {
-      container.removeEventListener("touchstart", handleTouchStart);
-      container.removeEventListener("touchmove", handleTouchMove);
-      container.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [isMobile, levels.length]);
-
+  // Navigation helpers
   const navigateToTopic = (index: number) => {
     const clampedIndex = Math.max(0, Math.min(index, levels.length - 1));
     setActiveTopic(clampedIndex);
+    onActiveIndexChange?.(clampedIndex);
+    if (courses && courses[clampedIndex] && onActiveChange) {
+      onActiveChange(courses[clampedIndex]);
+    }
     if (isMobile && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
         left: clampedIndex * scrollContainerRef.current.clientWidth,
@@ -215,16 +178,6 @@ export default function ProgressMap({
   const goToNext = () => {
     if (activeTopic < levels.length - 1) navigateToTopic(activeTopic + 1);
   };
-
-  useEffect(() => {
-    if (!courses || !onActiveChange) return;
-    if (activeTopic < 0 || activeTopic >= courses.length) return;
-    onActiveChange(courses[activeTopic]);
-  }, [activeTopic, courses, onActiveChange]);
-
-  useEffect(() => {
-    onActiveIndexChange?.(activeTopic);
-  }, [activeTopic, onActiveIndexChange]);
 
   const getCategoryProgress = (topicId: number, categoryId: number) =>
     progressService.getCategoryStats(topicId, categoryId);
@@ -293,7 +246,7 @@ export default function ProgressMap({
           boxShadow: `0 12px 28px ${color.mist}22`,
         }}
       >
-        {/* Header block */}
+        {/* Header */}
         <div
           className="p-6 border-b"
           style={{
@@ -301,7 +254,6 @@ export default function ProgressMap({
             borderColor: "#EEF3F6",
           }}
         >
-          {/* Progress strip */}
           <div className="text-center">
             <div
               className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-3"
@@ -313,8 +265,7 @@ export default function ProgressMap({
             >
               {currentTopicProgress?.isCompleted ? "✓" : currentLevel?.id}
             </div>
-            <div className="text-[11px] font-bold tracking-[0.18em] uppercase"
-              style={{ color: `${color.mist}` }}>
+            <div className="text-[11px] font-bold tracking-[0.18em] uppercase" style={{ color: `${color.mist}` }}>
               {currentLevel?.name}
             </div>
             <h1 className="text-xl font-black tracking-tight mt-1" style={{ color: color.deep }}>
@@ -326,9 +277,7 @@ export default function ProgressMap({
             <div className="mt-4">
               <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
                 <span>Topic Progress</span>
-                <span className="font-bold">
-                  {Math.round(currentTopicProgress?.completionPercentage || 0)}%
-                </span>
+                <span className="font-bold">{Math.round(currentTopicProgress?.completionPercentage || 0)}%</span>
               </div>
               <div className="h-2 rounded-full overflow-hidden" style={{ background: "#E6EDF3" }}>
                 <div
@@ -343,214 +292,179 @@ export default function ProgressMap({
           </div>
         </div>
 
-        {/* Horizontal scroll of categories */}
-        <div
-          ref={scrollContainerRef}
-          className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none"
-          style={{ scrollSnapType: "x mandatory" }}
-        >
-          {levels.map((level) => {
-            const topicProgress = getTopicProgress(level.id);
-            return (
-              <div key={level.id} className="flex-shrink-0 w-full snap-center">
-                <div className="h-[70vh] overflow-y-auto no-scrollbar" style={{ background: "white" }}>
-                  <div className="p-5 space-y-4">
-                    {level.categories.map((category) => {
-                      const categoryProgress = getCategoryProgress(level.id, category.categoryId);
-                      const currentQuestion = getCurrentQuestion(category);
-                      const hasProgress = categoryProgress && categoryProgress.attempts > 0;
-                      const completionPercentage = categoryProgress
-                        ? (categoryProgress.correctAnswers / category.totalQuestions) * 100
-                        : 0;
-                      const isCompleted = categoryProgress?.isCompleted;
+        {/* Categories */}
+        <div ref={scrollContainerRef} className="h-[70vh] overflow-y-auto no-scrollbar" style={{ background: "white" }}>
+          <div className="p-5 space-y-4">
+            {currentLevel.categories.map((category) => {
+              const categoryProgress = getCategoryProgress(currentLevel.id, category.categoryId);
+              const currentQuestion = getCurrentQuestion(category);
+              const hasProgress = !!categoryProgress && categoryProgress.attempts > 0;
+              const completionPercentage = categoryProgress
+                ? (categoryProgress.correctAnswers / category.totalQuestions) * 100
+                : 0;
+              const isCompleted = categoryProgress?.isCompleted;
 
-                      return (
+              return (
+                <div
+                  key={category.categoryId}
+                  className="rounded-2xl p-4 transition-all"
+                  style={{
+                    background: "linear-gradient(180deg, #FFFFFF 0%, #FAFCFE 100%)",
+                    border: "1px solid #E6EDF3",
+                    boxShadow: hasProgress ? `0 10px 20px ${color.mist}22` : "0 4px 10px rgba(2, 16, 15, 0.04)",
+                  }}
+                >
+                  {/* Header */}
+                  <div className="flex items-start gap-3 mb-4">
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold"
+                      style={{
+                        background: isCompleted ? "#ECFDF5" : hasProgress ? `${color.aqua}12` : "#F1F5F9",
+                        color: isCompleted ? "#047857" : color.teal,
+                        border: `1px solid ${isCompleted ? "#A7F3D0" : `${color.aqua}3a`}`,
+                      }}
+                    >
+                      {isCompleted ? "✓" : category.categoryId}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold" style={{ color: color.deep }}>
+                        Stage {category.categoryId}
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">{category.categoryName}</p>
+                    </div>
+                  </div>
+
+                  {/* Progress Section */}
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-gray-700">Progress</span>
+                        <span
+                          className={`text-xs font-bold ${
+                            isCompleted ? "text-emerald-600" : hasProgress ? "text-teal-600" : "text-gray-500"
+                          }`}
+                        >
+                          {Math.round(completionPercentage)}%
+                        </span>
+                      </div>
+                      <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden shadow-inner">
                         <div
-                          key={category.categoryId}
-                          className="rounded-2xl p-4 transition-all"
+                          className="h-full transition-all duration-700 ease-out rounded-full shadow-sm"
                           style={{
-                            background:
-                              "linear-gradient(180deg, #FFFFFF 0%, #FAFCFE 100%)",
-                            border: "1px solid #E6EDF3",
-                            boxShadow: hasProgress
-                              ? `0 10px 20px ${color.mist}22`
-                              : "0 4px 10px rgba(2, 16, 15, 0.04)",
+                            width: `${completionPercentage}%`,
+                            background: isCompleted
+                              ? "linear-gradient(to right, #10b981, #059669)"
+                              : hasProgress
+                              ? "linear-gradient(to right, #14b8a6, #0d9488)"
+                              : "linear-gradient(to right, #a855f7, #9333ea)",
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-20 rounded-full overflow-hidden" style={{ background: "#E6EDF3" }}>
+                            <div
+                              className="h-full rounded-full transition-all duration-700 ease-out"
+                              style={{
+                                width: `${completionPercentage}%`,
+                                background: `linear-gradient(90deg, ${color.teal}, ${color.aqua})`,
+                              }}
+                            />
+                          </div>
+                          <div className="text-sm text-gray-600 text-center font-medium">
+                            {categoryProgress?.correctAnswers || 0} of {category.totalQuestions} questions correct
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            const nextQuestionId = getNextQuestionId(currentLevel.id, category.categoryId);
+                            onStartStage?.(currentLevel.id, category.categoryId, nextQuestionId);
+                          }}
+                          className="py-2 px-4 rounded-xl font-bold text-sm transition-all duration-300 transform hover:scale-105 active:scale-95 shadow hover:shadow-md text-white"
+                          style={{
+                            backgroundColor: isCompleted ? "#10b981" : "#14b8a6",
+                            boxShadow: isCompleted
+                              ? "0 6px 18px rgba(16, 185, 129, 0.45)"
+                              : "0 6px 18px rgba(20, 184, 166, 0.45)",
                           }}
                         >
-                          {/* Header */}
-                          <div className="flex items-start gap-3 mb-4">
-                            <div
-                              className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold"
-                              style={{
-                                background: isCompleted
-                                  ? "#ECFDF5"
-                                  : hasProgress
-                                  ? `${color.aqua}12`
-                                  : "#F1F5F9",
-                                color: isCompleted ? "#047857" : color.teal,
-                                border: `1px solid ${
-                                  isCompleted ? "#A7F3D0" : `${color.aqua}3a`
-                                }`,
-                              }}
-                            >
-                              {isCompleted ? "✓" : category.categoryId}
-                            </div>
+                          {isCompleted ? "Review Stage" : hasProgress ? "Continue Stage" : "Start Stage"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-bold" style={{ color: color.deep }}>
-                                Stage {category.categoryId}
-                              </div>
-                              <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
-                                {category.categoryName}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Progress Section */}
-                          <div className="space-y-3 mb-4">
-                            <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-semibold text-gray-700">Progress</span>
-                                <span
-                                  className={`text-xs font-bold ${
-                                    isCompleted
-                                      ? "text-emerald-600"
-                                      : hasProgress
-                                      ? "text-teal-600"
-                                      : "text-gray-500"
-                                  }`}
-                                >
-                                  {Math.round(completionPercentage)}%
-                                </span>
-                              </div>
-                              <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-                                <div
-                                  className="h-full transition-all duration-700 ease-out rounded-full shadow-sm"
-                                  style={{
-                                    width: `${completionPercentage}%`,
-                                    background: isCompleted
-                                      ? "linear-gradient(to right, #10b981, #059669)"
-                                      : hasProgress
-                                      ? "linear-gradient(to right, #14b8a6, #0d9488)"
-                                      : "linear-gradient(to right, #a855f7, #9333ea)",
-                                  }}
-                                />
-                              </div>
-
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <div className="h-1.5 w-20 rounded-full overflow-hidden" style={{ background: "#E6EDF3" }}>
-                                    <div
-                                      className="h-full rounded-full transition-all duration-700 ease-out"
-                                      style={{
-                                        width: `${completionPercentage}%`,
-                                        background: `linear-gradient(90deg, ${color.teal}, ${color.aqua})`,
-                                      }}
-                                    />
-                                  </div>
-                                  <div className="mt-3 text-sm text-gray-600 text-center font-medium">
-                                    {categoryProgress?.correctAnswers || 0} of {category.totalQuestions} questions correct
-                                  </div>
-                                </div>
-
-                                {/* Start Button */}
-                                <button
-                                  onClick={() => {
-                                    const nextQuestionId = getNextQuestionId(level.id, category.categoryId);
-                                    onStartStage?.(level.id, category.categoryId, nextQuestionId);
-                                    setPopupCategoryId(null);
-                                  }}
-                                  className="w-full py-5 px-6 rounded-xl font-bold text-base transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-xl hover:shadow-2xl focus:outline-none focus:ring-4 text-white"
-                                  style={{
-                                    backgroundColor: isCompleted ? "#10b981" : "#14b8a6",
-                                    boxShadow: isCompleted
-                                      ? "0 8px 24px rgba(16, 185, 129, 0.5)"
-                                      : "0 8px 24px rgba(20, 184, 166, 0.5)",
-                                  }}
-                                >
-                                  {isCompleted ? "Review Stage" : hasProgress ? "Continue Stage" : "Start Stage"}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Question preview */}
-                          <div
-                            className="p-3 rounded-xl mb-4"
-                            style={{
-                              background: `${color.aqua}08`,
-                              border: `1px dashed ${color.aqua}33`,
-                            }}
-                          >
-                            <div className="flex items-start gap-3">
-                              <div
-                                className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
-                                style={{
-                                  background: `linear-gradient(180deg, ${color.teal}, ${color.aqua})`,
-                                  color: "white",
-                                }}
-                              >
-                                {currentQuestion.questionId}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm text-gray-900 line-clamp-2 font-medium leading-relaxed mb-1">
-                                  {currentQuestion.questionText}
-                                </div>
-                                <div className="flex items-center gap-3 text-[11px]">
-                                  <span style={{ color: color.teal }} className="font-bold">
-                                    NEXT UP
-                                  </span>
-                                  {!!currentQuestion.attempts && currentQuestion.attempts > 0 && (
-                                    <span className="text-orange-600 font-medium">
-                                      {currentQuestion.attempts} attempts
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* CTA */}
-                          <button
-                            onClick={() => {
-                              const nextQuestionId = getNextQuestionId(level.id, category.categoryId);
-                              onStartStage?.(level.id, category.categoryId, nextQuestionId);
-                            }}
-                            className="w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-transform active:scale-95"
-                            style={{
-                              background: isCompleted
-                                ? "linear-gradient(90deg, #10B981, #059669)"
-                                : `linear-gradient(90deg, ${color.teal}, ${color.aqua})`,
-                              color: "white",
-                              boxShadow: `0 10px 22px ${color.aqua}33`,
-                            }}
-                          >
-                            <span className="inline-flex items-center gap-2">
-                              <span>Start Stage</span>
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                              </svg>
-                            </span>
-                          </button>
-
-                          {/* Footer mini-stats */}
-                          {hasProgress && (
-                            <div className="mt-3 flex items-center justify-between text-xs">
-                              <div className="text-gray-600">⚡ {categoryProgress.attempts} attempts</div>
-                              {isCompleted && <div className="text-emerald-600">🏆 Completed</div>}
-                            </div>
+                  {/* Question preview */}
+                  <div
+                    className="p-3 rounded-xl mb-4"
+                    style={{ background: `${color.aqua}08`, border: `1px dashed ${color.aqua}33` }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
+                        style={{
+                          background: `linear-gradient(180deg, ${color.teal}, ${color.aqua})`,
+                          color: "white",
+                        }}
+                      >
+                        {currentQuestion.questionId}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-gray-900 line-clamp-2 font-medium leading-relaxed mb-1">
+                          {currentQuestion.questionText}
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px]">
+                          <span style={{ color: color.teal }} className="font-bold">
+                            NEXT UP
+                          </span>
+                          {!!currentQuestion.attempts && currentQuestion.attempts > 0 && (
+                            <span className="text-orange-600 font-medium">{currentQuestion.attempts} attempts</span>
                           )}
                         </div>
-                      );
-                    })}
+                      </div>
+                    </div>
                   </div>
+
+                  {/* CTA */}
+                  <button
+                    onClick={() => {
+                      const nextQuestionId = getNextQuestionId(currentLevel.id, category.categoryId);
+                      onStartStage?.(currentLevel.id, category.categoryId, nextQuestionId);
+                    }}
+                    className="w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-transform active:scale-95"
+                    style={{
+                      background: isCompleted
+                        ? "linear-gradient(90deg, #10B981, #059669)"
+                        : `linear-gradient(90deg, ${color.teal}, ${color.aqua})`,
+                      color: "white",
+                      boxShadow: `0 10px 22px ${color.aqua}33`,
+                    }}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <span>Start Stage</span>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </span>
+                  </button>
+
+                  {/* Footer mini-stats */}
+                  {hasProgress && (
+                    <div className="mt-3 flex items-center justify-between text-xs">
+                      <div className="text-gray-600">⚡ {categoryProgress.attempts} attempts</div>
+                      {isCompleted && <div className="text-emerald-600">🏆 Completed</div>}
+                    </div>
+                  )}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
-        {/* Dots */}
+        {/* Pagination dots */}
         <div className="p-5 flex justify-center gap-3 bg-white border-t" style={{ borderColor: "#EEF3F6" }}>
           {levels.map((_, index) => (
             <button
@@ -560,9 +474,7 @@ export default function ProgressMap({
               style={{
                 width: index === activeTopic ? 32 : 10,
                 background:
-                  index === activeTopic
-                    ? `linear-gradient(90deg, ${color.teal}, ${color.aqua})`
-                    : "#CBD5E1",
+                  index === activeTopic ? `linear-gradient(90deg, ${color.teal}, ${color.aqua})` : "#CBD5E1",
                 boxShadow: index === activeTopic ? `0 4px 10px ${color.aqua}44` : "none",
               }}
             />
@@ -628,25 +540,22 @@ export default function ProgressMap({
                   zIndex,
                   filter: blur > 0 ? `blur(${blur}px)` : "none",
                 }}
+                onClick={() => !isActive && setActiveTopic(levelIndex)}
               >
                 <div
                   className="h-full rounded-3xl cursor-pointer overflow-y-auto no-scrollbar"
                   style={{
                     background: "white",
                     border: "1px solid #E6EDF3",
-                    boxShadow: isActive
-                      ? `0 20px 40px ${color.mist}33`
-                      : "0 8px 20px rgba(2, 16, 15, 0.06)",
+                    boxShadow: isActive ? `0 20px 40px ${color.mist}33` : "0 8px 20px rgba(2, 16, 15, 0.06)",
                   }}
-                  onClick={() => !isActive && setActiveTopic(levelIndex)}
                 >
-                  {/* Active content */}
-                  {isActive && (
+                  {isActive ? (
                     <div className="p-5 space-y-5">
                       {level.categories.map((category) => {
                         const categoryProgress = getCategoryProgress(level.id, category.categoryId);
                         const currentQuestion = getCurrentQuestion(category);
-                        const hasProgress = categoryProgress && categoryProgress.attempts > 0;
+                        const hasProgress = !!categoryProgress && categoryProgress.attempts > 0;
                         const completionPercentage = categoryProgress
                           ? (categoryProgress.correctAnswers / category.totalQuestions) * 100
                           : 0;
@@ -659,24 +568,16 @@ export default function ProgressMap({
                             style={{
                               background: "linear-gradient(180deg, #FFFFFF 0%, #FAFCFE 100%)",
                               border: "1px solid #E6EDF3",
-                              boxShadow: hasProgress
-                                ? `0 10px 20px ${color.mist}22`
-                                : "0 4px 10px rgba(2,16,15,0.04)",
+                              boxShadow: hasProgress ? `0 10px 20px ${color.mist}22` : "0 4px 10px rgba(2,16,15,0.04)",
                             }}
                           >
                             <div className="flex items-start gap-3 mb-4">
                               <div
                                 className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold"
                                 style={{
-                                  background: isCompleted
-                                    ? "#ECFDF5"
-                                    : hasProgress
-                                    ? `${color.aqua}12`
-                                    : "#F1F5F9",
+                                  background: isCompleted ? "#ECFDF5" : hasProgress ? `${color.aqua}12` : "#F1F5F9",
                                   color: isCompleted ? "#047857" : color.teal,
-                                  border: `1px solid ${
-                                    isCompleted ? "#A7F3D0" : `${color.aqua}3a`
-                                  }`,
+                                  border: `1px solid ${isCompleted ? "#A7F3D0" : `${color.aqua}3a`}`,
                                 }}
                               >
                                 {isCompleted ? "✓" : category.categoryId}
@@ -686,9 +587,8 @@ export default function ProgressMap({
                                 <div className="text-sm font-bold" style={{ color: color.deep }}>
                                   Stage {category.categoryId}
                                 </div>
-                                <div className="text-xs text-gray-600 mb-2">
-                                  {category.categoryName}
-                                </div>
+                                <div className="text-xs text-gray-600 mb-2">{category.categoryName}</div>
+
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <div className="h-1.5 w-20 rounded-full overflow-hidden" style={{ background: "#E6EDF3" }}>
@@ -711,12 +611,10 @@ export default function ProgressMap({
                               </div>
                             </div>
 
+                            {/* Preview */}
                             <div
                               className="p-3 rounded-xl mb-4"
-                              style={{
-                                background: `${color.aqua}08`,
-                                border: `1px dashed ${color.aqua}33`,
-                              }}
+                              style={{ background: `${color.aqua}08`, border: `1px dashed ${color.aqua}33` }}
                             >
                               <div className="flex items-start gap-3">
                                 <div
@@ -737,18 +635,14 @@ export default function ProgressMap({
                                       NEXT UP
                                     </span>
                                     {!!currentQuestion.attempts && currentQuestion.attempts > 0 && (
-                                      <span className="text-orange-600 font-medium">
-                                        {currentQuestion.attempts} attempts
-                                      </span>
+                                      <span className="text-orange-600 font-medium">{currentQuestion.attempts} attempts</span>
                                     )}
                                   </div>
                                 </div>
-                                <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
-                                  {category.categoryName}
-                                </p>
                               </div>
                             </div>
 
+                            {/* CTA */}
                             <button
                               onClick={() => {
                                 const nextQuestionId = getNextQuestionId(level.id, category.categoryId);
@@ -771,26 +665,18 @@ export default function ProgressMap({
                               </span>
                             </button>
 
-                            {/* Action Footer with Status */}
+                            {/* Footer status */}
                             <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                               <div
                                 className={`text-xs font-bold uppercase tracking-wider ${
-                                  isCompleted
-                                    ? "text-emerald-600"
-                                    : hasProgress
-                                    ? "text-teal-600"
-                                    : "text-indigo-600"
+                                  isCompleted ? "text-emerald-600" : hasProgress ? "text-teal-600" : "text-indigo-600"
                                 }`}
                               >
                                 {isCompleted ? "✓ Complete" : hasProgress ? "⚡ In Progress" : "▶ Start Now"}
                               </div>
                               <svg
-                                className={`w-5 h-5 transition-transform duration-300 group-hover:translate-x-1 ${
-                                  isCompleted
-                                    ? "text-emerald-500"
-                                    : hasProgress
-                                    ? "text-teal-500"
-                                    : "text-indigo-500"
+                                className={`w-5 h-5 ${
+                                  isCompleted ? "text-emerald-500" : hasProgress ? "text-teal-500" : "text-indigo-500"
                                 }`}
                                 fill="none"
                                 stroke="currentColor"
@@ -803,9 +689,7 @@ export default function ProgressMap({
                         );
                       })}
                     </div>
-                  )}
-
-                  {!isActive && (
+                  ) : (
                     <div className="p-6 text-center">
                       <div className="text-gray-500 text-sm font-medium mb-2">Click to view stages</div>
                       {topicProgress && (
