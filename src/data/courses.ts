@@ -10,7 +10,7 @@ export type Course = {
 };
 
 export const courses: Course[] = [
-	{ id: 1, title: "Introduction to Functions", description: "Learn about functions, notation, domain, and range.", lessons: 12, exercises: 120 },
+	{ id: 1, title: "FUNCTIONS", description: "Complete all stages to Win.", lessons: 12, exercises: 120 },
 	{ id: 2, title: "Evaluating Functions", description: "Practice evaluating functions at numeric and algebraic inputs.", lessons: 12, exercises: 120 },
 	{ id: 3, title: "Piecewise-Defined Functions", description: "Understand and analyze piecewise definitions and continuity.", lessons: 12, exercises: 120 },
 	{ id: 4, title: "Operations on Functions", description: "Add, subtract, multiply, divide functions and explore their effects.", lessons: 12, exercises: 120 },

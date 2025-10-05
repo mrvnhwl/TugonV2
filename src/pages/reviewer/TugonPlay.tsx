@@ -36,10 +36,19 @@ export default function TugonPlay() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successStats, setSuccessStats] = useState<{
-    attempts: number;
-    timeSpent: number;
-    isFirstTime: boolean;
+  const [showQuickNotification, setShowQuickNotification] = useState(false);
+  const [categoryStats, setCategoryStats] = useState<{
+    categoryCompleted: boolean;
+    totalQuestions: number;
+    questionsDetails: Array<{
+      questionId: number;
+      attempts: number;
+      timeSpent: number;
+      colorCodedHintsUsed: number;
+      shortHintMessagesUsed: number;
+    }>;
+    totalTimeSpent: number;
+    totalAttempts: number;
   } | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
 

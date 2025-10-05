@@ -27,7 +27,7 @@ import { Topic5_Category3 } from './topic5/category3';
 export const defaultTopics: Topic[] = [
   {
     id: 1,
-    name: "INTRODUCTION TO FUNCTIONS",
+    name: "Mastering All Types of Functions!",
     description: "Learn about functions, notation, domain, and range.",
     level: [
       Topic1_Category1,

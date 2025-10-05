@@ -313,53 +313,14 @@ export default function AnswerWizard({
  
   // Handle Enter key submission
   const handleEnterSubmission = (lines: string[]) => {
-    console.log("🎯 Enter submission triggered:", lines);
+    console.log("🎯 AnswerWizard: Enter submission triggered:", lines);
     setShowHints(false);
     
-    // Validate using your InputValidator
-    const expectedSteps = answersSource?.[index]?.steps;
+    // Note: Validation is now handled by UserInput component
+    // UserInput will call onValidationResult when validation completes
+    // No need to validate here - just update state
     
-    if (!expectedSteps) {
-      console.log("❌ No expected steps found for validation");
-      return;
-    }
-    
-    // Use InputValidator to check if the current step is correct
-    const currentLine = lines[0] || ''; // Get the first line
-    
-    const validation = InputValidator.validateStepWithTwoPhase(
-      currentLine.trim(),
-      expectedSteps[0]?.answer || '',
-      expectedSteps[0]?.label || '',
-      0,
-      expectedSteps
-    );
-    
-    console.log("🔍 Validation result:", validation);
-    
-    // Track submission in conversation history
-    const userBehavior: UserBehavior = {
-      action: 'submit',
-      timestamp: new Date(),
-      stepIndex: index,
-      details: { validationResult: validation, submissionMethod: 'enter_key' }
-    };
-
-    addToConversationHistory(
-      [], // No message prompts for submissions
-      lines.join('\n'),
-      userBehavior,
-      index
-    );
-
-    // FIXED: Call the validation result callback properly
-    if (validation.isCurrentStepCorrect) {
-      console.log("✅ Calling onValidationResult with 'correct'");
-      onValidationResult?.('correct', index);
-    } else {
-      console.log("❌ Calling onValidationResult with 'incorrect'");
-      onValidationResult?.('incorrect', index);
-    }
+    console.log("✅ AnswerWizard: Submission delegated to UserInput validation");
 
     // Update wizard steps
     setWizardSteps((prev) => {
@@ -373,7 +334,7 @@ export default function AnswerWizard({
     
     // Show hints after a delay
     setTimeout(() => {
-      console.log("🔄 Setting showHints to true after delay");
+      console.log("🔄 AnswerWizard: Setting showHints to true after delay");
       setShowHints(true);
     }, 200);
   };
@@ -558,6 +519,7 @@ export default function AnswerWizard({
                   hintText={hintState.text}
                   onRequestHint={triggerTestHint}
                   onAttemptUpdate={onAttemptUpdate}
+                  onValidationResult={onValidationResult}
                   topicId={topicId}
                   categoryId={categoryId}
                   questionId={questionId}

@@ -4,7 +4,7 @@ import type { PredefinedAnswer } from '../types';
 export const Topic1_Category4_Answers: PredefinedAnswer[] = [
     {
     questionId: 1,
-    questionText: "If f(x) = x² + 4x \\text{ and } g(x) = 3x - 5, find (g ∘ f)(x)",
+    questionText: "If f(x) = x² + 4x and g(x) = 3x - 5, find (g ∘ f)(x)",
     type: "multiLine",
     steps: [
       { label: "choose", answer: "f(x) = x^2 + 4x", placeholder: "Determine f(x) equation " }, 

@@ -1,6 +1,7 @@
 import "./index.css";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { MathJaxContext } from "better-react-mathjax";
+import { Toaster } from "react-hot-toast";
 
 import StudentNavbar from "./components/studentNavbar";
 import TeacherNavbar from "./components/teacherNavbar";
@@ -72,6 +73,26 @@ function App() {
     <MathJaxContext version={3} config={mathJaxConfig}>
       <Router>
         <AppContent />
+        <Toaster 
+          position="top-center"
+          reverseOrder={false}
+          containerStyle={{
+            top: '50%',
+            transform: 'translateY(-50%)',
+          }}
+          toastOptions={{
+            duration: 5000,
+            style: {
+              borderRadius: '10px',
+              background: '#333',
+              color: '#fff',
+              padding: '16px',
+              fontSize: '15px',
+              maxWidth: '500px',
+              textAlign: 'center',
+            },
+          }}
+        />
       </Router>
     </MathJaxContext>
   );
