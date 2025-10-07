@@ -16,6 +16,12 @@ import toast from 'react-hot-toast';
 import { BehaviorAnalyzer } from './BehaviorAnalyzer';
 import { FeedbackModal } from '../feedback/FeedbackModal';
 import { getStepHint } from '../../data/hints/index';
+import { 
+  createDebouncedColoringFunction,
+  calculateSimilarity,
+  getSimilarityFeedback,
+  stripColorCommands
+} from './mathColorComparison';
 
 type StepProgression = [string, string, boolean, string, number];
 // [stepLabel, userInput, isCorrect, expectedAnswer, totalProgress]
@@ -156,11 +162,30 @@ export default function UserInput({
   const [lastBehaviorClassification, setLastBehaviorClassification] = useState<BehaviorType | null>(null);
   const [hintIntervalActive, setHintIntervalActive] = useState<boolean>(false);
 
+  // 🎨 NEW: Real-time color comparison state
+  const [realtimeColoringEnabled, setRealtimeColoringEnabled] = useState<boolean>(true);
+  const [colorComparisonMode, setColorComparisonMode] = useState<'character' | 'term'>('character'); // Use character mode for granular feedback
+  const debouncedColoringRef = useRef(createDebouncedColoringFunction(1000)); // 1000ms = 1 second delay
+  
+  // 🚫 NEW: Track last processed plain value to detect actual changes
+  const lastPlainValueRef = useRef<Map<number, string>>(new Map());
+  
+  // ⏱️ NEW: Timer refs for stripping colors after 3 seconds
+  const colorStripTimersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
+
   // Sync with prop changes
   useEffect(() => {
     setLines(value);
   }, [value]);
 
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      // Clear all strip timers
+      colorStripTimersRef.current.forEach(timer => clearTimeout(timer));
+      colorStripTimersRef.current.clear();
+    };
+  }, []);
 
 
 
@@ -1099,25 +1124,94 @@ export default function UserInput({
 
         // ✅ FIXED: Use addEventListener for input events instead of onInput option
 
+        // ⏱️ Helper: Strip colors from mathfield after delay
+        const stripColorsAfterDelay = (mathField: any, index: number, delayMs: number = 3000) => {
+          // Clear any existing timer for this field
+          const existingTimer = colorStripTimersRef.current.get(index);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+          
+          // Set new timer to strip colors
+          const timer = setTimeout(() => {
+            const rawValue = mathField.getValue?.() || mathField.value || "";
+            if (rawValue.includes('\\textcolor')) {
+              console.log(`🧹 Stripping colors from field ${index} after ${delayMs}ms`);
+              const cleanLatex = stripColorCommands(rawValue);
+              const position = mathField.position;
+              mathField.setValue(cleanLatex);
+              try {
+                mathField.position = position;
+              } catch (e) {
+                console.debug('Could not restore cursor position');
+              }
+            }
+            colorStripTimersRef.current.delete(index);
+          }, delayMs);
+          
+          colorStripTimersRef.current.set(index, timer);
+        };
+
         const inputHandler = (e: any) => {
           const mathField = e.target;
-          console.log(`✅ before input handler`);
-          // Use the MathLive-aware extraction
-          const extractedValue = InputValidator.extractMathFieldValue(mathField);
+          console.log(`✅ Input handler fired at index ${index}`);
+          
+          // Get raw value for debugging
+          const rawValue = mathField.getValue?.() || mathField.value || "";
+          
+          // ✅ EXTRACT PLAIN VALUE FIRST - Strip any existing colors before extraction
+          // This ensures we always get clean input for validation
+          const plainValue = InputValidator.extractMathFieldValue(mathField);
+          
+          // 🚫 Check if plain value actually changed (prevent processing setValue events)
+          const lastValue = lastPlainValueRef.current.get(index) || '';
+          if (plainValue === lastValue && rawValue.includes('\\textcolor')) {
+            console.log(`🚫 Skipping - same plain value "${plainValue}", likely setValue event`);
+            return;
+          }
+          
+          // Update last processed value
+          lastPlainValueRef.current.set(index, plainValue);
 
           console.log(`🧮 MathField input at index ${index}:`, {
-            rawLatex: mathField.getValue?.() || mathField.value || "",
-            extractedValue: extractedValue,
-            sanitized: InputValidator.sanitizeTextMathLive(extractedValue)
+            rawLatex: rawValue.substring(0, 100),
+            plainValue: plainValue,
+            changed: plainValue !== lastValue
           });
 
+          // 🎨 Apply real-time color comparison if enabled
+          // The coloring function now handles stripping old colors and re-applying fresh colors
+          if (realtimeColoringEnabled && expectedSteps && index < expectedSteps.length) {
+            const expectedAnswer = expectedSteps[index].answer;
+            if (expectedAnswer && plainValue.trim()) {
+              console.log(`🎨 Applying real-time coloring for step ${index}`);
+              
+              // ✅ Clear any pending strip timer (user is typing)
+              const existingTimer = colorStripTimersRef.current.get(index);
+              if (existingTimer) {
+                clearTimeout(existingTimer);
+                console.log(`🚫 Cleared strip timer for field ${index} - user is typing`);
+              }
+              
+              // ✅ Pass the plain value directly instead of re-extracting
+              debouncedColoringRef.current(mathField, expectedAnswer, colorComparisonMode, plainValue);
+              
+              // ⏱️ Schedule color stripping after 3 seconds (1000ms debounce + 3000ms display)
+              stripColorsAfterDelay(mathField, index, 3000);
+              
+              // Optional: Calculate and log similarity
+              const similarity = calculateSimilarity(expectedAnswer, plainValue);
+              console.log(`📊 Similarity: ${similarity.toFixed(1)}% - ${getSimilarityFeedback(similarity)}`);
+            }
+          }
+
           // Start step timer if needed
-          if (extractedValue.trim() && !stepTimings.has(index)) {
+          if (plainValue.trim() && !stepTimings.has(index)) {
             startStepTimer(index);
           }
 
-          // Use the extracted value for line change
-          handleLineChange(index, extractedValue);
+          // ✅ Use the PLAIN VALUE (not colored) for validation and line change
+          handleLineChange(index, plainValue);
         };
 
         // ✅ FIXED: Enhanced keydown handler with proper timing

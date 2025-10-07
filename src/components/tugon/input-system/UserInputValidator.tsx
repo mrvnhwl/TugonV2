@@ -101,14 +101,35 @@ export class InputValidator {
  public static sanitizeArray = (lines: string[]): string[] => {
     return lines.map(line => InputValidator.sanitizeTextMathLive(line)).filter(line => line.length > 0);
   };
-    // NEW: Extract raw value from MathField with enhanced whitespace cleaning
+  
+  // Helper: Strip \textcolor{}{} commands from LaTeX
+  private static stripColorCommands = (latex: string): string => {
+    if (!latex) return '';
+    
+    let cleaned = latex;
+    let maxIterations = 10;
+    
+    // Iteratively remove \textcolor{color}{content} and keep only content
+    while (cleaned.includes('\\textcolor') && maxIterations > 0) {
+      cleaned = cleaned.replace(/\\textcolor\{[^}]+\}\{([^}]*)\}/g, '$1');
+      maxIterations--;
+    }
+    
+    return cleaned;
+  };
+  
+  // NEW: Extract raw value from MathField with enhanced whitespace cleaning
   public static extractMathFieldValue = (mathFieldElement: any): string => {
     if (!mathFieldElement) return "";
     
     try {
       // Get the LaTeX representation
-      const latexValue = mathFieldElement.getValue?.() || mathFieldElement.value || "";
+      let latexValue = mathFieldElement.getValue?.() || mathFieldElement.value || "";
       console.log(`📊 MathField raw LaTeX: "${latexValue}"`);
+      
+      // ✅ Strip color commands first (from real-time coloring)
+      latexValue = InputValidator.stripColorCommands(latexValue);
+      console.log(`📊 After stripping colors: "${latexValue}"`);
       
       // Clean invisible Unicode characters and quotes first (same as tokenizer)
       const invisibleRegex = /[\u00A0\u1680\u180E\u2000-\u200F\u2028-\u202F\u205F\u2060\uFEFF]/g;
