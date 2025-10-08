@@ -40,28 +40,60 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom"; // soft navigation
 import color from "../styles/color";
 
-// ⚠️ your existing key + API call kept intact
-const apiKey = "AIzaSyAj2V_O5fndQJWcAJ5SbMZQyfcfOJ1YBUQ";
 
+
+// ✅ FIXED Gemini 2.0 Flash API
 export const askTugonAI = async (prompt: string): Promise<string> => {
+  const apiKey =
+    import.meta.env.VITE_GEMINI_API_KEY ||
+    "AIzaSyD2GkQTaqXIPLOYSKLbBI6SyNjvDVZ4QP4";
+
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey, // ✅ CORRECT HEADER
+        },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 300,
+          },
         }),
       }
     );
+
+    // ✅ Check for response errors
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Gemini API HTTP Error:", response.status, errText);
+      return "⚠️ TugonAI server returned an error. Please try again later.";
+    }
+
     const result = await response.json();
-    return result.candidates?.[0]?.content?.parts?.[0]?.text || "No response from TugonAI.";
+
+    if (result?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return result.candidates[0].content.parts[0].text.trim();
+    } else {
+      console.error("Gemini returned no content:", result);
+      return "⚠️ TugonAI didn’t return a valid response. Try rephrasing your question.";
+    }
   } catch (error) {
     console.error("TugonAI API error:", error);
-    return "Something went wrong while talking to TugonAI.";
+    return "⚠️ TugonAI couldn’t reach the server right now. Please try again later.";
   }
 };
+
+
 
 interface FloatingAIButtonProps {
   onWrongAnswer?: (questionId: string) => void;
