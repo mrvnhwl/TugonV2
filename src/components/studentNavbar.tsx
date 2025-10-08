@@ -93,7 +93,8 @@ function NavItem({
   );
 }
 
-function StudentNavbar() {
+
+function StudentNavbar({ className = "" }: { className?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { user, signOut } = useAuth();
@@ -126,6 +127,7 @@ function StudentNavbar() {
               <span className="text-2xl font-bold tracking-tight truncate" style={{ color: color.deep }}>
                 Tugon
               </span>
+
             </Link>
           </div>
 

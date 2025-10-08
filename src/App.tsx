@@ -1,6 +1,7 @@
 import "./index.css";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { MathJaxContext } from "better-react-mathjax";
+import { Toaster } from "react-hot-toast";
 
 import StudentNavbar from "./components/studentNavbar";
 import TeacherNavbar from "./components/teacherNavbar";
@@ -14,18 +15,18 @@ import StudentDashboard from "./pages/studentDashboard";
 import Challenge from "./pages/Challenge";
 import Leaderboards from "./pages/LeaderBoards";
 import Game from "./pages/Game";
-import TugonSense from "./pages/reviewer/TugonSense";
-
+import TugonSense from './pages/reviewer/TugonSense';
+import TugonPlay from './pages/reviewer/TugonPlay';
 import Operation from "./pages/tugonsense/operations";
 import Evaluation from "./pages/tugonsense/evaluation";
 import Radio from "./components/Radio";
 import FloatingAIButton from "./components/FloatingAIButton";
 
-import TugonPlay from "./pages/reviewer/TugonPlay";
 import HostGame from "./pages/HostGame";
 
 // TugonSense challenges
 import EvaluationDifficultySelector from "./pages/tugonsense/Evaluation/evaluationdifficulty";
+
 import EvaluationPhase1 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase1";
 import EvaluationPhase2 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase2";
 import EvaluationPhase3 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase3";
@@ -72,6 +73,26 @@ function App() {
     <MathJaxContext version={3} config={mathJaxConfig}>
       <Router>
         <AppContent />
+        <Toaster 
+          position="top-center"
+          reverseOrder={false}
+          containerStyle={{
+            top: '50%',
+            transform: 'translateY(-50%)',
+          }}
+          toastOptions={{
+            duration: 5000,
+            style: {
+              borderRadius: '10px',
+              background: '#333',
+              color: '#fff',
+              padding: '16px',
+              fontSize: '15px',
+              maxWidth: '500px',
+              textAlign: 'center',
+            },
+          }}
+        />
       </Router>
     </MathJaxContext>
   );
@@ -88,6 +109,7 @@ function AppContent() {
     "/eEvaluationPhase3",
     "/eEvaluationPhase4",
   ];
+
 
   // Use prefixes so nested paths (like /edit-quiz/:id) match correctly
   const teacherPrefixes = [
@@ -155,7 +177,7 @@ function AppContent() {
             <Route path="/student-progress" element={<StudentProgress />} />
             <Route path="/challenge" element={<Challenge />} />
             <Route path="/tugonsense" element={<TugonSense />} />
-            <Route path="/tugon-play" element={<TugonPlay />} />
+            <Route path="/tugonplay" element={<TugonPlay />} />
             <Route path="/host" element={<HostGame />} />
             <Route path="/leaderboards" element={<Leaderboards />} />
             <Route path="/game/:id" element={<Game />} />

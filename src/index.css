@@ -1,9 +1,14 @@
-@import "tailwindcss/base";
-@import "tailwindcss/components";
-@import "tailwindcss/utilities";
+/* 1) External imports must come first */
+@import "https://cdnjs.cloudflare.com/ajax/libs/mathquill/0.10.1/mathquill.css";
+
+/* 2) Tailwind layers */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* =========================
+   Global / Base styles
+   ========================= */
 
 @layer base {
   :root {
@@ -48,7 +53,7 @@
     --muted: 0 0% 14.9%;
     --muted-foreground: 0 0% 63.9%;
     --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
+    --accent-foreground: 0 0% 9%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 14.9%;
@@ -60,18 +65,109 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  input[type="text"],
+  textarea {
+    font-size: 16px; /* prevent iOS zoom */
+  }
 }
 
-* {
-  border-color: hsl(var(--border));
+/* =========================
+   MathQuill tweaks
+   ========================= */
+
+.mq-editable-field {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-size: 16px !important;
+  font-family: inherit !important;
+  line-height: 1.5 !important;
+  min-height: 40px !important;
+  padding: 8px 12px !important;
+  width: 100% !important;
+  display: inline-block !important;
+  box-shadow: none !important;
 }
 
-body {
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
+.mq-editable-field.mq-empty::before {
+  color: #9ca3af;
 }
 
-/* Hide scrollbars utility */
+.mq-cursor {
+  border-left: 2px solid #374151 !important;
+  animation: blink 1s infinite !important;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* unify focus (remove duplicate) */
+.mq-focused {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Fraction / sqrt / sup-sub */
+.mq-fraction { display: inline-block !important; vertical-align: middle !important; }
+.mq-numerator, .mq-denominator { display: block !important; text-align: center !important; }
+.mq-sqrt-prefix { border-top: 1px solid currentColor !important; }
+.mq-sup { font-size: 0.8em !important; vertical-align: super !important; }
+.mq-sub { font-size: 0.8em !important; vertical-align: sub !important; }
+.mq-text-mode { font-family: inherit !important; font-size: inherit !important; }
+.mq-editable-field .mq-root-block { display: inline-block !important; vertical-align: baseline !important; }
+
+/* =========================
+   Animations / Utilities
+   ========================= */
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInFromLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(10px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Tailwind utility layer additions */
 @layer utilities {
   .no-scrollbar {
     -ms-overflow-style: none; /* IE and Edge */
@@ -80,4 +176,189 @@ body {
   .no-scrollbar::-webkit-scrollbar {
     display: none; /* Chrome, Safari */
   }
+
+  .animate-slide-down { animation: slideDown 0.3s ease-out; }
+  .animate-spin { animation: spin 1s linear infinite; }
+  .animate-fadeInUp { animation: fadeInUp 0.6s ease-out forwards; }
+  .animation-delay-500 { animation-delay: 0.5s; }
+  .scroll-smooth { scroll-behavior: smooth; }
+
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+
+  .active\:scale-98:active { transform: scale(0.98); }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+}
+
+/* =========================
+   MathLive validator helpers
+   (safe to remove later)
+   ========================= */
+
+.ml-valid {
+  border: 2px solid #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.ml-invalid {
+  border: 2px solid #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  animation: shake 0.3s ease-in-out;
+}
+
+.ml-incomplete {
+  border: 2px solid #f59e0b !important;
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+.ml-empty { border: 2px solid #6b7280 !important; }
+
+.ml-error-tooltip {
+  position: absolute;
+  background: #ef4444;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 1000;
+  top: -30px;
+  left: 0;
+}
+
+.ml-suggestions {
+  position: absolute;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 999;
+  top: 100%;
+  left: 0;
+  right: 0;
+}
+
+.ml-suggestion-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+}
+.ml-suggestion-item:hover { background: #f9fafb; }
+
+
+.ml-suggestion-item:hover {
+  background: #f9fafb;
+}
+
+/* Wordle-style Token Feedback Styles */
+.token-green {
+  background: #22c55e !important;
+  color: white !important;
+  border-color: #16a34a !important;
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+}
+
+.token-yellow {
+  background: #eab308 !important;
+  color: white !important;
+  border-color: #ca8a04 !important;
+  box-shadow: 0 2px 4px rgba(234, 179, 8, 0.2);
+}
+
+.token-red {
+  background: #ef4444 !important;
+  color: white !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
+.token-grey {
+  background: #6b7280 !important;
+  color: white !important;
+  border-color: #4b5563 !important;
+  box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2);
+}
+
+/* Token feedback animation */
+@keyframes tokenPop {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.token-green,
+.token-yellow,
+.token-red,
+.token-grey {
+  animation: tokenPop 0.3s ease-out;
+  min-width: 24px;
+  min-height: 24px;
+  font-family: "Courier New", monospace;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Hover effects for token feedback */
+.token-green:hover,
+.token-yellow:hover,
+.token-red:hover,
+.token-grey:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/*slider remove later if not used*/
+/* Slider (optional) */
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4);
+  border: 2px solid white;
+  transition: all 0.2s ease;
+}
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(139, 92, 246, 0.6);
+}
+.slider::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4);
+  border: 2px solid white;
+  transition: all 0.2s ease;
+}
+
+math-field::part(placeholder) {
+  font-size: 1.2rem; /* or whatever size you want */
+  color: #888;
+  font-style: italic;
 }

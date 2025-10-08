@@ -1,0 +1,189 @@
+import type { CategoryHints } from '../types';
+
+export const Topic1_Category1_Hints: CategoryHints = {
+  categoryId: 1,
+  categoryName: "Function Evaluation",
+  questions: [
+    // Question 1: If f(x) = 2x - 7, evaluate f(8)
+    {
+      questionId: 1,
+      questionText: "If f(x) = 2x - 7, evaluate f(8).",
+      generalTips: [
+        "Replace every 'x' with the given value (8)",
+        "Follow order of operations: multiply first, then subtract",
+        "Don't forget to include parentheses around the substituted value"
+      ],
+      stepHints: [
+        {
+          stepLabel: "substitution",
+          genericHint: "💡 Replace x with 8 in the function. Write: f(8) = 2(8) - 7",
+          signErrorHint: "⚠️ Check your signs! Make sure you have 2(8) - 7, not 2(8) + 7",
+          magnitudeErrorHint: "📏 Did you substitute 8 correctly? The format should be: f(8) = 2(8) - 7",
+          closeAttemptHint: "🎯 Almost there! Double-check you wrote f(8) = 2(8) - 7 exactly",
+          repetitionHint: "🔁 Try writing it exactly as shown: f(8) = 2(8) - 7 (with parentheses around 8)",
+          guessingHint: "🎲 Step 1 is about substitution. Replace x with 8: f(8) = 2(8) - 7",
+          commonMistakes: [
+            "Writing f(8) = 2*8 - 7 (missing parentheses)",
+            "Writing f(8) = 28 - 7 (don't evaluate yet!)",
+            "Forgetting to include f(8) = on the left side"
+          ]
+        },
+        {
+          stepLabel: "evaluation",
+          genericHint: "💡 Multiply 2 × 8 first, then subtract 7. Write: f(8) = 16 - 7",
+          signErrorHint: "⚠️ Make sure it's 16 - 7, not 16 + 7",
+          magnitudeErrorHint: "📏 Check your multiplication: 2 × 8 = 16, not 26 or 6",
+          closeAttemptHint: "🎯 You're close! Calculate 2 × 8 to get 16, then write: f(8) = 16 - 7",
+          repetitionHint: "🔁 Multiply first: 2 × 8 = 16. Then write: f(8) = 16 - 7",
+          guessingHint: "🎲 Follow order of operations: multiply 2(8) = 16, then subtract 7",
+          commonMistakes: [
+            "Writing 16 + 7 instead of 16 - 7",
+            "Calculating 2 × 8 incorrectly",
+            "Subtracting before multiplying"
+          ]
+        },
+        {
+          stepLabel: "final",
+          genericHint: "💡 Subtract: 16 - 7 = 9. Write: f(8) = 9",
+          signErrorHint: "⚠️ Double-check: 16 - 7 = 9 (positive 9, not negative)",
+          magnitudeErrorHint: "📏 Verify your subtraction: 16 - 7 = 9, not 23 or -9",
+          closeAttemptHint: "🎯 Almost! 16 - 7 = 9. Write it as: f(8) = 9",
+          repetitionHint: "🔁 The final answer format is: f(8) = 9 (not just 9)",
+          guessingHint: "🎲 Final step: subtract 16 - 7 to get 9",
+          commonMistakes: [
+            "Writing just '9' without f(8) =",
+            "Getting -9 instead of 9",
+            "Writing f(8) = 23 (adding instead of subtracting)"
+          ]
+        }
+      ]
+    },
+
+    // Question 2: If g(x) = x² + 2x + 1, find g(4)
+    {
+      questionId: 2,
+      questionText: "If g(x) = x² + 2x + 1, find g(4)",
+      generalTips: [
+        "Replace every 'x' with 4 and use parentheses",
+        "Calculate the exponent (4²) first",
+        "Then multiply 2 × 4",
+        "Finally add all terms together"
+      ],
+      stepHints: [
+        {
+          stepLabel: "substitution",
+          genericHint: "💡 Replace x with 4. Write: g(4) = (4)^2 + 2(4) + 1",
+          signErrorHint: "⚠️ Make sure all operations are addition (+). Should be: g(4) = (4)^2 + 2(4) + 1",
+          magnitudeErrorHint: "📏 Check your substitution. Every x becomes 4: g(4) = (4)^2 + 2(4) + 1",
+          closeAttemptHint: "🎯 Almost! Use parentheses: g(4) = (4)^2 + 2(4) + 1",
+          repetitionHint: "🔁 Write it exactly: g(4) = (4)^2 + 2(4) + 1 (with parentheses around each 4)",
+          guessingHint: "🎲 Substitute 4 for x: g(4) = (4)^2 + 2(4) + 1",
+          commonMistakes: [
+            "Forgetting parentheses around 4 in (4)^2",
+            "Writing 4^2 instead of (4)^2",
+            "Missing the 2(4) term"
+          ]
+        },
+        {
+          stepLabel: "evaluation",
+          genericHint: "💡 Calculate: (4)^2 = 16, then 2(4) = 8. Write: g(4) = 16 + 8 + 1",
+          signErrorHint: "⚠️ All terms should be added: 16 + 8 + 1",
+          magnitudeErrorHint: "📏 Check: 4² = 16 (not 8 or 12), and 2×4 = 8 (not 4 or 6)",
+          closeAttemptHint: "🎯 You're close! (4)² = 16, 2(4) = 8, so write: g(4) = 16 + 8 + 1",
+          repetitionHint: "🔁 Calculate each part: (4)² = 16, 2(4) = 8, then write: g(4) = 16 + 8 + 1",
+          guessingHint: "🎲 Evaluate exponents and multiplication first: 16 + 8 + 1",
+          commonMistakes: [
+            "Calculating 4² as 8 instead of 16",
+            "Forgetting to multiply 2 × 4",
+            "Changing + to - or ×"
+          ]
+        },
+        {
+          stepLabel: "final",
+          genericHint: "💡 Add: 16 + 8 + 1 = 25. Write: g(4) = 25",
+          signErrorHint: "⚠️ Make sure you're adding all three numbers: 16 + 8 + 1 = 25",
+          magnitudeErrorHint: "📏 Check your addition: 16 + 8 = 24, then 24 + 1 = 25",
+          closeAttemptHint: "🎯 Almost! Add step by step: 16 + 8 = 24, then 24 + 1 = 25",
+          repetitionHint: "🔁 Final format: g(4) = 25 (not just 25)",
+          guessingHint: "🎲 Add all three: 16 + 8 + 1 = 25",
+          commonMistakes: [
+            "Getting 24 (forgot the +1)",
+            "Getting 15 (subtracted instead of added)",
+            "Writing just 25 without g(4) ="
+          ]
+        }
+      ]
+    },
+
+    // Question 3: If m(x) = 2x³ - x + 6, find m(2)
+    {
+      questionId: 3,
+      questionText: "If m(x) = 2x^3 - x + 6, find m(2)",
+      generalTips: [
+        "Replace every 'x' with 2",
+        "Calculate the exponent (2³) first",
+        "Multiply 2 × (2³)",
+        "Don't forget the middle term: -(2)",
+        "Add all terms: 2(2³) - 2 + 6"
+      ],
+      stepHints: [
+        {
+          stepLabel: "substitution",
+          genericHint: "💡 Replace x with 2. Write: m(2) = 2(2)^3 - (2) + 6",
+          signErrorHint: "⚠️ Check signs: should be 2(2)^3 - (2) + 6 (minus in the middle!)",
+          magnitudeErrorHint: "📏 Make sure you substituted 2 everywhere: m(2) = 2(2)^3 - (2) + 6",
+          closeAttemptHint: "🎯 Almost! Use parentheses: m(2) = 2(2)^3 - (2) + 6",
+          repetitionHint: "🔁 Write exactly: m(2) = 2(2)^3 - (2) + 6 (note the minus before (2))",
+          guessingHint: "🎲 Substitute step by step: m(2) = 2(2)^3 - (2) + 6",
+          commonMistakes: [
+            "Forgetting the minus sign: writing + instead of -",
+            "Writing 2^3 without the coefficient 2",
+            "Not including parentheses around the second 2"
+          ]
+        },
+        {
+          stepLabel: "evaluation",
+          genericHint: "💡 Calculate 2³ = 8, then multiply: 2(8) = 16. Write: m(2) = 2(8) - 2 + 6",
+          signErrorHint: "⚠️ Keep the minus sign: m(2) = 2(8) - 2 + 6",
+          magnitudeErrorHint: "📏 Check: 2³ = 8 (not 6 or 4), so 2 × 8 = 16",
+          closeAttemptHint: "🎯 Good! 2³ = 8. Show it as: m(2) = 2(8) - 2 + 6 before multiplying",
+          repetitionHint: "🔁 First: 2³ = 8. Write: m(2) = 2(8) - 2 + 6 (then you'll multiply 2×8)",
+          guessingHint: "🎲 Evaluate the exponent: 2³ = 8, giving m(2) = 2(8) - 2 + 6",
+          commonMistakes: [
+            "Calculating 2³ as 6 instead of 8",
+            "Changing the signs",
+            "Multiplying 2 × 2 instead of calculating 2³"
+          ]
+        },
+        {
+          stepLabel: "evaluation",
+          genericHint: "💡 Multiply: 2 × 8 = 16. Write: m(2) = 16 - 2 + 6",
+          signErrorHint: "⚠️ Maintain correct signs: 16 - 2 + 6 (minus 2, plus 6)",
+          magnitudeErrorHint: "📏 Verify: 2 × 8 = 16 (not 10 or 18)",
+          closeAttemptHint: "🎯 Almost there! 2 × 8 = 16, so: m(2) = 16 - 2 + 6",
+          repetitionHint: "🔁 Multiply first: 2(8) = 16. Then write: m(2) = 16 - 2 + 6",
+          guessingHint: "🎲 Multiply 2 × 8 to get 16, keeping the other terms",
+          commonMistakes: [
+            "Getting 10 or 18 instead of 16",
+            "Changing - 2 to + 2",
+            "Forgetting the + 6"
+          ]
+        },
+        {
+          stepLabel: "final",
+          genericHint: "💡 Calculate: 16 - 2 = 14, then 14 + 6 = 20. Write: m(2) = 20",
+          signErrorHint: "⚠️ Follow left to right: 16 - 2 = 14, then 14 + 6 = 20",
+          magnitudeErrorHint: "📏 Check your arithmetic: 16 - 2 = 14, then 14 + 6 = 20",
+          closeAttemptHint: "🎯 Almost! Work left to right: 16 - 2 = 14, then 14 + 6 = 20",
+          repetitionHint: "🔁 Final answer format: m(2) = 20 (not just 20)",
+          guessingHint: "🎲 Add and subtract: 16 - 2 + 6 = 20",
+          commonMistakes: [
+            "Getting 10 (16 - 2 - 6 instead of 16 - 2 + 6)",
+            "Getting 24 (16 + 2 + 6)",
+            "Writing just 20 without m(2) ="
+          ]
+        }
+      ]
+    }
+  ]
+};

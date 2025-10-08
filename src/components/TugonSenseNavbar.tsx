@@ -1,9 +1,7 @@
 import type { SVGProps } from "react";
-import { predefinedAnswers } from "./data/answers";
-import logo from "./assets/images/brain.png"; // Tugon logo currently in the project
-
-// Simple inline icons (no extra dependency)
-// Center nav icons removed (nav hidden under overlay)
+import { predefinedAnswers } from "./data/answers/index";
+import logo from "./assets/images/brain.png";
+import color from "./styles/color";
 
 const MenuIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
@@ -20,7 +18,13 @@ const CoinIcon = (props: SVGProps<SVGSVGElement>) => (
       </linearGradient>
     </defs>
     <circle cx="12" cy="12" r="9" fill="url(#coinGrad)" stroke="#EAB308" strokeWidth="1.5" />
-    <polygon points="12,7.5 13.76,10.76 17.4,11.3 14.7,13.84 15.34,17.45 12,15.85 8.66,17.45 9.3,13.84 6.6,11.3 10.24,10.76" fill="#FCD34D" stroke="#D97706" strokeWidth="0.6" strokeLinejoin="round" />
+    <polygon
+      points="12,7.5 13.76,10.76 17.4,11.3 14.7,13.84 15.34,17.45 12,15.85 8.66,17.45 9.3,13.84 6.6,11.3 10.24,10.76"
+      fill="#FCD34D"
+      stroke="#D97706"
+      strokeWidth="0.6"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
@@ -29,43 +33,67 @@ type NavbarProps = { coins?: number; onCoinClick?: () => void; centerActiveIndex
 export default function TugonSenseNavbar({ coins = 2, onCoinClick, centerActiveIndex = 0 }: NavbarProps) {
   const stepsCount = predefinedAnswers.length;
   if ((import.meta as any)?.env?.DEV) console.log("steps", stepsCount);
+
   return (
-    <div className="w-full bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-sm">
+    <div
+      className="w-full backdrop-blur supports-[backdrop-filter]:bg-white/60 shadow-sm"
+      style={{
+        background: `linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.76) 100%)`,
+      }}
+    >
       <div className="relative mx-auto max-w-7xl px-4 md:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Centered progress bar overlay */}
+        {/* Centered progress overlay */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="w-full max-w-3xl px-16">
             <div className="flex items-center gap-2">
               {Array.from({ length: Math.max(0, stepsCount) }).map((_, i) => (
                 <span
                   key={i}
-                  className={`h-2 rounded-full flex-1 transition-colors ${i === centerActiveIndex ? "bg-blue-500" : "bg-gray-300"}`}
+                  className="h-2 rounded-full flex-1 transition-all"
+                  style={{
+                    background:
+                      i === centerActiveIndex
+                        ? `linear-gradient(90deg, ${color.teal}, ${color.aqua})`
+                        : "#e5e7eb",
+                    boxShadow: i === centerActiveIndex ? `0 0 0 1px ${color.aqua}55 inset` : "none",
+                  }}
                 />
               ))}
             </div>
           </div>
         </div>
+
         {/* Left: Brand */}
         <div className="flex items-center gap-3 min-w-0">
           <img src={logo} alt="Tugon" className="h-7 w-7 object-contain" />
-          <span className="text-xl font-semibold tracking-tight">Tugon</span>
+          <span className="text-xl font-semibold tracking-tight" style={{ color: color.ocean }}>
+            Tugon
+          </span>
         </div>
 
-  {/* Center nav hidden to avoid duplicating content under the progress overlay */}
-  <nav className="hidden" aria-hidden="true" />
-
-        {/* Right: Coin indicator (clickable) */}
+        {/* Right: Coins + menu */}
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onCoinClick}
             aria-label="Coins"
-            className="h-10 px-3 rounded-xl border-2 border-blue-500/70 bg-white shadow-sm inline-flex items-center gap-2 cursor-pointer transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 active:scale-[0.98]"
+            className="h-10 px-3 rounded-xl bg-white shadow-sm inline-flex items-center gap-2 cursor-pointer transition hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2"
+            style={{
+              border: `2px solid ${color.teal}70`,
+              boxShadow: `0 6px 20px ${color.ocean}14`,
+            }}
           >
             <CoinIcon className="h-5 w-5" />
-            <span className="text-base font-semibold text-gray-900">{coins}</span>
+            <span className="text-base font-semibold" style={{ color: color.deep }}>
+              {coins}
+            </span>
           </button>
-          <button className="inline-flex md:hidden p-2 rounded-md hover:bg-gray-100" aria-label="Open menu">
+
+          <button
+            className="inline-flex md:hidden p-2 rounded-md hover:bg-gray-100"
+            aria-label="Open menu"
+            style={{ color: color.ocean }}
+          >
             <MenuIcon className="h-6 w-6" />
           </button>
         </div>
