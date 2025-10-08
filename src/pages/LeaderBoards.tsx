@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Trophy, Loader2, ArrowLeft, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -29,12 +29,52 @@ interface LeaderboardEntry {
 
 type PerQuizBoards = Record<string, LeaderboardEntry[]>;
 
-const maskName = (input: string): string => {
+type SchoolKey = "ALL" | "UE" | "BNHS" | "OTHERS";
+
+/** Show only the part before '@' (no domain). */
+const baseName = (input: string): string => {
   if (!input) return "";
-  const base = input.includes("@") ? input.split("@")[0] : input;
-  const visible = Math.min(4, Math.floor(Math.random() * 3) + 2);
-  const maskedPart = "*".repeat(Math.max(1, base.length - visible));
-  return base.slice(0, visible) + maskedPart;
+  if (input.includes("@")) return input.split("@")[0];
+  return input;
+};
+
+/** Partially mask a string with asterisks, keeping a few edge characters visible. */
+const maskPrivate = (s: string): string => {
+  const str = s ?? "";
+  const n = str.length;
+  if (n === 0) return "";
+  if (n === 1) return "*";
+  if (n === 2) return str[0] + "*";
+  if (n === 3) return str[0] + "*" + str[2];
+
+  // n >= 4
+  if (n <= 6) {
+    // keep first 2, last 1
+    const keepStart = 2;
+    const keepEnd = 1;
+    const stars = Math.max(1, n - keepStart - keepEnd);
+    return str.slice(0, keepStart) + "*".repeat(stars) + str.slice(n - keepEnd);
+  }
+  // n > 6, keep first 2 and last 2
+  const keepStart = 2;
+  const keepEnd = 2;
+  const stars = Math.max(1, n - keepStart - keepEnd);
+  return str.slice(0, keepStart) + "*".repeat(stars) + str.slice(n - keepEnd);
+};
+
+/** Convenient helper: take email or id, derive base label, then mask. */
+const maskedLabel = (emailOrId?: string | null): string => {
+  if (!emailOrId) return "";
+  return maskPrivate(baseName(emailOrId));
+};
+
+/** Map email → school bucket */
+const schoolFromEmail = (email?: string | null): SchoolKey => {
+  if (!email) return "OTHERS";
+  const low = email.toLowerCase();
+  if (low.endsWith("@ue.edu.ph")) return "UE";
+  if (low.endsWith("@bnhs.com")) return "BNHS";
+  return "OTHERS";
 };
 
 function PodiumLottie({
@@ -59,19 +99,20 @@ function PodiumLottie({
 
 export default function Leaderboards() {
   const navigate = useNavigate();
-  useAuth(); // keep session hydrated if you need it later
+  useAuth();
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
-  const [overallBoard, setOverallBoard] = useState<LeaderboardEntry[]>([]);
-  const [perQuizBoards, setPerQuizBoards] = useState<PerQuizBoards>({});
+
+  // Store the raw per-quiz boards (unsliced) so we can filter by school and slice after.
+  const [perQuizBoardsRaw, setPerQuizBoardsRaw] = useState<PerQuizBoards>({});
+  const [selectedSchool, setSelectedSchool] = useState<SchoolKey>("ALL");
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
 
-        // Fetch quizzes
         const { data: qz, error: qErr } = await supabase
           .from("quizzes")
           .select("id, title")
@@ -82,13 +123,11 @@ export default function Leaderboards() {
         setQuizzes(quizzesList);
 
         if (quizzesList.length === 0) {
-          setPerQuizBoards({});
-          setOverallBoard([]);
+          setPerQuizBoardsRaw({});
           setLoading(false);
           return;
         }
 
-        // Fetch per-quiz highest scores per user via RPC (your function)
         const results = await Promise.all(
           quizzesList.map(async (quiz) => {
             const { data, error } = await supabase.rpc("get_highest_scores_for_quiz", {
@@ -107,38 +146,53 @@ export default function Leaderboards() {
           })
         );
 
-        // Per-quiz top10
-        const perQuiz: PerQuizBoards = {};
-        for (const r of results) perQuiz[r.quizId] = r.rows.slice(0, 10) as LeaderboardEntry[];
-        setPerQuizBoards(perQuiz);
-
-        // Overall = sum of best-per-quiz for each user
-        const byUser: Record<string, LeaderboardEntry> = {};
-        for (const r of results) {
-          for (const row of r.rows) {
-            const uid = row.user_id;
-            if (!uid) continue;
-            const s = row.score ?? 0;
-            if (!byUser[uid]) {
-              byUser[uid] = { user_id: uid, user_email: row.user_email, score: s };
-            } else {
-              byUser[uid].score += s;
-            }
-          }
-        }
-        const overall = Object.values(byUser)
-          .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-          .slice(0, 10);
-        setOverallBoard(overall);
+        const perQuizRaw: PerQuizBoards = {};
+        for (const r of results) perQuizRaw[r.quizId] = r.rows as LeaderboardEntry[];
+        setPerQuizBoardsRaw(perQuizRaw);
       } catch (err) {
         console.error("Failed to load leaderboards:", err);
-        setOverallBoard([]);
-        setPerQuizBoards({});
+        setPerQuizBoardsRaw({});
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  // Filter helpers
+  const matchesSchool = (entry: LeaderboardEntry) => {
+    if (selectedSchool === "ALL") return true;
+    return schoolFromEmail(entry.user_email) === selectedSchool;
+  };
+
+  // Per-quiz boards after applying school filter (then slice to Top 10)
+  const perQuizBoards: PerQuizBoards = useMemo(() => {
+    const out: PerQuizBoards = {};
+    for (const [quizId, rows] of Object.entries(perQuizBoardsRaw)) {
+      out[quizId] = rows.filter(matchesSchool).slice(0, 10);
+    }
+    return out;
+  }, [perQuizBoardsRaw, selectedSchool]);
+
+  // Overall leaderboard: sum each user's best-for-quiz across ALL quizzes (using filtered rows).
+  const overallBoard = useMemo<LeaderboardEntry[]>(() => {
+    const byUser: Record<string, LeaderboardEntry> = {};
+    for (const rows of Object.values(perQuizBoardsRaw)) {
+      for (const row of rows) {
+        if (!matchesSchool(row)) continue;
+        const uid = row.user_id;
+        if (!uid) continue;
+        const s = row.score ?? 0;
+        if (!byUser[uid]) {
+          byUser[uid] = { user_id: uid, user_email: row.user_email, score: s };
+        } else {
+          byUser[uid].score += s;
+        }
+      }
+    }
+    return Object.values(byUser)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .slice(0, 10);
+  }, [perQuizBoardsRaw, selectedSchool]);
 
   const gradient = `linear-gradient(135deg, ${color.ocean} 0%, ${color.teal} 55%, ${color.aqua} 100%)`;
   const cardBorder = `${color.mist}66`;
@@ -147,16 +201,54 @@ export default function Leaderboards() {
 
   return (
     <>
-      {/* Hero */}
+      {/* Ensure dropdown options (popup) are readable even with a translucent trigger */}
+      <style>{`
+        select.school-filter option {
+          color: #111;
+          background: #fff;
+        }
+      `}</style>
+
       <header className="relative" style={{ background: gradient }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-white">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-white/90 hover:text-white transition focus:outline-none"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            <span className="text-sm font-medium">Back</span>
-          </button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <button
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-white/90 hover:text-white transition focus:outline-none"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span className="text-sm font-medium">Back</span>
+            </button>
+
+            {/* School Filter Dropdown — translucent/glassy like before, but readable */}
+            <div
+              className="inline-flex items-center gap-2 rounded-xl px-3 py-2 border bg-white/10 backdrop-blur"
+              style={{
+                borderColor: "#ffffff44",
+                zIndex: 50, // keep the menu above the header
+              }}
+            >
+              <span className="text-sm text-white/90">Filter by school:</span>
+              <select
+                value={selectedSchool}
+                onChange={(e) => setSelectedSchool(e.target.value as SchoolKey)}
+                className="school-filter text-sm outline-none text-white bg-transparent cursor-pointer"
+                style={{
+                  WebkitAppearance: "menulist" as any,
+                  MozAppearance: "menulist",
+                  appearance: "menulist",
+                  border: "none",
+                  padding: "4px 6px",
+                  borderRadius: 8,
+                }}
+              >
+                <option className="text-gray-900" value="ALL">All Schools</option>
+                <option className="text-gray-900" value="UE">University of the East</option>
+                <option className="text-gray-900" value="BNHS">BNHS</option>
+                <option className="text-gray-900" value="OTHERS">Others</option>
+              </select>
+            </div>
+          </div>
 
           <div className="mt-4 flex items-center gap-3">
             <Trophy className="h-8 w-8" />
@@ -164,7 +256,7 @@ export default function Leaderboards() {
           </div>
 
           <p className="mt-2 text-white/90 max-w-2xl">
-            Overall ranking adds your best score from each challenge. Push your personal bests to climb the board!
+            Overall ranking adds your best score from each challenge. Use the school filter to view rankings by organization.
           </p>
         </div>
 
@@ -200,7 +292,15 @@ export default function Leaderboards() {
                   </h2>
                 </div>
                 <span className="text-sm" style={{ color: sub }}>
-                  Overall · Top 10
+                  {selectedSchool === "ALL"
+                    ? "Overall · Top 10"
+                    : `${
+                        selectedSchool === "UE"
+                          ? "University of the East"
+                          : selectedSchool === "BNHS"
+                          ? "BNHS"
+                          : "Others"
+                      } · Top 10`}
                 </span>
               </div>
 
@@ -210,9 +310,8 @@ export default function Leaderboards() {
                 </p>
               ) : (
                 <>
-                  {/* Podium with mobile-first 1-2-3 order; on ≥sm: 2-1-3 heights */}
+                  {/* Podium */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8 items-end">
-                    {/* 1st — order first on mobile, middle on sm+ */}
                     {overallBoard[0] && (
                       <div
                         className="order-1 sm:order-2 rounded-2xl px-8 pt-8 pb-9 text-center ring-1 flex flex-col items-center -translate-y-0 sm:-translate-y-4"
@@ -228,7 +327,7 @@ export default function Leaderboards() {
                           1st Place
                         </div>
                         <div className="text-2xl font-extrabold leading-tight" style={{ color: ink }}>
-                          {maskName(overallBoard[0].user_email ?? overallBoard[0].user_id)}
+                          {maskedLabel(overallBoard[0].user_email ?? overallBoard[0].user_id)}
                         </div>
                         <div className="mt-2 text-xl font-extrabold" style={{ color: color.teal }}>
                           {overallBoard[0].score} pts
@@ -236,7 +335,6 @@ export default function Leaderboards() {
                       </div>
                     )}
 
-                    {/* 2nd — left on sm+ */}
                     {overallBoard[1] && (
                       <div
                         className="order-2 sm:order-1 rounded-2xl px-5 pt-5 pb-6 text-center ring-1 flex flex-col items-center sm:translate-y-6"
@@ -251,7 +349,7 @@ export default function Leaderboards() {
                           2nd Place
                         </div>
                         <div className="text-lg font-bold leading-tight" style={{ color: ink }}>
-                          {maskName(overallBoard[1].user_email ?? overallBoard[1].user_id)}
+                          {maskedLabel(overallBoard[1].user_email ?? overallBoard[1].user_id)}
                         </div>
                         <div className="mt-1 font-semibold" style={{ color: color.teal }}>
                           {overallBoard[1].score} pts
@@ -259,7 +357,6 @@ export default function Leaderboards() {
                       </div>
                     )}
 
-                    {/* 3rd — right on sm+ */}
                     {overallBoard[2] && (
                       <div
                         className="order-3 sm:order-3 rounded-2xl px-5 pt-5 pb-6 text-center ring-1 flex flex-col items-center sm:translate-y-6"
@@ -274,7 +371,7 @@ export default function Leaderboards() {
                           3rd Place
                         </div>
                         <div className="text-lg font-bold leading-tight" style={{ color: ink }}>
-                          {maskName(overallBoard[2].user_email ?? overallBoard[2].user_id)}
+                          {maskedLabel(overallBoard[2].user_email ?? overallBoard[2].user_id)}
                         </div>
                         <div className="mt-1 font-semibold" style={{ color: color.teal }}>
                           {overallBoard[2].score} pts
@@ -300,7 +397,7 @@ export default function Leaderboards() {
                             {rank}
                           </span>
                           <span className="font-medium" style={{ color: ink }}>
-                            {maskName(entry.user_email ?? entry.user_id)}
+                            {maskedLabel(entry.user_email ?? entry.user_id)}
                           </span>
                         </div>
                         <span className="font-semibold" style={{ color: color.teal }}>
@@ -333,6 +430,14 @@ export default function Leaderboards() {
                       </h3>
                       <p className="text-sm mt-1" style={{ color: sub }}>
                         Highest score · Top 10
+                        {selectedSchool !== "ALL" &&
+                          ` · ${
+                            selectedSchool === "UE"
+                              ? "University of the East"
+                              : selectedSchool === "BNHS"
+                              ? "BNHS"
+                              : "Others"
+                          }`}
                       </p>
                     </div>
 
@@ -356,7 +461,7 @@ export default function Leaderboards() {
                                 {index + 1}
                               </span>
                               <span className="font-medium" style={{ color: ink }}>
-                                {maskName(entry.user_email ?? entry.user_id)}
+                                {maskedLabel(entry.user_email ?? entry.user_id)}
                               </span>
                             </div>
                             <span className="font-semibold" style={{ color: color.teal }}>

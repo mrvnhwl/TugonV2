@@ -90,10 +90,11 @@ export default function Challenge() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [authChecked, setAuthChecked] = useState(false); // ⬅️ wait for real auth state
+  const [authChecked, setAuthChecked] = useState(false);
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
+  const [attemptsAll, setAttemptsAll] = useState<QuizAttempt[]>([]); // all users, for counts/sorting
+  const [myAttemptedMap, setMyAttemptedMap] = useState<Record<string, boolean>>({}); // per-quiz gate
   const [progressRows, setProgressRows] = useState<UserProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -113,11 +114,8 @@ export default function Challenge() {
         return;
       }
       setAuthChecked(true);
-      // also keep listening for sign-out
       const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (!session) {
-          navigate("/login", { replace: true });
-        }
+        if (!session) navigate("/login", { replace: true });
       });
       unsub = () => listener.subscription.unsubscribe();
     })();
@@ -148,23 +146,42 @@ export default function Challenge() {
       setQuizzes(qz);
 
       if (qz.length === 0) {
-        setAttempts([]);
+        setAttemptsAll([]);
+        setMyAttemptedMap({});
         setProgressRows([]);
         return;
       }
 
       const quizIds = qz.map((q) => q.id);
 
-      // 2) Load attempts
-      const { data: aData, error: aErr } = await supabase
+      // 2) Load attempts (ALL users) for popularity counts/sorting
+      const { data: aAll, error: aAllErr } = await supabase
         .from("quiz_attempts")
-        .select("*")
+        .select("id, quiz_id, user_id, score, created_at")
         .in("quiz_id", quizIds);
 
-      if (aErr) throw aErr;
-      setAttempts((aData as QuizAttempt[]) ?? []);
+      if (aAllErr) throw aAllErr;
+      setAttemptsAll((aAll as QuizAttempt[]) ?? []);
 
-      // 3) Load progress (all users)
+      // 3) Load *my* attempts to gate single attempt per quiz
+      if (user) {
+        const { data: aMine, error: aMineErr } = await supabase
+          .from("quiz_attempts")
+          .select("quiz_id")
+          .eq("user_id", user.id)
+          .in("quiz_id", quizIds);
+
+        if (aMineErr) throw aMineErr;
+        const map: Record<string, boolean> = {};
+        for (const row of (aMine ?? []) as { quiz_id: string }[]) {
+          map[row.quiz_id] = true;
+        }
+        setMyAttemptedMap(map);
+      } else {
+        setMyAttemptedMap({});
+      }
+
+      // 4) Load progress (all users)
       const { data: pData, error: pErr } = await supabase
         .from("user_progress")
         .select("*")
@@ -180,14 +197,25 @@ export default function Challenge() {
     }
   };
 
-  // --- insert attempt on Start ---
-  async function logAttempt(quizId: string, userId: string) {
-    const { error } = await supabase.from("quiz_attempts").insert({
-      quiz_id: quizId,
-      user_id: userId,
-      score: null,
-    });
-    if (error) throw error;
+  // --- insert attempt on Start (only if none exists) ---
+  async function logAttemptOnce(quizId: string, userId: string) {
+    // Server-side safety: if you can, add a UNIQUE constraint on (quiz_id, user_id)
+    // in Supabase (quiz_attempts) to enforce one attempt per user per quiz.
+    const { data, error } = await supabase
+      .from("quiz_attempts")
+      .insert({ quiz_id: quizId, user_id: userId, score: null })
+      .select()
+      .single();
+
+    if (error) {
+      // If unique violation occurs, we just treat it as "already attempted"
+      // Postgres unique_violation is "23505"
+      if ((error as any).code === "23505") {
+        return { alreadyAttempted: true as const, attempt: null };
+      }
+      throw error;
+    }
+    return { alreadyAttempted: false as const, attempt: data as QuizAttempt };
   }
 
   const handleStart = async (
@@ -196,32 +224,37 @@ export default function Challenge() {
   ) => {
     e.preventDefault();
     if (!user) {
-      // If somehow no user after hydration, protect route
       navigate("/login", { replace: true });
       return;
     }
 
-    const optimisticId = "optimistic-" + Date.now();
-
-    setAttempts((prev) => [
-      ...prev,
-      {
-        id: optimisticId,
-        quiz_id: quizId,
-        user_id: user.id,
-        score: null,
-        created_at: new Date().toISOString(),
-      },
-    ]);
+    // Client-side gate
+    if (myAttemptedMap[quizId]) {
+      toast.info("You can only attempt this challenge once.");
+      return;
+    }
 
     try {
-      await logAttempt(quizId, user.id);
+      const res = await logAttemptOnce(quizId, user.id);
+
+      if (res.alreadyAttempted) {
+        // Sync UI in case it wasn't reflected yet
+        setMyAttemptedMap((m) => ({ ...m, [quizId]: true }));
+        toast.info("You’ve already attempted this challenge.");
+        return;
+      }
+
+      // Optimistically update lists (for counts and gating)
+      if (res.attempt) {
+        setAttemptsAll((prev) => [...prev, res.attempt!]);
+        setMyAttemptedMap((m) => ({ ...m, [quizId]: true }));
+      }
+
+      // Navigate into the quiz after first (and only) attempt is created
+      navigate(`/quiz/${quizId}`);
     } catch (err) {
       console.error(err);
       toast.error("Couldn’t record attempt");
-      setAttempts((prev) => prev.filter((a) => a.id !== optimisticId));
-    } finally {
-      navigate(`/quiz/${quizId}`);
     }
   };
   // -------------------------------
@@ -229,11 +262,11 @@ export default function Challenge() {
   // Derived maps
   const attemptsCountByQuiz = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const row of attempts) {
+    for (const row of attemptsAll) {
       map[row.quiz_id] = (map[row.quiz_id] ?? 0) + 1;
     }
     return map;
-  }, [attempts]);
+  }, [attemptsAll]);
 
   const bestScoreByQuizGlobal = useMemo(() => {
     const map: Record<string, number> = {};
@@ -530,6 +563,8 @@ export default function Challenge() {
                 avgMinutesByQuiz[quiz.id] ??
                 (typeof quiz.estimated_minutes === "number" ? quiz.estimated_minutes : 15);
 
+              const alreadyAttempted = !!myAttemptedMap[quiz.id];
+
               return (
                 <motion.div
                   key={quiz.id}
@@ -548,7 +583,10 @@ export default function Challenge() {
                       <h3 className="text-lg font-semibold leading-snug" style={{ color: color.deep }}>
                         {quiz.title}
                       </h3>
-                      <Chip tone={tone}>{d}</Chip>
+                      <div className="flex items-center gap-2">
+                        <Chip tone={tone}>{d}</Chip>
+                        {alreadyAttempted && <Chip tone="neutral">Attempted</Chip>}
+                      </div>
                     </div>
 
                     <p className="text-sm mt-2 line-clamp-3" style={{ color: color.steel }}>
@@ -585,16 +623,21 @@ export default function Challenge() {
                       </div>
 
                       <Link
-                        to={`/quiz/${quiz.id}`}
-                        onClick={(e) => handleStart(e, quiz.id)}
-                        className="inline-flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition focus:outline-none"
+                        to={alreadyAttempted ? "#" : `/quiz/${quiz.id}`}
+                        onClick={(e) =>
+                          alreadyAttempted ? (e.preventDefault(), toast.info("You can only attempt this challenge once.")) : handleStart(e, quiz.id)
+                        }
+                        aria-disabled={alreadyAttempted}
+                        className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition focus:outline-none ${
+                          alreadyAttempted ? "pointer-events-none opacity-60" : ""
+                        }`}
                         style={{
                           background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
                           color: "#fff",
                         }}
                       >
                         <Play className="h-4 w-4" />
-                        Start
+                        {alreadyAttempted ? "Attempted" : "Start"}
                       </Link>
                     </div>
                   </div>
