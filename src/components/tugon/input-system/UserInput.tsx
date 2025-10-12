@@ -22,6 +22,9 @@ import {
   getSimilarityFeedback,
   stripColorCommands
 } from './mathColorComparison';
+import { HintGeneratorService, BehaviorTemplates } from '../services/hintGenerator';
+import { extractWrongTokensFromFeedback, formatWrongTokensForHint } from '../services/feedbackExtractor';
+import type { TokenFeedback } from './tokenUtils';
 
 type StepProgression = [string, string, boolean, string, number];
 // [stepLabel, userInput, isCorrect, expectedAnswer, totalProgress]
@@ -113,6 +116,10 @@ export default function UserInput({
   const [behaviorProfile, setBehaviorProfile] = useState<UserBehaviorProfile | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
 
+  // ✨ NEW: AI behavior templates state
+  const [behaviorTemplates, setBehaviorTemplates] = useState<BehaviorTemplates | null>(null);
+  const [templatesLoading, setTemplatesLoading] = useState<boolean>(true);
+
   // User progression tracking array
   const [userProgressionArray, setUserProgressionArray] = useState<StepProgression[]>([]);
   const [userAttempt, setUserAttempt] = useState<UserAttempt[]>([]);
@@ -177,6 +184,26 @@ export default function UserInput({
   useEffect(() => {
     setLines(value);
   }, [value]);
+
+  // ✨ NEW: Load AI behavior templates once on mount
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        setTemplatesLoading(true);
+        const hintService = new HintGeneratorService();
+        const templates = await hintService.generateBehaviorTemplates();
+        setBehaviorTemplates(templates);
+        console.log('✅ AI behavior templates loaded:', templates);
+      } catch (error) {
+        console.error('❌ Failed to load behavior templates:', error);
+        // Templates will remain null, fallback to generic hints
+      } finally {
+        setTemplatesLoading(false);
+      }
+    };
+
+    loadTemplates();
+  }, []); // Run once on mount
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -286,7 +313,20 @@ export default function UserInput({
     return step.placeholder || "Enter your expression here..."; // Use step placeholder or fallback
   }, [expectedSteps]);
 
-  // Smart hint message system using behavior analysis with context-aware hints
+  // ✨ NEW: Fill hint template with runtime variables
+  const fillHintTemplate = useCallback((
+    template: string,
+    behavior: string,
+    wrongPart: string,
+    stepLabel: string
+  ): string => {
+    return template
+      .replace(/\{behavior\}/g, behavior)
+      .replace(/\{wrongPart\}/g, wrongPart)
+      .replace(/\{stepLabel\}/g, stepLabel);
+  }, []);
+
+  // Smart hint message system using AI-generated behavior templates with token-level feedback
   const showHintMessage = useCallback((
     userInput: string,
     correctAnswer: string,
@@ -304,37 +344,93 @@ export default function UserInput({
     // Analyze user behavior
     const analysis = BehaviorAnalyzer.analyze(userInput, correctAnswer, attemptHistory);
 
-    // Try to get context-aware hint
+    // Get stepLabel from expectedSteps
+    const stepLabel = expectedSteps[lineIndex]?.label || 'this step';
+
+    // ✨ NEW: Extract wrong tokens from current validation feedback
+    const currentValidation = lineValidationStates.get(lineIndex);
+    let wrongPart = 'that part';
+    
+    if (currentValidation?.tokenFeedback) {
+      const extracted = extractWrongTokensFromFeedback(currentValidation.tokenFeedback);
+      wrongPart = formatWrongTokensForHint(
+        extracted.wrongTokens,
+        extracted.misplacedTokens,
+        extracted.extraTokens
+      );
+    }
+
+    // Map behavior types to friendly descriptions
+    const behaviorDescriptions: Record<string, string> = {
+      'sign-error': 'confusing plus and minus signs',
+      'repetition': 'repeating the same answer',
+      'close-attempt': 'getting very close to the answer',
+      'magnitude-error': 'off by a large amount',
+      'guessing': 'trying random answers',
+      'random': 'making general mistakes',
+      'default': 'needing some guidance',
+      'self-correction': 'making progress with corrections'
+    };
+
+    const behaviorDescription = behaviorDescriptions[analysis.type] || behaviorDescriptions['default'];
+
     let hint = "";
     let icon = "💡";
-    
-    // Get stepLabel from expectedSteps
-    const stepLabel = expectedSteps[lineIndex]?.label || '';
-    
-    // Attempt to retrieve curated hint based on question context
-    if (topicId && categoryId && questionId && stepLabel) {
-      const contextHint = getStepHint(
-        topicId,
-        categoryId,
-        questionId,
-        stepLabel,
-        analysis.type as any // BehaviorType from hints matches BehaviorAnalyzer types
-      );
+
+    // ✨ NEW: Use AI-generated templates if available
+    if (behaviorTemplates && behaviorTemplates.templates) {
+      // Map analysis.type to template behaviorType (with fallback)
+      const behaviorMap: Record<string, string> = {
+        'sign-error': 'sign-error',
+        'magnitude-error': 'magnitude-error',
+        'close-attempt': 'close-attempt',
+        'guessing': 'guessing',
+        'repetition': 'repeating',
+        'default': 'general',
+        'random': 'general',
+        'self-correction': 'self-correction'
+      };
       
-      if (contextHint) {
-        // Use context-aware hint
-        hint = contextHint;
+      const mappedBehavior = behaviorMap[analysis.type] || 'general';
+      const templateObj = behaviorTemplates.templates.find(t => t.behaviorType === mappedBehavior);
+      
+      if (templateObj && templateObj.templates.length > 0) {
+        // Randomly select one of the 3 template variations
+        const selectedTemplate = templateObj.templates[Math.floor(Math.random() * templateObj.templates.length)];
+        
+        // Fill in the placeholders
+        hint = fillHintTemplate(selectedTemplate, behaviorDescription, wrongPart, stepLabel);
+        
         // Extract icon from hint (emojis at start)
         const iconMatch = hint.match(/^([\u{1F300}-\u{1F9FF}][\u{FE00}-\u{FE0F}]?|[\u{2600}-\u{27BF}])/u);
         if (iconMatch) {
           icon = iconMatch[0];
         }
         
-        console.log(`  Using context-aware hint for Topic ${topicId}, Category ${categoryId}, Question ${questionId}, Step ${stepLabel}`);
+        console.log(`✨ Using AI template for behavior: ${mappedBehavior}`);
+      }
+    } 
+    // Fallback to curated hints from hint registry
+    else if (topicId && categoryId && questionId && stepLabel) {
+      const contextHint = getStepHint(
+        topicId,
+        categoryId,
+        questionId,
+        stepLabel,
+        analysis.type as any
+      );
+      
+      if (contextHint) {
+        hint = contextHint;
+        const iconMatch = hint.match(/^([\u{1F300}-\u{1F9FF}][\u{FE00}-\u{FE0F}]?|[\u{2600}-\u{27BF}])/u);
+        if (iconMatch) {
+          icon = iconMatch[0];
+        }
+        console.log(`📚 Using curated hint for Topic ${topicId}, Category ${categoryId}, Question ${questionId}`);
       }
     }
     
-    // Fallback to generic hints if no context-aware hint found
+    // Final fallback to hardcoded generic hints
     if (!hint) {
       switch (analysis.type) {
         case 'sign-error':
@@ -373,6 +469,7 @@ export default function UserInput({
           icon = "💡";
           break;
       }
+      console.log(`🔧 Using hardcoded fallback hint`);
     }
 
     // Debug logging
@@ -380,28 +477,73 @@ export default function UserInput({
       type: analysis.type,
       userInput,
       correctAnswer,
+      wrongPart,
+      stepLabel,
+      behaviorDescription,
       hint,
       icon,
-      contextAware: !!stepLabel,
-      stepLabel,
+      usingAITemplate: !!behaviorTemplates,
       timestamp: new Date().toISOString()
     });
 
-    // Display toast with curated message
-    toast(hint, {
-      icon: icon,
-      duration: 3500, // 3.5 seconds (CHANGED)
-      style: {
-        borderRadius: "10px",
-        background: "#333",
-        color: "#fff",
-        padding: "16px",
-        fontSize: "15px",
-        maxWidth: "500px",
-        textAlign: "center",
-      },
-    });
-  }, [topicId, categoryId, questionId, expectedSteps]);
+    // ✨ Enhanced hint display with emphasized wrongPart and stepLabel
+    const renderEnhancedHint = (hintText: string) => {
+      const cleanHint = hintText.replace(/^[\u{1F300}-\u{1F9FF}][\u{FE00}-\u{FE0F}]?\s*/u, '');
+      
+      // Split hint and emphasize wrongPart and stepLabel
+      const parts = cleanHint.split(/(".*?"|'.*?'|\b\w+\b)/g).filter(Boolean);
+      
+      return parts.map((part, index) => {
+        // Emphasize quoted wrong parts (e.g., "+", "-", "42")
+        if (part.match(/^["'].*["']$/)) {
+          return (
+            <span key={index} className="font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
+              {part}
+            </span>
+          );
+        }
+        
+        // Emphasize step labels when followed by period or at end
+        if (stepLabel && part.toLowerCase() === stepLabel.toLowerCase()) {
+          return (
+            <span key={index} className="font-semibold text-teal-700 underline decoration-teal-300 decoration-2">
+              {part}
+            </span>
+          );
+        }
+        
+        return <span key={index}>{part}</span>;
+      });
+    };
+
+    // Display toast with curated message - Styled format with teal theme
+    toast.custom(
+      (t) => (
+        <div 
+          className={`max-w-md w-full bg-white border-l-8 border-teal-500 shadow-xl rounded-xl p-5 mb-4 transition-all duration-300 ${
+            t.visible ? 'animate-enter' : 'animate-leave'
+          }`}
+        >
+          {/* Header with emoji badge and greeting */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white text-xl">
+              {icon}
+            </div>
+            <span className="font-bold text-xl text-teal-600">Hey there,</span>
+          </div>
+          
+          {/* Message body - indented with emphasized parts */}
+          <div className="ml-12 text-gray-700 text-base leading-relaxed">
+            {renderEnhancedHint(hint)}
+          </div>
+        </div>
+      ),
+      {
+        duration: 3500,
+        position: 'top-center',
+      }
+    );
+  }, [topicId, categoryId, questionId, expectedSteps, behaviorTemplates, fillHintTemplate, lineValidationStates]);
 
   // Varied success messages for positive reinforcement
   const showSuccessMessage = useCallback((attemptCount: number) => {
@@ -646,13 +788,15 @@ export default function UserInput({
       return;
     }
     const expectedStep = expectedSteps[lineIndex];
-    console.log(`🔍 Validating line ${lineIndex}: "${line.trim()}" vs expected "${expectedStep.answer}"`);
+    // ✨ Use first answer for logging
+    const referenceAnswer = Array.isArray(expectedStep.answer) ? expectedStep.answer[0] : expectedStep.answer;
+    console.log(`🔍 Validating line ${lineIndex}: "${line.trim()}" vs expected "${referenceAnswer}"`);
     const userInputSanitized = InputValidator.sanitizeTextMathLive(line.trim());
-    const expectedSanitized = InputValidator.sanitizeTextMathLive(expectedStep.answer);
+    const expectedSanitized = InputValidator.sanitizeTextMathLive(referenceAnswer);
     console.log(`🔍 UserInput: Validating line ${lineIndex} (MathLive-aware):`, {
       userInput: line.trim(),
       userInputSanitized: userInputSanitized,
-      expectedAnswer: expectedStep.answer,
+      expectedAnswer: referenceAnswer,
       expectedSanitized: expectedSanitized,
       stepLabel: expectedStep.label
     });
@@ -696,7 +840,8 @@ export default function UserInput({
     } else {
       // ❌ WRONG ANSWER - Track attempt and increment counter
       const sanitizedInput = line.trim();
-      const correctAnswer = expectedStep.answer;
+      // ✨ Use first answer for feedback
+      const correctAnswer = Array.isArray(expectedStep.answer) ? expectedStep.answer[0] : expectedStep.answer;
 
       // Update attempt history
       setAttemptHistory(prev => [...prev, sanitizedInput]);
@@ -725,9 +870,9 @@ export default function UserInput({
             const newHintCount = prevHintCount + 1;
             console.log(`📈 Feedback cycle ${newHintCount} (Total wrong: ${(newHintCount * 3)})`);
 
-            // On 4th cycle (12th wrong attempt), show modal once
-            if (newHintCount === 4 && !modalShown) {
-              console.log(`🚨 TRIGGERING MODAL - 12th wrong attempt reached`);
+            // ✨ MODIFIED: On 5th cycle (15th wrong attempt - AFTER 12th), show modal once
+            if (newHintCount === 5 && !modalShown) {
+              console.log(`🚨 TRIGGERING MODAL - 15th wrong attempt reached (AFTER 12th attempt)`);
               setModalData({
                 userInput: sanitizedInput,
                 correctAnswer: correctAnswer
@@ -736,7 +881,7 @@ export default function UserInput({
               setModalShown(true); // Mark modal as shown for this question
               // DON'T show toast when modal is triggered
             } else {
-              // Show toast hint (cycles 1, 2, 3, and 5+)
+              // Show toast hint (cycles 1, 2, 3, 4, and 6+)
               console.log(`💬 Showing toast for cycle ${newHintCount}`);
               const currentHistory = [...attemptHistory, sanitizedInput];
               showHintMessage(sanitizedInput, correctAnswer, currentHistory, lineIndex);
@@ -782,7 +927,9 @@ export default function UserInput({
       if (validation.isCorrect) {
         individualStepProgress = stepWeight;
       } else if (line.trim().length > 0) {
-        const expectedLength = expectedStep.answer.trim().length;
+        // ✨ Use first answer for length calculation
+        const referenceAnswer = Array.isArray(expectedStep.answer) ? expectedStep.answer[0] : expectedStep.answer;
+        const expectedLength = referenceAnswer.trim().length;
         const userLength = line.trim().length;
         const excessCharacters = userLength - expectedLength;
 
@@ -794,11 +941,13 @@ export default function UserInput({
       }
 
       // Update current step
+      // ✨ Use first answer for record keeping
+      const recordAnswer = Array.isArray(expectedStep.answer) ? expectedStep.answer[0] : expectedStep.answer;
       newArray[lineIndex] = [
         expectedStep.label,
         line.trim(),
         validation.isCorrect,
-        expectedStep.answer,
+        recordAnswer,
         Math.round(individualStepProgress * 100) / 100
       ];
 
@@ -1121,6 +1270,88 @@ export default function UserInput({
 
         // ✅ FIXED: Replace setOptions() with direct property assignment
         el.virtualKeyboardMode = virtualKeyboardEnabled ? 'manual' : 'off';
+        
+        // 🎹 NEW: Custom Virtual Keyboard Configuration
+        // Simplified keyboard layout for functions - organized and grouped
+        el.setOptions({
+          virtualKeyboards: {
+            'custom-functions': {
+              label: 'Functions', // Keyboard label
+              tooltip: 'Function Keyboard',
+              layer: 'custom-functions-layer'
+            }
+          },
+          customVirtualKeyboardLayers: {
+            'custom-functions-layer': {
+              styles: '',
+              rows: [
+                // Row 1: Numbers and basic grouping
+                [
+                  { class: 'keycap', label: '7', insert: '7' },
+                  { class: 'keycap', label: '8', insert: '8' },
+                  { class: 'keycap', label: '9', insert: '9' },
+                  { class: 'separator w5' },
+                  { class: 'keycap', label: '(', insert: '(' },
+                  { class: 'keycap', label: ')', insert: ')' },
+                  { class: 'separator w5' },
+                  { class: 'keycap', label: '+', insert: '+' },
+                  { class: 'keycap', label: '−', insert: '-' },
+                  { class: 'separator w5' },
+                  { class: 'action', label: '<svg><use xlink:href="#svg-delete-backward" /></svg>', command: ['performWithFeedback', 'deleteBackward'] }
+                ],
+                // Row 2: More numbers
+                [
+                  { class: 'keycap', label: '4', insert: '4' },
+                  { class: 'keycap', label: '5', insert: '5' },
+                  { class: 'keycap', label: '6', insert: '6' },
+                  { class: 'separator w5' },
+                  { class: 'keycap', label: '.', insert: '.' },
+                  { class: 'separator w5' },
+                  { class: 'keycap', label: '×', insert: '\\times' },
+                  { class: 'keycap', label: '÷', insert: '\\div' },
+                  { class: 'separator w5' },
+                  { class: 'action', label: 'Clear', command: ['performWithFeedback', 'deleteAll'] }
+                ],
+                // Row 3: Final numbers and power
+                [
+                  { class: 'keycap', label: '1', insert: '1' },
+                  { class: 'keycap', label: '2', insert: '2' },
+                  { class: 'keycap', label: '3', insert: '3' },
+                  { class: 'separator w5' },
+                  { class: 'keycap', label: '0', insert: '0' },
+                  { class: 'separator w5' },
+                  { class: 'keycap', label: 'x²', insert: '^{2}' },
+                  { class: 'keycap', label: 'xⁿ', insert: '^{#?}' },
+                  { class: 'keycap', label: '=', insert: '=' }
+                ],
+                // Row 4: Variables
+                [
+                  { class: 'keycap', label: 'x', insert: 'x' },
+                  { class: 'keycap', label: 'y', insert: 'y' },
+                  { class: 'keycap', label: 'a', insert: 'a' },
+                  { class: 'keycap', label: 'b', insert: 'b' },
+                  { class: 'keycap', label: 'c', insert: 'c' },
+                  { class: 'separator w5' },
+                  { class: 'keycap', label: 'f(x)', insert: 'f(#?)' },
+                  { class: 'keycap', label: 'g(x)', insert: 'g(#?)' }
+                ],
+                // Row 5: Functions
+                [
+                  { class: 'keycap', label: 'sin', insert: '\\sin(#?)' },
+                  { class: 'keycap', label: 'cos', insert: '\\cos(#?)' },
+                  { class: 'keycap', label: 'tan', insert: '\\tan(#?)' },
+                  { class: 'separator w5' },
+                  { class: 'keycap', label: 'log', insert: '\\log(#?)' },
+                  { class: 'keycap', label: 'ln', insert: '\\ln(#?)' },
+                  { class: 'separator w5' },
+                  { class: 'keycap', label: '√', insert: '\\sqrt{#?}' },
+                  { class: 'keycap', label: 'ⁿ√', insert: '\\sqrt[#?]{#?}' }
+                ]
+              ]
+            }
+          },
+          virtualKeyboardLayout: 'custom-functions'
+        });
 
         // ✅ FIXED: Use addEventListener for input events instead of onInput option
 
@@ -1504,38 +1735,41 @@ export default function UserInput({
 
                     {/* Input field */}
                     {shouldUseMathMode(index) ? (
-                      <div className="flex-1 flex items-center gap-2">
-                        {/* Math Field */}
-                        <math-field
-                          ref={setInputRef(index)}
-                          value={line}
-                          placeholder={getStepPlaceholder(index)}
-                          virtual-keyboard-mode={virtualKeyboardEnabled ? "manual" : "off"}
-                          smart-fence={true}
-                          smart-superscript={true}
-                          smart-mode={true}
-                          style={{
-                            flex: 1,
-                            border: "none",
-                            background: "transparent",
-                            padding: "12px",
-                            color: "#1f2937",
-                            fontSize: "2rem",
-                            minHeight: "48px",
-                            outline: "none",
-                            cursor: "text",
-                            userSelect: "text"
-                          }}
-                          className={cn(
-                            "focus:ring-0 focus:outline-none transition-all duration-200",
-                            "placeholder-gray-400 text-gray-900",
-                            disabled && "bg-gray-50 text-gray-500",
-                            checkCooldownStatus() && "opacity-60 cursor-not-allowed",
-                            wrongAttemptCounter >= 3 && !disabled && "ring-2 ring-red-500 ring-opacity-50"
-                          )}
-                        />
+                      <div className="flex-1 flex items-stretch gap-2">
+                        {/* Math Field Container - grows to fill space */}
+                        <div className="flex-1 min-w-0">
+                          <math-field
+                            ref={setInputRef(index)}
+                            value={line}
+                            placeholder={getStepPlaceholder(index)}
+                            virtual-keyboard-mode={virtualKeyboardEnabled ? "manual" : "off"}
+                            smart-fence={true}
+                            smart-superscript={true}
+                            smart-mode={true}
+                            style={{
+                              width: "100%",
+                              border: "none",
+                              background: "transparent",
+                              padding: "8px",
+                              color: "#1f2937",
+                              fontSize: "1.75rem",
+                              minHeight: "48px",
+                              outline: "none",
+                              cursor: "text",
+                              userSelect: "text"
+                            }}
+                            className={cn(
+                              "focus:ring-0 focus:outline-none transition-all duration-200",
+                              "placeholder-gray-400 text-gray-900",
+                              "text-base sm:text-2xl", // 📱 Medium font on mobile (1.75rem from style)
+                              disabled && "bg-gray-50 text-gray-500",
+                              checkCooldownStatus() && "opacity-60 cursor-not-allowed",
+                              wrongAttemptCounter >= 3 && !disabled && "ring-2 ring-red-500 ring-opacity-50"
+                            )}
+                          />
+                        </div>
 
-                        {/* Submit Button for Math Fields */}
+                        {/* Submit Button - Fixed position at right edge */}
                         {virtualKeyboardEnabled && line.trim() && (
                           <button
                             onClick={() => {
@@ -1564,15 +1798,16 @@ export default function UserInput({
                             }}
                             disabled={checkCooldownStatus()}
                             className={cn(
-                              "px-3 py-2 rounded-md text-sm font-medium transition-all duration-200",
-                              "flex items-center gap-1",
+                              "flex-shrink-0 self-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-all duration-200",
+                              "flex items-center justify-center gap-1",
+                              "min-w-[44px] w-[60px] sm:w-auto", // 📱 Fixed width on mobile for consistent positioning
                               checkCooldownStatus()
                                 ? "bg-gray-400 text-gray-200 cursor-not-allowed opacity-60"
                                 : "bg-blue-500 hover:bg-blue-600 text-white shadow-sm hover:shadow-md"
                             )}
                             title={checkCooldownStatus() ? "Cooldown active (2s)" : "Submit this step"}
                           >
-                            <span>✓</span>
+                            <span className="text-sm sm:text-base">✓</span>
                             <span className="hidden sm:inline">Submit</span>
                           </button>
                         )}

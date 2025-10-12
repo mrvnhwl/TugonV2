@@ -6,9 +6,31 @@ export const Topic1_Category1_Answers: PredefinedAnswer[] = [
     questionText: "If f(x) = 2x - 7, evaluate f(8).",
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "f(8) = 2(8) - 7", placeholder: "\\text{Substitute the value of x}" }, 
-      { label: "evaluation", answer: "f(8) = 16 - 7", placeholder: "\\text{Simplify the expression}" }, 
-      { label: "final", answer: "f(8) = 9", placeholder: "\\text{Write the final answer}" }
+      { 
+        label: "substitution", 
+        answer: [
+          "f(8) = 2(8) - 7",        // Standard implicit multiplication
+          "2(8)-7",       // Shorter
+        ],
+        placeholder: "\\text{Substitute the value of x}" 
+      }, 
+      { 
+        label: "evaluation", 
+        answer: [
+          "f(8) =16-7",
+          "16-7",
+          "16- 7"
+        ],
+        placeholder: "\\text{Simplify the expression}" 
+      }, 
+      { 
+        label: "final", 
+        answer: [
+          "f(8) = 9",
+          "9"
+        ],
+        placeholder: "\\text{Write the final answer}" 
+      }
     ]
   },
 
@@ -17,9 +39,19 @@ export const Topic1_Category1_Answers: PredefinedAnswer[] = [
     questionText: "If g(x) = x² + 2x + 1, find g(4)",
     type: "multiLine",
     steps: [
-      { label: "substitution", answer: "g(4) = (4)^2 + 2(4) + 1", placeholder: "\\text{Substitute the value of x}" },
-      { label: "evaluation", answer: "g(4) = 16 + 8 + 1", placeholder: "\\text{Simplify the expression}" },
-      { label: "final", answer: "g(4) = 25", placeholder: "\\text{Write the final answer}" }
+      { label: "substitution",
+        answer: ["g(4) = (4)^2 + 2(4) + 1",
+                 "(4)^2+2(4)+1"
+        ], 
+        placeholder: "\\text{Substitute the value of x}" },
+
+      { label: "evaluation", 
+        answer: ["g(4) = 16 + 8 + 1", 
+                  "16+8+1",
+        ],
+        
+        placeholder: "\\text{Simplify the expression}" },
+      { label: "final", answer: ["g(4) = 25", "25"], placeholder: "\\text{Write the final answer}" }
     ]
   },
   

@@ -117,6 +117,39 @@ export class InputValidator {
     
     return cleaned;
   };
+
+  // ✨ NEW: Helper to check if user input matches ANY answer in array
+  private static matchesAnyAnswer = (
+    userInput: string,
+    expectedAnswers: string | string[]
+  ): { matches: boolean; matchedVariant: string | null; totalVariants: number } => {
+    // Normalize to array
+    const answerArray = Array.isArray(expectedAnswers) ? expectedAnswers : [expectedAnswers];
+    
+    // Sanitize user input once
+    const cleanUser = InputValidator.sanitizeTextMathLive(userInput.trim());
+    
+    // Check against each variant
+    for (let i = 0; i < answerArray.length; i++) {
+      const cleanExpected = InputValidator.sanitizeTextMathLive(answerArray[i].trim());
+      
+      if (cleanUser === cleanExpected) {
+        console.log(`✅ Match found! User input matched variant ${i + 1}/${answerArray.length}: "${answerArray[i]}"`);
+        return { 
+          matches: true, 
+          matchedVariant: answerArray[i],
+          totalVariants: answerArray.length
+        };
+      }
+    }
+    
+    console.log(`❌ No match found. User input tested against ${answerArray.length} variant(s)`);
+    return { 
+      matches: false, 
+      matchedVariant: null,
+      totalVariants: answerArray.length
+    };
+  };
   
   // NEW: Extract raw value from MathField with enhanced whitespace cleaning
   public static extractMathFieldValue = (mathFieldElement: any): string => {
@@ -154,7 +187,10 @@ export class InputValidator {
   };
 
   public static stepsToStringArray = (steps: Step[]): string[] => {
-    return steps.map(step => step.answer);
+    // ✨ For steps with multiple answers, use the first one as reference
+    return steps.map(step => 
+      Array.isArray(step.answer) ? step.answer[0] : step.answer
+    );
   };
 
   public static isStepArray = (arr: any[]): arr is Step[] => {
@@ -167,27 +203,29 @@ export class InputValidator {
  // REPLACE with simple validation + token feedback:
 public static validateStepSimple = (
   userInput: string,
-  expectedAnswer: string,
+  expectedAnswer: string | string[],  // ✨ NEW: Accept array of answers
   stepLabel: string,
   currentStepIndex: number,
   allExpectedSteps: Step[]
 ): SimpleValidationResult => {
   
-  // Clean inputs with MathLive awareness (keep this part!)
-  const cleanUser = InputValidator.sanitizeTextMathLive(userInput.trim());
-  const cleanExpected = InputValidator.sanitizeTextMathLive(expectedAnswer.trim());
+  // ✨ NEW: Use matchesAnyAnswer helper
+  const matchResult = InputValidator.matchesAnyAnswer(userInput, expectedAnswer);
+  
+  // Get first answer for token feedback (visual reference)
+  const referenceAnswer = Array.isArray(expectedAnswer) ? expectedAnswer[0] : expectedAnswer;
   
   console.log(`🎯 Simple validation:`, {
     stepLabel,
     originalUser: userInput.trim(),
-    cleanedUser: cleanUser,
-    originalExpected: expectedAnswer.trim(),
-    cleanedExpected: cleanExpected
+    totalAnswerVariants: matchResult.totalVariants,
+    matchedVariant: matchResult.matchedVariant,
+    referenceAnswer
   });
   
-  // Generate token feedback for Wordle-style overlay
+  // Generate token feedback for Wordle-style overlay using first answer
   const userTokens = tokenizeMathString(userInput.trim());
-  const expectedTokens = tokenizeMathString(expectedAnswer.trim());
+  const expectedTokens = tokenizeMathString(referenceAnswer.trim());
   const tokenFeedback = generateTokenFeedback(userTokens, expectedTokens);
   
   console.log(`🎯 Token feedback:`, {
@@ -196,18 +234,20 @@ public static validateStepSimple = (
     feedback: tokenFeedback
   });
   
-  // Simple string comparison (REPLACE complex math)
-  const isCorrect = cleanUser === cleanExpected;
+  // Use match result from helper
+  const isCorrect = matchResult.matches;
   
-  // Simple final answer detection (REPLACE complex logic)
+  // Simple final answer detection (check against ALL steps)
   let finalAnswerDetected = false;
   if (allExpectedSteps.length > 0) {
     const finalStep = allExpectedSteps[allExpectedSteps.length - 1];
     const finalStepIndex = allExpectedSteps.length - 1;
-    const cleanFinalAnswer = InputValidator.sanitizeTextMathLive(finalStep.answer);
     
-    // Check if user input matches final answer but not in final position
-    if (cleanUser === cleanFinalAnswer && currentStepIndex < finalStepIndex) {
+    // Check if user input matches ANY variant of final answer
+    const finalMatchResult = InputValidator.matchesAnyAnswer(userInput, finalStep.answer);
+    
+    // Reject if final answer in wrong position
+    if (finalMatchResult.matches && currentStepIndex < finalStepIndex) {
       finalAnswerDetected = true;
     }
   }
@@ -326,7 +366,9 @@ const calculatePercentage = (): { total: number; base: number; consolation: numb
         baseProgress += perStep;
       } else if (userInput.trim().length > 0) {
         // WRONG BUT ATTEMPTED STEP: Check for consolation credit eligibility
-        const expectedLength = expectedStep.answer.trim().length;
+        // ✨ Use first answer for length comparison
+        const referenceAnswer = Array.isArray(expectedStep.answer) ? expectedStep.answer[0] : expectedStep.answer;
+        const expectedLength = referenceAnswer.trim().length;
         const userLength = userInput.trim().length;
         
         // NEW CONDITION: No consolation if user exceeds expected length by more than 3 characters

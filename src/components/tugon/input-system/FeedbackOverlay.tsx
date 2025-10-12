@@ -6,7 +6,7 @@ interface FeedbackOverlayProps {
   show: boolean;
   className?: string;
   userInput?: string;
-  expectedAnswer?: string;
+  expectedAnswer?: string | string[];  // ✨ NEW: Accept array of answers
   showHint?: boolean;
 }
 
@@ -35,8 +35,10 @@ export function FeedbackOverlay({
   // Generate hint message if needed
   let hintMessage = '';
   if (showHint && userInput && expectedAnswer) {
+    // ✨ Use first answer for hint generation
+    const referenceAnswer = Array.isArray(expectedAnswer) ? expectedAnswer[0] : expectedAnswer;
     const userTokens = tokenizeMathString(userInput);
-    const expectedTokens = tokenizeMathString(expectedAnswer);
+    const expectedTokens = tokenizeMathString(referenceAnswer);
     hintMessage = getTokenFeedbackHint(feedback, userTokens, expectedTokens);
   }
 

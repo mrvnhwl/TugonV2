@@ -1,6 +1,6 @@
 export type Step = {
   label: "choose" | "substitution" | "simplification" | "evaluation" | "final" | "math" | "text" | "domain" | "range" | "set";
-  answer: string;
+  answer: string | string[];  // ✨ NEW: Accept array of valid answers
   placeholder?: string;
 };
 

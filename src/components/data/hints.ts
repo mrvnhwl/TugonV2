@@ -60,7 +60,7 @@ export async function getAIHint(
     
     // Prepare the API request payload
     const payload = {
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       constraints: {
         maxTokens: 200,
         temperature: 0.7,
