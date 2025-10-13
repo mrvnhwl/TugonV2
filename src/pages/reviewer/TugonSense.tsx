@@ -62,7 +62,7 @@ export default function TugonSense() {
             </div>
 
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/studentDashboard")}
               className="hidden sm:inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white px-4 py-2 rounded-xl border border-white/20 transition"
             >
               Dashboard
@@ -73,19 +73,7 @@ export default function TugonSense() {
           </div>
 
           {/* Compact hero tiles */}
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <HeroTile
-              label="Topic Status"
-              value={`${topicStatus.chip} ${topicStatus.label}`}
-              sub={`${topicStatus.pct}%`}
-            />
-            <HeroTile
-              label="Overall Completion"
-              value={`${Math.round(stats.overallCompletionPercentage || 0)}%`}
-              sub="Across all topics"
-            />
-            <HeroTile label="Streak" value={`${stats.streak || 0} days`} sub="Keep it going!" />
-          </div>
+         
         </div>
 
         {/* Smooth white cap to the main content */}
@@ -111,8 +99,8 @@ export default function TugonSense() {
 
             {/* Progress Map – logic/props unchanged */}
             <section className="lg:col-span-7">
-              <div className="w-full rounded-3xl border border-gray-100 bg-white shadow-[0_12px_30px_rgba(39,77,96,0.08)]">
-                <div className="rounded-2xl p-4">
+            
+        
                   <ProgressMap
                     courses={courses}
                     onActiveChange={() => {}}
@@ -127,8 +115,8 @@ export default function TugonSense() {
                     progress={activeTopicProgress}
                     overallStats={stats}
                   />
-                </div>
-              </div>
+  
+   
             </section>
           </div>
         </div>
