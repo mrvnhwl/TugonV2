@@ -32,7 +32,7 @@ app.post("/api/gemini-hint", async (req, res) => {
   const prompt = `Question: ${question}\nUser's answer: ${userAnswer}\nCorrect answer: ${correctAnswer}\nGive a helpful hint only (no full solution). Be concise.`;
 
   try {
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

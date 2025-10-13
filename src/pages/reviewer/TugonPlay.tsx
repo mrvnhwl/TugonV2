@@ -6,7 +6,7 @@ import QuestionBox from "../../components/tugon/question-system/QuestionBox";
 import CategoryQuestion from "../../components/tugon/question-system/CategoryQuestion";
 import { defaultTopics } from "../../components/data/questions/index";
 import { getAnswerForQuestion, answersByTopicAndCategory } from "../../components/data/answers/index";
-import AnswerWizard, { Step, WizardStep } from "../../components/tugon/input-system/AnswerWizard";
+import AnswerWizard, { Step, WizardStep } from "../../components/tugon/input-system/AnswerWizard"; //possible removal due to answerWizard integrated by QuestionTemplate
 import HintBubble from "../../components/tugon/hint-system/HintBubble";
 import Character from "../../components/tugon/hint-system/Character";
 import QuestionTemplate from '../../components/tugon/template/QuestionTemplate.tsx';
@@ -16,7 +16,7 @@ import Feedback from "../../components/tugon/hint-system/feedback";
 import { UserAttempt } from "../../components/tugon/input-system/UserInput";
 import { useProgress } from "../../components/tugon/services/useProgress";
 import { progressService } from "../../components/tugon/services/progressServices";
-import QuestionSuccessNotification from "../../components/tugon/QuestionSuccessNotification";
+import QuestionSuccessNotification from "../../components/tugon/QuestionSuccessNotification"; 
 import SuccessModal from "../../components/tugon/successModal"; // Add this import
 
 const FALLBACK_HINT_TEXT = "Try isolating y. Start by substituting x = 2.";

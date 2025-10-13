@@ -1,141 +1,222 @@
-import { getAnswerStringsForQuestion } from '../../data/answers/index';
-import { defaultTopics } from '../../data/questions/index';
-import type { Topic, Question, GivenQuestion } from '../../data/questions/types';
-
-export interface PreGeneratedHint {
-  stepIndex: number;
-  hintText: string;
-  behaviorType: 'struggling' | 'guessing' | 'repeating' | 'self-correction' | 'general';
-  difficulty: 'easy' | 'medium' | 'hard';
+﻿export interface HintTemplate {
+  behaviorType: 'struggling' | 'guessing' | 'repeating' | 'self-correction' | 'general' | 
+                'sign-error' | 'magnitude-error' | 'close-attempt';
+  templates: string[];
 }
 
-export interface SessionHints {
-  topicId: number;
-  categoryId: number;
-  questionId: number;
-  hints: PreGeneratedHint[];
+export interface BehaviorTemplates {
+  templates: HintTemplate[];
   generatedAt: number;
+  expiresIn: number;
 }
 
-class HintGeneratorService {
+export class HintGeneratorService {
   private readonly AI_ENDPOINT = import.meta.env.DEV
     ? (import.meta.env.VITE_API_BASE
-        ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, "")}/api/generate-hints`
-        : "/api/generate-hints")
-    : "/api/generate-hints";
+        ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, "")}/api/gemini-hint`
+        : "/api/gemini-hint")
+    : "/api/gemini-hint";
 
-  /**
-   * Generate all hints for a specific question before the session starts
-   */
-  async generateSessionHints(
-    topicId: number, 
-    categoryId: number, 
-    questionId: number
-  ): Promise<SessionHints> {
+  private cachedTemplates: BehaviorTemplates | null = null;
+
+  async generateBehaviorTemplates(): Promise<BehaviorTemplates> {
+    if (this.cachedTemplates) {
+      const age = Date.now() - this.cachedTemplates.generatedAt;
+      if (age < this.cachedTemplates.expiresIn) {
+        console.log('📦 Using cached behavior templates');
+        return this.cachedTemplates;
+      }
+    }
+
     try {
-      const questionContext = this.getQuestionContext(topicId, categoryId, questionId);
-      const expectedAnswers = getAnswerStringsForQuestion(topicId, categoryId, questionId);
-      
-      const payload = {
-        topicId,
-        categoryId,
-        questionId,
-        questionContext,
-        expectedAnswers,
-        behaviorTypes: ['struggling', 'guessing', 'repeating', 'self-correction', 'general'],
-        stepCount: expectedAnswers?.length || 5
-      };
+      console.log('🤖 Generating universal behavior templates...');
+
+      const prompt = `You are a friendly math tutor creating hint templates for students.
+
+Generate 3 DIFFERENT conversational hint templates for each of these 8 student behaviors.
+
+IMPORTANT: Templates must be GENERIC to work for ANY math problem.
+
+Use these EXACT placeholders (they will be filled at runtime):
+- {behavior} = description of what the student is doing wrong
+- {wrongPart} = the specific wrong part (e.g., "the + sign", "the number 12")
+- {stepLabel} = the current step name (e.g., "substitution", "evaluation", "final answer")
+
+Requirements for each template:
+- Start with a friendly greeting: "Hey there," "I see," "Hmm," etc.
+- Sound natural like a teacher talking to a student
+- Be encouraging but direct
+- 2-3 sentences maximum
+- Must include ALL 3 placeholders: {behavior}, {wrongPart}, {stepLabel}
+- Work for ANY math problem (don't mention specific operations)
+
+Example: "Hey there, looks like you're {behavior}. Take a closer look at {wrongPart} in your {stepLabel} step - that's where things went off track. Let's fix it together!"
+
+Generate for these 8 behaviors:
+1. struggling: Student having general difficulty
+2. guessing: Student making random attempts
+3. repeating: Student using same wrong approach repeatedly
+4. self-correction: Student catching their own mistakes
+5. general: Generic guidance for any issue
+6. sign-error: Student mixing up plus minus signs
+7. magnitude-error: Student making calculation errors
+8. close-attempt: Student very close to correct answer
+
+Return ONLY valid JSON (no markdown):
+{
+  "templates": [
+    {
+      "behaviorType": "struggling",
+      "templates": ["Template 1", "Template 2", "Template 3"]
+    }
+  ]
+}`;
 
       const response = await fetch(this.AI_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          model: 'gemini-2.5-flash', // ✅ Gemini 2.0 Flash (stable)
+          constraints: {
+            maxTokens: 1200,
+            temperature: 0.9,
+            format: 'json'
+          },
+          prompt
+        })
       });
 
       if (!response.ok) {
-        throw new Error(`Hint generation failed: ${response.status}`);
+        throw new Error(`API error: ${response.status}`);
       }
 
-      const result = await response.json();
-      
-      return {
-        topicId,
-        categoryId,
-        questionId,
-        hints: result.hints || this.generateFallbackHints(questionContext),
-        generatedAt: Date.now()
-      };
+      const data = await response.json();
+      const parsed = this.parseAIResponse(data);
+
+      if (parsed && Array.isArray(parsed.templates) && parsed.templates.length >= 8) {
+        const templates: BehaviorTemplates = {
+          templates: parsed.templates.map((t: any) => ({
+            behaviorType: t.behaviorType,
+            templates: Array.isArray(t.templates) && t.templates.length >= 3
+              ? t.templates.slice(0, 3)
+              : this.getFallbackForBehavior(t.behaviorType)
+          })),
+          generatedAt: Date.now(),
+          expiresIn: 86400000
+        };
+
+        this.cachedTemplates = templates;
+        console.log('✅ Generated behavior templates:', templates.templates.length, 'behaviors');
+        return templates;
+      }
+
+      throw new Error('Invalid AI response format');
 
     } catch (error) {
-      console.error('❌ Hint Generation Error:', error);
-      
-      // Fallback to predefined hints
-      const questionContext = this.getQuestionContext(topicId, categoryId, questionId);
-      return {
-        topicId,
-        categoryId,
-        questionId,
-        hints: this.generateFallbackHints(questionContext),
-        generatedAt: Date.now()
-      };
+      console.warn('⚠️ Using fallback behavior templates');
+      return this.getFallbackTemplates();
     }
   }
 
-  /**
-   * Get question context for hint generation
-   */
-  private getQuestionContext(topicId: number, categoryId: number, questionId: number) {
-    const topic = defaultTopics.find((t: Topic) => t.id === topicId);
-    const category = topic?.level.find((c: Question) => c.category_id === categoryId);
-    const question = category?.given_question.find((q: GivenQuestion) => q.question_id === questionId);
-    
+  private parseAIResponse(data: any): any {
+    const fields = ['hint', 'response', 'content', 'text', 'answer', 'data'];
+    for (const field of fields) {
+      if (data[field]) {
+        try {
+          return typeof data[field] === 'string' ? JSON.parse(data[field]) : data[field];
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+    return null;
+  }
+
+  private getFallbackTemplates(): BehaviorTemplates {
     return {
-      topicName: topic?.name || 'Unknown Topic',
-      categoryQuestion: category?.category_question || 'Unknown Category',
-      questionText: question?.question_text || 'Unknown Question',
-      guideText: question?.guide_text || 'No guide available',
-      categoryText: question?.category_text || ''
+      templates: [
+        {
+          behaviorType: 'struggling',
+          templates: [
+            "Hey there, I see you're {behavior}. Let's work through {wrongPart} in your {stepLabel} together!",
+            "I notice you're {behavior}. Focus on {wrongPart} during {stepLabel} - take it slow!",
+            "Looks like you're {behavior}. Review {wrongPart} in the {stepLabel} step carefully."
+          ]
+        },
+        {
+          behaviorType: 'guessing',
+          templates: [
+            "Hmm, seems you're {behavior}. Let's approach {wrongPart} in {stepLabel} systematically!",
+            "I see you're {behavior}. Work through {wrongPart} during {stepLabel} step by step.",
+            "Hey, you're {behavior}. Focus on {wrongPart} in your {stepLabel} methodically."
+          ]
+        },
+        {
+          behaviorType: 'repeating',
+          templates: [
+            "I notice you're {behavior}. Try a different approach with {wrongPart} in {stepLabel}!",
+            "Looks like you're {behavior}. Let's tackle {wrongPart} during {stepLabel} differently.",
+            "Hey there, you're {behavior}. Fresh perspective on {wrongPart} in {stepLabel}?"
+          ]
+        },
+        {
+          behaviorType: 'self-correction',
+          templates: [
+            "Great awareness! You're {behavior}. Keep refining {wrongPart} in your {stepLabel}!",
+            "Nice catch! Since you're {behavior}, polish {wrongPart} during {stepLabel}.",
+            "Good self-check! You're {behavior}. Almost there with {wrongPart} in {stepLabel}!"
+          ]
+        },
+        {
+          behaviorType: 'general',
+          templates: [
+            "Hey there, you're {behavior}. Check {wrongPart} in your {stepLabel} carefully!",
+            "I see you're {behavior}. Review {wrongPart} during {stepLabel}.",
+            "Looks like you're {behavior}. Focus on {wrongPart} in the {stepLabel} step!"
+          ]
+        },
+        {
+          behaviorType: 'sign-error',
+          templates: [
+            "Hey, looks like you're {behavior}. Check {wrongPart} in your {stepLabel} - signs matter!",
+            "I see you're {behavior}. Review {wrongPart} during {stepLabel}. Plus or minus?",
+            "Hmm, you're {behavior}. Focus on {wrongPart} in {stepLabel} - that operator needs attention!"
+          ]
+        },
+        {
+          behaviorType: 'magnitude-error',
+          templates: [
+            "I notice you're {behavior}. Double-check {wrongPart} in your {stepLabel}!",
+            "Hey, you're {behavior}. Verify {wrongPart} during {stepLabel} - check the math!",
+            "Looks like you're {behavior}. Pay attention to {wrongPart} in {stepLabel}!"
+          ]
+        },
+        {
+          behaviorType: 'close-attempt',
+          templates: [
+            "So close! You're {behavior}. Just fix {wrongPart} in your {stepLabel}!",
+            "Almost there! Since you're {behavior}, polish {wrongPart} during {stepLabel}!",
+            "Great work! You're {behavior}. One more look at {wrongPart} in {stepLabel}!"
+          ]
+        }
+      ],
+      generatedAt: Date.now(),
+      expiresIn: 86400000
     };
   }
 
-  /**
-   * Generate fallback hints when AI fails
-   */
-  private generateFallbackHints(questionContext: any): PreGeneratedHint[] {
-    const baseHints = [
-      {
-        stepIndex: 0,
-        hintText: `Let's break down this ${questionContext.categoryQuestion} problem step by step. ${questionContext.guideText}`,
-        behaviorType: 'general' as const,
-        difficulty: 'easy' as const
-      },
-      {
-        stepIndex: 1,
-        hintText: `Remember the key concept: ${questionContext.guideText}. Take your time to think through each step.`,
-        behaviorType: 'struggling' as const,
-        difficulty: 'medium' as const
-      },
-      {
-        stepIndex: 2,
-        hintText: `You're making progress! Focus on applying the method systematically rather than guessing.`,
-        behaviorType: 'guessing' as const,
-        difficulty: 'medium' as const
-      },
-      {
-        stepIndex: 3,
-        hintText: `I notice you're trying the same approach. Consider what might work differently here.`,
-        behaviorType: 'repeating' as const,
-        difficulty: 'hard' as const
-      },
-      {
-        stepIndex: 4,
-        hintText: `Great self-awareness! Keep refining your approach - you're on the right track.`,
-        behaviorType: 'self-correction' as const,
-        difficulty: 'easy' as const
-      }
+  private getFallbackForBehavior(behaviorType: string): string[] {
+    const templates = this.getFallbackTemplates();
+    const behavior = templates.templates.find(t => t.behaviorType === behaviorType);
+    return behavior?.templates || [
+      "Hey there, you're {behavior}. Check {wrongPart} in your {stepLabel}!",
+      "I notice you're {behavior}. Review {wrongPart} during {stepLabel}.",
+      "Looks like you're {behavior}. Focus on {wrongPart} in {stepLabel}!"
     ];
+  }
 
-    return baseHints;
+  clearCache() {
+    this.cachedTemplates = null;
   }
 }
 

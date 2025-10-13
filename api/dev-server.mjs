@@ -80,7 +80,7 @@ Provide a concise, encouraging hint (1-2 sentences) that guides the student with
     console.log('🚀 Enhanced prompt:', enhancedPrompt);
 
     const url =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" +
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" +
       encodeURIComponent(apiKey);
 
     const requestBody = {

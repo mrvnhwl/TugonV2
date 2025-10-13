@@ -18,12 +18,17 @@ export type TokenFeedback = {
 /**
  * Tokenizes a math string into meaningful tokens for comparison
  * 
+ * ✨ NEW: Filters out LaTeX formatting commands that should not appear in feedback
+ * - Excludes: \textcolor, \left, \right, and color names (green, red, gray)
+ * - Keeps: actual mathematical content (numbers, variables, operators)
+ * 
  * @param str The math expression string to tokenize
- * @returns Array of tokens
+ * @returns Array of tokens (excluding LaTeX structural commands)
  * 
  * Examples:
  * - "35+7x" → ["35", "+", "7", "x"]
- * - "\frac{2}{35}" → ["\\frac", "{", "2", "}", "{", "35", "}"]
+ * - "\frac{2}{35}" → ["\\frac", "2", "35"] (braces filtered out)
+ * - "\textcolor{green}{2}" → ["2"] (color command filtered out)
  * - "2x^2 + 3x - 1" → ["2", "x", "^", "2", "+", "3", "x", "-", "1"]
  */
 export function tokenizeMathString(str: string): string[] {
@@ -41,6 +46,28 @@ export function tokenizeMathString(str: string): string[] {
   const tokens: string[] = [];
   let i = 0;
   
+  // ✨ NEW: List of LaTeX commands to exclude from tokens
+  const LATEX_FORMATTING_COMMANDS = new Set([
+    '\\textcolor',
+    '\\left',
+    '\\right',
+    '\\color',
+    '\\colorbox',
+    '\\mathcolor'
+  ]);
+  
+  // ✨ NEW: List of color names to exclude from tokens
+  const COLOR_NAMES = new Set([
+    'green',
+    'red',
+    'gray',
+    'grey',
+    'yellow',
+    'blue',
+    'black',
+    'white'
+  ]);
+  
   while (i < cleanStr.length) {
     // LaTeX commands (start with backslash)
     if (cleanStr[i] === '\\') {
@@ -51,7 +78,18 @@ export function tokenizeMathString(str: string): string[] {
         command += cleanStr[i];
         i++;
       }
-      tokens.push(command);
+      
+      // ✨ NEW: Only add command if it's NOT a formatting command
+      if (!LATEX_FORMATTING_COMMANDS.has(command)) {
+        tokens.push(command);
+      }
+      continue;
+    }
+    
+    // ✨ NEW: Skip braces (they're structural, not content)
+    // Braces are used for grouping in LaTeX but aren't meaningful math content
+    if (cleanStr[i] === '{' || cleanStr[i] === '}') {
+      i++;
       continue;
     }
     
@@ -95,29 +133,46 @@ export function tokenizeMathString(str: string): string[] {
       continue;
     }
     
-    // Handle coefficient-variable combinations (e.g., "2x" → "2", "x")
-    // This is now handled by the main number tokenization above
-    // If followed by a letter after number tokenization, treat as separate variable token
-    if (i < cleanStr.length && /[a-zA-Z]/.test(cleanStr[i])) {
-      // Check if we just processed a number and this is a variable
-      const lastToken = tokens[tokens.length - 1];
-      if (lastToken && /^\d/.test(lastToken)) {
-        // This is a variable following a number (coefficient)
-        tokens.push(cleanStr[i]);
-        i++;
+    // Multi-letter words (check if they're color names to exclude)
+    if (/[a-zA-Z]/.test(cleanStr[i])) {
+      // Peek ahead to see if this is a multi-letter word
+      let word = '';
+      let j = i;
+      while (j < cleanStr.length && /[a-zA-Z]/.test(cleanStr[j])) {
+        word += cleanStr[j];
+        j++;
+      }
+      
+      // ✨ NEW: Skip color names
+      if (COLOR_NAMES.has(word.toLowerCase())) {
+        i = j;
         continue;
       }
-    }
-    
-    // Variables (single letters, typically x, y, z)
-    if (/[a-zA-Z]/.test(cleanStr[i])) {
-      tokens.push(cleanStr[i]);
-      i++;
+      
+      // Check if we just processed a number and this is a variable
+      const lastToken = tokens[tokens.length - 1];
+      if (lastToken && /^\d/.test(lastToken) && word.length === 1) {
+        // This is a single-letter variable following a number (coefficient)
+        tokens.push(word);
+        i = j;
+        continue;
+      }
+      
+      // Single letter variable
+      if (word.length === 1) {
+        tokens.push(word);
+        i = j;
+        continue;
+      }
+      
+      // Multi-letter word (function name, etc.) - keep it
+      tokens.push(word);
+      i = j;
       continue;
     }
     
     // Operators and special characters (minus handled separately above)
-    if (/[+*/=^(){}[\]]/.test(cleanStr[i])) {
+    if (/[+*/=^()[\]]/.test(cleanStr[i])) {
       tokens.push(cleanStr[i]);
       i++;
       continue;

@@ -8,7 +8,7 @@ function setCors(res: VercelResponse) {
 
 // No app.listen — Vercel mounts this at /api/gemini-hint
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    console.log('🔥 NEW API CODE IS RUNNING!'); // Add this line
+  console.log('🔥 NEW API CODE IS RUNNING!'); // Add this line
   setCors(res);
   
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -65,9 +65,10 @@ Provide a concise, encouraging hint (1-2 sentences) that guides the student with
 
     console.log('🚀 Enhanced prompt:', enhancedPrompt);
 
+ 
+
     const url =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" +
-      encodeURIComponent(apiKey);
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
 
     const requestBody = {
       contents: [{ 
@@ -92,7 +93,16 @@ Provide a concise, encouraging hint (1-2 sentences) that guides the student with
 
     if (!resp.ok) {
       const errorText = await resp.text().catch(() => "Unknown error");
-      console.error("[api] Gemini error", resp.status, errorText);
+      console.error("[dev-api] Gemini error", resp.status, errorText);
+      
+      // Parse error details if available
+      try {
+        const errorJson = JSON.parse(errorText);
+        console.error("[dev-api] Error details:", JSON.stringify(errorJson, null, 2));
+      } catch (e) {
+        // Error text wasn't JSON, already logged above
+      }
+      
       return res.status(200).json({ hint: fallback });
     }
 

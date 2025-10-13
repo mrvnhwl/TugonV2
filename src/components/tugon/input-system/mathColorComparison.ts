@@ -187,13 +187,13 @@ export function stripColorCommands(latex: string): string {
  * Now handles re-evaluation by stripping old colors first
  * 
  * @param mathfield - The MathLive field element
- * @param expected - The expected answer to compare against (plain format)
+ * @param expected - The expected answer(s) to compare against (plain format) - supports string | string[]
  * @param comparisonMode - 'character' or 'term' level comparison
  * @param plainValue - Optional pre-extracted plain value (already converted from LaTeX)
  */
 export function applyRealtimeColoring(
   mathfield: any,
-  expected: string,
+  expected: string | string[],  // ✨ NEW: Accept array of answers
   comparisonMode: 'character' | 'term' = 'term',
   plainValue?: string
 ): void {
@@ -252,201 +252,171 @@ export function applyRealtimeColoring(
 }
 
 /**
- * Color LaTeX with character-level granularity while preserving structure
+ * 🎯 NEW: Select best answer variant using token-based matching
  * 
- * Strategy: Parse LaTeX into structural elements vs content elements
- * - Structural: \left, \right, {, }, ^, _, \frac, etc. → Never color these
- * - Content: numbers, letters, operators → Color these character-by-character
+ * Strategy:
+ * 1. Extract meaningful tokens from user input (first 3 tokens)
+ * 2. Score each variant based on token prefix matching
+ * 3. Select variant with highest score
  * 
- * This gives us character-level granularity WITHOUT breaking LaTeX formatting
+ * This is smarter than first character because:
+ * - "f(8)" → tokens: ["f", "(", "8"] - matches "f(8) = 2(8) - 7"
+ * - "2(8)" → tokens: ["2", "(", "8"] - matches "2(8)-7"
+ * - "f(8)-7" → would match "f(8)..." but with proper token scoring
+ * 
+ * @param userInput - Current user input (plain text)
+ * @param answerVariants - Array of possible answer variants
+ * @returns Best matching answer variant
+ */
+function selectAnswerVariantByTokens(
+  userInput: string,
+  answerVariants: string[]
+): string {
+  // If empty input, return first variant as default
+  if (!userInput || userInput.trim().length === 0) {
+    console.log(`📝 Empty input, using default (first variant)`);
+    return answerVariants[0];
+  }
+
+  // Extract tokens from user input
+  const userTokens = extractMeaningfulTokens(userInput);
+  const tokensToCompare = Math.min(3, userTokens.length); // Compare first 3 tokens
+  
+  console.log(`🔍 Token-Based Variant Selection:`, {
+    userInput: userInput.slice(0, 30),
+    userTokens: userTokens.slice(0, 5),
+    tokensToCompare,
+    variantCount: answerVariants.length
+  });
+
+  let bestMatch = answerVariants[0];
+  let bestScore = 0;
+
+  for (let i = 0; i < answerVariants.length; i++) {
+    const variant = answerVariants[i];
+    const variantTokens = extractMeaningfulTokens(variant);
+    
+    let score = 0;
+    
+    // Score based on matching tokens (weighted by position)
+    // Earlier tokens are more important (weighted higher)
+    for (let j = 0; j < tokensToCompare; j++) {
+      if (j < userTokens.length && j < variantTokens.length) {
+        if (userTokens[j].toLowerCase() === variantTokens[j].toLowerCase()) {
+          // Earlier tokens get more weight: token 0 = 30, token 1 = 20, token 2 = 10
+          const weight = (tokensToCompare - j) * 10;
+          score += weight;
+        } else {
+          // Stop at first mismatch (prefix must match)
+          break;
+        }
+      }
+    }
+    
+    console.log(`  📊 Variant ${i + 1}: "${variant.slice(0, 30)}..."`, {
+      tokens: variantTokens.slice(0, 5),
+      score
+    });
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = variant;
+    }
+  }
+
+  console.log(`  ✅ Best match (score ${bestScore}): "${bestMatch.slice(0, 40)}..."`);
+  return bestMatch;
+}
+
+/**
+ * Extract meaningful tokens from math expression
+ * - Numbers, variables, operators, parentheses
+ * - Ignores whitespace
+ * 
+ * Examples:
+ * - "f(8)" → ["f", "(", "8", ")"]
+ * - "2(8)-7" → ["2", "(", "8", ")", "-", "7"]
+ * - "f(8) = 2(8) - 7" → ["f", "(", "8", ")", "=", "2", "(", "8", ")", "-", "7"]
+ * 
+ * @param input - Math expression string
+ * @returns Array of tokens
+ */
+function extractMeaningfulTokens(input: string): string[] {
+  if (!input) return [];
+  
+  // Normalize: remove spaces
+  const normalized = input.replace(/\s+/g, '');
+  
+  // Match: numbers (with decimals), letters, operators (+, -, *, /, ^, =), parentheses
+  // This regex captures: digits, letters, operators, parentheses
+  const tokens = normalized.match(/\d+\.?\d*|[a-z]+|[+\-*/^=()]|[A-Z]/gi) || [];
+  
+  return tokens;
+}
+
+/**
+ * 🎨 NEW: Whole-Expression Coloring (Not Character-by-Character)
+ * 
+ * Strategy: Color entire expression based on whether it's a correct prefix
+ * - User types "f(8)" → Check if it matches a variant prefix → ALL GREEN or ALL RED
+ * - User types "f(8)-7" → Check if it matches → ALL GREEN or ALL RED
+ * 
+ * Key Change:
+ * - OLD: Character-by-character coloring (f=green, (=green, 8=green, )=green, -=red, 7=red)
+ * - NEW: Whole-expression coloring (ALL GREEN if correct prefix, ALL RED otherwise)
+ * 
+ * @param latex - LaTeX expression to color
+ * @param plainValue - Plain text value from user
+ * @param expected - Expected answer(s)
+ * @param mode - 'character' mode now applies whole-expression coloring
+ * @returns Colored LaTeX
  */
 function colorLatexByComparison(
   latex: string,
   plainValue: string,
-  expected: string,
-  mode: 'character' | 'term' = 'term'
+  expected: string | string[],  // ✨ NEW: Accept array of answers
+  _mode: 'character' | 'term' = 'term' // Kept for API compatibility but not used
 ): string {
   if (!latex.trim()) return latex;
   
-  // ✅ Use the same sanitization for both sides to ensure consistent comparison
-  const normalizedPlain = plainValue.toLowerCase().replace(/\s/g, '');
-  const normalizedExpected = InputValidator.sanitizeTextMathLive(expected);
+  // Convert to array for consistent handling
+  const answerVariants = Array.isArray(expected) ? expected : [expected];
   
-  console.log(`🔍 Comparison Debug:`, {
+  // ✨ NEW: Token-based variant selection (smarter than first character)
+  const selectedVariant = selectAnswerVariantByTokens(plainValue, answerVariants);
+  
+  // Normalize both sides for comparison
+  const normalizedPlain = InputValidator.sanitizeTextMathLive(plainValue);
+  const normalizedVariant = InputValidator.sanitizeTextMathLive(selectedVariant);
+  
+  console.log(`🔍 Whole-Expression Comparison:`, {
     plainValue,
-    expected,
     normalizedPlain,
-    normalizedExpected,
-    match: normalizedPlain === normalizedExpected,
-    partialMatch: normalizedExpected.startsWith(normalizedPlain),
-    exceededMatch: normalizedPlain.startsWith(normalizedExpected)
+    selectedVariant: selectedVariant.slice(0, 40),
+    normalizedVariant,
+    totalVariants: answerVariants.length
   });
   
-  // Use character-by-character coloring with smart LaTeX structure preservation
-  if (mode === 'character') {
-    return colorLatexCharacterSmart(latex, normalizedPlain, normalizedExpected);
-  }
-  
-  // Fallback: whole-expression coloring
+  // 🎯 NEW: Whole-expression coloring logic
+  // Check if user input is a valid PREFIX of the selected variant
   let color = 'red'; // Default: wrong
   
-  if (normalizedPlain === normalizedExpected) {
+  if (normalizedVariant.startsWith(normalizedPlain)) {
+    // User input is a correct prefix of selected variant
     color = 'green';
-    console.log(`✅ Perfect match! Color: green`);
-  } else if (normalizedExpected.startsWith(normalizedPlain)) {
+    console.log(`  ✅ CORRECT PREFIX → ALL GREEN`);
+  } else if (normalizedPlain === normalizedVariant) {
+    // Exact match
     color = 'green';
-    console.log(`✅ Partial match (in progress)! Color: green`);
-  } else if (normalizedPlain.startsWith(normalizedExpected)) {
-    color = 'green';
-    console.log(`✅ Exceeded match (correct + extra)! Color: green`);
+    console.log(`  ✅ EXACT MATCH → ALL GREEN`);
   } else {
+    // Not a valid prefix
     color = 'red';
-    console.log(`❌ No match! Color: red`);
+    console.log(`  ❌ NOT A VALID PREFIX → ALL RED`);
   }
   
+  // Apply single color to entire expression
   return `\\textcolor{${color}}{${latex}}`;
-}
-
-/**
- * Smart character-level coloring that preserves LaTeX structure
- * 
- * Approach:
- * 1. Parse LaTeX into "atoms" (structural commands vs colorable content)
- * 2. Extract plain text position mapping
- * 3. Color only the content atoms, preserve structure atoms
- * 4. Rebuild LaTeX with colors
- */
-function colorLatexCharacterSmart(
-  latex: string,
-  plainValue: string,
-  expectedPlain: string
-): string {
-  console.log(`🎨 Smart character coloring:`, { latex, plainValue, expectedPlain });
-  
-  // Parse LaTeX into atoms
-  const atoms = parseLatexToAtoms(latex);
-  let plainIndex = 0;
-  let result = '';
-  
-  for (const atom of atoms) {
-    if (atom.type === 'structure') {
-      // Preserve structural elements as-is (no coloring)
-      result += atom.value;
-    } else if (atom.type === 'content') {
-      // Color content character-by-character
-      const content = atom.value;
-      
-      for (let i = 0; i < content.length; i++) {
-        const char = content[i];
-        
-        // Skip whitespace
-        if (char.trim() === '') {
-          result += char;
-          continue;
-        }
-        
-        // Determine color based on position in plain text
-        let color = 'red';
-        
-        if (plainIndex < expectedPlain.length) {
-          // Check if this character matches expected
-          if (plainValue[plainIndex] === expectedPlain[plainIndex]) {
-            color = 'green';
-          } else {
-            color = 'red';
-          }
-        } else {
-          // Beyond expected length
-          color = 'gray';
-        }
-        
-        // Wrap character in color
-        result += `\\textcolor{${color}}{${char}}`;
-        plainIndex++;
-      }
-    }
-  }
-  
-  console.log(`✅ Smart colored result:`, result.substring(0, 100));
-  return result;
-}
-
-/**
- * Parse LaTeX into atoms (structural vs content)
- * 
- * Atom types:
- * - structure: LaTeX commands, braces, special chars that control formatting
- * - content: Numbers, letters, operators that should be colored
- * 
- * Special handling:
- * - Parentheses after \left or before \right are treated as structure
- */
-function parseLatexToAtoms(latex: string): Array<{ type: 'structure' | 'content', value: string }> {
-  const atoms: Array<{ type: 'structure' | 'content', value: string }> = [];
-  let i = 0;
-  
-  while (i < latex.length) {
-    const char = latex[i];
-    
-    // LaTeX command: \command or \char
-    if (char === '\\') {
-      let command = '\\';
-      i++;
-      
-      // Read command name (letters only)
-      while (i < latex.length && /[a-zA-Z]/.test(latex[i])) {
-        command += latex[i];
-        i++;
-      }
-      
-      // Structure element
-      atoms.push({ type: 'structure', value: command });
-      
-      // ✅ SPECIAL CASE: If this is \left or \right, include the following parenthesis as structure
-      if (command === '\\left' || command === '\\right') {
-        // Skip whitespace
-        while (i < latex.length && /\s/.test(latex[i])) {
-          i++;
-        }
-        
-        // Check if next character is a parenthesis, bracket, or brace
-        if (i < latex.length && /[\(\)\[\]\{\}]/.test(latex[i])) {
-          atoms.push({ type: 'structure', value: latex[i] });
-          i++;
-        }
-      }
-      
-      continue;
-    }
-    
-    // Braces and special LaTeX chars (always structure)
-    if (char === '{' || char === '}' || char === '^' || char === '_') {
-      atoms.push({ type: 'structure', value: char });
-      i++;
-      continue;
-    }
-    
-    // Content: accumulate consecutive content characters
-    let content = '';
-    while (i < latex.length) {
-      const c = latex[i];
-      
-      // Stop at LaTeX structural elements
-      if (c === '\\' || c === '{' || c === '}' || c === '^' || c === '_') {
-        break;
-      }
-      
-      content += c;
-      i++;
-    }
-    
-    if (content) {
-      atoms.push({ type: 'content', value: content });
-    }
-  }
-  
-  console.log(`📦 Parsed ${atoms.length} atoms:`, atoms.map(a => `${a.type}:${a.value.substring(0, 10)}`));
-  return atoms;
 }
 
 
@@ -459,12 +429,12 @@ function parseLatexToAtoms(latex: string): Array<{ type: 'structure' | 'content'
  */
 export function createDebouncedColoringFunction(
   delay: number = 300
-): (mathfield: any, expected: string, mode?: 'character' | 'term', plainValue?: string) => void {
+): (mathfield: any, expected: string | string[], mode?: 'character' | 'term', plainValue?: string) => void {
   let timeoutId: NodeJS.Timeout | null = null;
 
   return (
     mathfield: any, 
-    expected: string, 
+    expected: string | string[],  // ✨ NEW: Accept array of answers
     mode: 'character' | 'term' = 'term',
     plainValue?: string
   ) => {
@@ -483,8 +453,10 @@ export function createDebouncedColoringFunction(
  * Calculate similarity percentage between expected and user input
  * Useful for progress tracking
  */
-export function calculateSimilarity(expected: string, userInput: string): number {
-  const expectedTokens = tokenizeExpression(expected);
+export function calculateSimilarity(expected: string | string[], userInput: string): number {
+  // ✨ Use first answer for similarity calculation
+  const referenceAnswer = Array.isArray(expected) ? expected[0] : expected;
+  const expectedTokens = tokenizeExpression(referenceAnswer);
   const userTokens = tokenizeExpression(userInput);
 
   if (expectedTokens.length === 0) return 0;

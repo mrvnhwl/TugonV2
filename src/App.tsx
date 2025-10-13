@@ -132,6 +132,7 @@ function AppContent() {
     "/",
     "/userTypeSelection",
     "/tugon-play",
+    "/tugonplay",      // ✨ Added: Hide on TugonPlay route
     "/tugonSense",
     "/tugonsense",
   ];

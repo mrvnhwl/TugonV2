@@ -175,7 +175,7 @@ Student's recent attempts:`;
       
       // Prepare the API request payload - using guide_text as context
       const payload = {
-        model: "gemini-1.5-flash",
+        model: "gemini-2.5-flash",
         constraints: {
           maxTokens: 200,
           temperature: 0.7,
