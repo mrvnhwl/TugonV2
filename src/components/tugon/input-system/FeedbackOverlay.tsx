@@ -1,5 +1,6 @@
 import { TokenFeedback, getTokenFeedbackHint, tokenizeMathString } from './tokenUtils';
 import { cn } from '@/components/cn';
+import { convertTokenToReadableText, getLatexDescription } from '@/utils/latexToReadableText';
 
 interface FeedbackOverlayProps {
   feedback: TokenFeedback[];
@@ -8,6 +9,7 @@ interface FeedbackOverlayProps {
   userInput?: string;
   expectedAnswer?: string | string[];  // ✨ NEW: Accept array of answers
   showHint?: boolean;
+  useReadableText?: boolean; // NEW: Option to convert LaTeX to readable text
 }
 
 /**
@@ -26,7 +28,8 @@ export function FeedbackOverlay({
   className, 
   userInput, 
   expectedAnswer, 
-  showHint = false 
+  showHint = false,
+  useReadableText = false // NEW: Default false to maintain backward compatibility
 }: FeedbackOverlayProps) {
   if (!show || !feedback || feedback.length === 0) {
     return null;
@@ -50,25 +53,37 @@ export function FeedbackOverlay({
           "flex flex-wrap gap-1 p-2 bg-white/90 border border-gray-200 rounded-md shadow-sm animate-slide-down"
         )}
       >
-        {feedback.map((token, index) => (
-          <span
-            key={`${token.token}-${index}`}
-            className={cn(
-              "inline-flex items-center justify-center px-2 py-1 rounded text-sm font-mono font-medium border transition-all duration-200",
-              // Green: correct token in correct position
-              token.status === "green" && "bg-green-100 text-green-800 border-green-300 token-green",
-              // Yellow: correct token in wrong position  
-              token.status === "yellow" && "bg-yellow-100 text-yellow-800 border-yellow-300 token-yellow",
-              // Red: wrong token (not in expected)
-              token.status === "red" && "bg-red-100 text-red-800 border-red-300 token-red",
-              // Grey: extra token beyond expected length
-              token.status === "grey" && "bg-gray-100 text-gray-600 border-gray-300 token-grey"
-            )}
-            title={`Token: "${token.token}" - Status: ${token.status}`}
-          >
-            {token.token}
-          </span>
-        ))}
+        {feedback.map((token, index) => {
+          // Convert token to readable text if enabled
+          const displayToken = useReadableText 
+            ? convertTokenToReadableText(token.token) 
+            : token.token;
+          
+          // Get description for tooltip
+          const description = useReadableText 
+            ? getLatexDescription(token.token)
+            : `Token: "${token.token}" - Status: ${token.status}`;
+
+          return (
+            <span
+              key={`${token.token}-${index}`}
+              className={cn(
+                "inline-flex items-center justify-center px-2 py-1 rounded text-sm font-mono font-medium border transition-all duration-200",
+                // Green: correct token in correct position
+                token.status === "green" && "bg-green-100 text-green-800 border-green-300 token-green",
+                // Yellow: correct token in wrong position  
+                token.status === "yellow" && "bg-yellow-100 text-yellow-800 border-yellow-300 token-yellow",
+                // Red: wrong token (not in expected)
+                token.status === "red" && "bg-red-100 text-red-800 border-red-300 token-red",
+                // Grey: extra token beyond expected length
+                token.status === "grey" && "bg-gray-100 text-gray-600 border-gray-300 token-grey"
+              )}
+              title={description}
+            >
+              {displayToken}
+            </span>
+          );
+        })}
       </div>
 
       {/* Hint message */}

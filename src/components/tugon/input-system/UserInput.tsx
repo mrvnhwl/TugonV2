@@ -24,6 +24,7 @@ import {
 } from './mathColorComparison';
 import { HintGeneratorService, BehaviorTemplates } from '../services/hintGenerator';
 import { extractWrongTokensFromFeedback, formatWrongTokensForHint } from '../services/feedbackExtractor';
+import { CuratedHintLoader } from '../services/curatedHintLoader';
 import type { TokenFeedback } from './tokenUtils';
 
 type StepProgression = [string, string, boolean, string, number];
@@ -129,6 +130,7 @@ export default function UserInput({
   const [wrongAttemptCounter, setWrongAttemptCounter] = useState<number>(0);
   const [attemptHistory, setAttemptHistory] = useState<string[]>([]);
   const lastToastTime = useRef<number>(0); // Debounce guard for duplicate toasts
+  const activeToastIdRef = useRef<string | null>(null); // Track active toast for dismissal
 
   // Modal feedback system tracking
   const [shortHintCounter, setShortHintCounter] = useState<number>(0); // Track number of toasts shown
@@ -185,15 +187,26 @@ export default function UserInput({
     setLines(value);
   }, [value]);
 
-  // ✨ NEW: Load AI behavior templates once on mount
+  // ✨ Load context-aware behavior templates when context changes
   useEffect(() => {
     const loadTemplates = async () => {
       try {
         setTemplatesLoading(true);
         const hintService = new HintGeneratorService();
-        const templates = await hintService.generateBehaviorTemplates();
+        
+        console.log('🔄 Loading templates for context:', { topicId, categoryId, questionId });
+        
+        // Use context-aware template generation (stepLabel will be determined at hint time)
+        const templates = await hintService.generateContextualTemplates(
+          topicId,
+          categoryId,
+          questionId
+        );
+        
         setBehaviorTemplates(templates);
-        console.log('✅ AI behavior templates loaded:', templates);
+        console.log('✅ Context-aware behavior templates loaded:', templates);
+        console.log('📊 Template count:', templates.templates.length);
+        console.log('📝 Sample template:', templates.templates[0]?.templates[0]);
       } catch (error) {
         console.error('❌ Failed to load behavior templates:', error);
         // Templates will remain null, fallback to generic hints
@@ -202,8 +215,11 @@ export default function UserInput({
       }
     };
 
-    loadTemplates();
-  }, []); // Run once on mount
+    // Only load if we have context
+    if (topicId && categoryId && questionId) {
+      loadTemplates();
+    }
+  }, [topicId, categoryId, questionId]); // Reload when context changes
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -516,8 +532,14 @@ export default function UserInput({
       });
     };
 
+    // ✨ Dismiss previous toast before showing new one
+    if (activeToastIdRef.current) {
+      toast.dismiss(activeToastIdRef.current);
+      console.log(`🗑️ Dismissed previous toast: ${activeToastIdRef.current}`);
+    }
+
     // Display toast with curated message - Styled format with teal theme
-    toast.custom(
+    const toastId = toast.custom(
       (t) => (
         <div 
           className={`max-w-md w-full bg-white border-l-8 border-teal-500 shadow-xl rounded-xl p-5 mb-4 transition-all duration-300 ${
@@ -543,6 +565,10 @@ export default function UserInput({
         position: 'top-center',
       }
     );
+
+    // Store the toast ID for future dismissal
+    activeToastIdRef.current = toastId;
+    console.log(`📌 Stored new toast ID: ${toastId}`);
   }, [topicId, categoryId, questionId, expectedSteps, behaviorTemplates, fillHintTemplate, lineValidationStates]);
 
   // Varied success messages for positive reinforcement
@@ -634,6 +660,13 @@ export default function UserInput({
       // Reset rapid input tracking
       setLastInputTime(0);
       setRapidInputCount(0);
+      
+      // ✨ Clear any active toast on question reset
+      if (activeToastIdRef.current) {
+        toast.dismiss(activeToastIdRef.current);
+        activeToastIdRef.current = null;
+        console.log(`🗑️ Dismissed toast on question reset`);
+      }
 
       // Clear lastProcessedStep ref
       lastProcessedStep.current = null;
@@ -837,6 +870,13 @@ export default function UserInput({
       setAttemptHistory([]); // Clear history on correct answer
       setShortHintCounter(0); // Reset toast counter
       setModalShown(false); // Reset modal shown flag for next question
+      
+      // ✨ Clear any active toast on correct answer
+      if (activeToastIdRef.current) {
+        toast.dismiss(activeToastIdRef.current);
+        activeToastIdRef.current = null;
+        console.log(`🗑️ Dismissed toast on correct answer`);
+      }
     } else {
       // ❌ WRONG ANSWER - Track attempt and increment counter
       const sanitizedInput = line.trim();
@@ -873,6 +913,14 @@ export default function UserInput({
             // ✨ MODIFIED: On 5th cycle (15th wrong attempt - AFTER 12th), show modal once
             if (newHintCount === 5 && !modalShown) {
               console.log(`🚨 TRIGGERING MODAL - 15th wrong attempt reached (AFTER 12th attempt)`);
+              
+              // ✨ Dismiss active toast before showing modal
+              if (activeToastIdRef.current) {
+                toast.dismiss(activeToastIdRef.current);
+                activeToastIdRef.current = null;
+                console.log(`🗑️ Dismissed active toast before opening modal`);
+              }
+              
               setModalData({
                 userInput: sanitizedInput,
                 correctAnswer: correctAnswer
@@ -1656,6 +1704,13 @@ export default function UserInput({
   const handleModalClose = () => {
     console.log('📕 Modal closed - short hints resume');
     setIsModalOpen(false);
+    
+    // ✨ Clear toast ID reference when modal closes
+    if (activeToastIdRef.current) {
+      activeToastIdRef.current = null;
+      console.log(`🗑️ Cleared toast reference on modal close`);
+    }
+    
     // Note: modalShown stays true, so modal won't appear again
     // But short hints can continue appearing after modal is closed
   };

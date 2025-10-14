@@ -6,7 +6,7 @@ export const Topic1_Category4: Question  =
        { 
         category_id: 4, 
          title: "COMPOSITION OF FUNCTIONS",
-        category_question: "find (g ∘ f)(x) ", //not done
+        category_question: "Compose the functions:", //not done
         given_question: [
           { question_id: 1, category_text: "f(x) = x^2 + 4x \\text{ and } g(x) = 3x - 5", question_text: "Find (g ∘ f)(x)", guide_text: "First identify f(x), then substitute f(x) into g(x)." },
           { question_id: 2, category_text: "f(x) = \\frac{1}{x - 1} \\text{ and } g(x) = x + 2", question_text: "Find (f ∘ g)(x)", guide_text: "First find g(x), then substitute g(x) into f(x)." },
