@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { Timer, CheckCircle, XCircle } from "lucide-react";
+import { Timer, CheckCircle, XCircle, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { toast } from "sonner";
@@ -43,6 +43,65 @@ const wrapMath = (str: string | undefined | null) => {
   });
 };
 
+/* ---------------------------
+   Confirm Leave Modal
+---------------------------- */
+function ConfirmLeaveModal({
+  open,
+  onStay,
+  onLeave,
+}: {
+  open: boolean;
+  onStay: () => void;
+  onLeave: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 backdrop-blur bg-black/30" />
+      <div
+        className="relative w-full max-w-md rounded-2xl shadow-2xl ring-1"
+        style={{ background: "#fff", borderColor: `${color.mist}` }}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          className="flex items-center justify-between px-5 py-4 border-b"
+          style={{ borderColor: color.mist }}
+        >
+          <h3 className="font-bold text-lg" style={{ color: color.deep }}>
+            Leave this quiz?
+          </h3>
+          <button onClick={onStay} className="p-1 rounded hover:bg-black/5">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 text-sm" style={{ color: color.steel }}>
+          Are you sure you want to leave? <strong>You can only attempt once.</strong>
+        </div>
+
+        <div className="px-5 pb-5 flex gap-3 justify-end">
+          <button
+            onClick={onStay}
+            className="rounded-xl px-4 py-2 font-semibold border"
+            style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+          >
+            Stay
+          </button>
+          <button
+            onClick={onLeave}
+            className="rounded-xl px-4 py-2 font-semibold"
+            style={{ background: color.teal, color: "#fff" }}
+          >
+            Leave quiz
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Quiz() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -64,6 +123,12 @@ function Quiz() {
   const [showResult, setShowResult] = useState(false);
 
   const returnTo = (location.state as any)?.returnTo || "/challenge";
+
+  // ---- Leave guard state ----
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const guardEnabled = !showResult; // block leaving while quiz is in progress
+  // track if back navigation was attempted
+  const backAttemptRef = useRef(false);
 
   // Hide navbar while in quiz
   useEffect(() => {
@@ -250,6 +315,66 @@ function Quiz() {
     setShowResult(true);
   };
 
+  /* ---------------------------
+     Leave guards
+     - browser: refresh/close → native confirm
+     - back button: custom modal (pushState trick)
+  ---------------------------- */
+
+  // Native browser confirm on refresh/close or hard navigation
+  useEffect(() => {
+    if (!guardEnabled) return;
+
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ""; // required for Chrome to show prompt
+      return "";
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [guardEnabled]);
+
+  // Intercept browser Back with a modal using a history pushState loop
+  useEffect(() => {
+    if (!guardEnabled) return;
+
+    // push a dummy state so the first Back triggers popstate
+    const push = () => window.history.pushState({ qguard: true }, "", window.location.href);
+    push();
+
+    const onPop = (ev: PopStateEvent) => {
+      if (!guardEnabled) return;
+      // we immediately push back to cancel navigation and show modal
+      backAttemptRef.current = true;
+      setLeaveOpen(true);
+      push();
+    };
+
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [guardEnabled]);
+
+  const handleStay = () => {
+    backAttemptRef.current = false;
+    setLeaveOpen(false);
+  };
+
+  const handleLeave = () => {
+    setLeaveOpen(false);
+    // Temporarily disable guards so we can actually navigate away
+    // If the user pressed Back, allow real back now; else go to returnTo.
+    if (backAttemptRef.current) {
+      backAttemptRef.current = false;
+      // remove our dummy block then go back one real step
+      // remove listener by turning guard off just for a tick via showResult flag approach:
+      // easiest: hard navigate to returnTo
+      navigate(returnTo, { replace: true });
+    } else {
+      navigate(returnTo, { replace: true });
+    }
+  };
+
   if (!quiz || !currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -379,7 +504,7 @@ function Quiz() {
         </div>
       </main>
 
-      {/* Final Score Modal */}
+      {/* Final Score Modal (guards disabled once shown) */}
       {showResult && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
@@ -443,6 +568,9 @@ function Quiz() {
           </div>
         </div>
       )}
+
+      {/* Leave confirmation modal (only while in-progress) */}
+      <ConfirmLeaveModal open={leaveOpen && guardEnabled} onStay={handleStay} onLeave={handleLeave} />
     </div>
   );
 }

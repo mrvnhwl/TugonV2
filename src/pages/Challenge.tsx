@@ -9,8 +9,9 @@ import {
   Flame,
   Target,
   Trophy,
+  X,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -45,6 +46,7 @@ interface UserProgress {
   duration_seconds?: number | null;
 }
 
+/* ---------- UI bits ---------- */
 function Chip({
   children,
   tone = "neutral",
@@ -56,7 +58,7 @@ function Chip({
     neutral: { bg: `${color.mist}1a`, border: `${color.mist}55`, text: color.steel },
     success: { bg: "#10b9811a", border: "#10b98155", text: "#047857" },
     warning: { bg: "#f59e0b1a", border: "#f59e0b55", text: "#92400e" },
-    danger: { bg: "#ef44441a", border: "#ef444455", text: "#991b1b" },
+    danger:  { bg: "#ef44441a", border: "#ef444455", text: "#991b1b" },
   }[tone];
 
   return (
@@ -86,6 +88,83 @@ function SkeletonCard() {
   );
 }
 
+/* ---------- Confirm-on-start modal ---------- */
+function ConfirmStartModal({
+  open,
+  quizTitle,
+  onCancel,
+  onConfirm,
+  loading,
+}: {
+  open: boolean;
+  quizTitle?: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+  loading?: boolean;
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          aria-modal
+          role="dialog"
+        >
+          <div className="absolute inset-0 backdrop-blur bg-black/30" />
+          <motion.div
+            className="relative w-full max-w-md rounded-2xl shadow-2xl"
+            initial={{ scale: 0.95, y: 8, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.95, y: 8, opacity: 0 }}
+            style={{ background: "#fff", border: `1px solid ${color.mist}` }}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: color.mist }}>
+              <h3 className="font-bold text-lg" style={{ color: color.deep }}>
+                Are you sure you want to enter this quiz?
+              </h3>
+              <button onClick={onCancel} className="p-1 rounded hover:bg-black/5">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 text-sm" style={{ color: color.steel }}>
+              <div className="font-semibold mb-1" style={{ color: color.deep }}>
+                {quizTitle}
+              </div>
+              You can only attempt this challenge <strong>once</strong>. Starting now will consume your only attempt.
+            </div>
+
+            <div className="px-5 pb-5 flex gap-3 justify-end">
+              <button
+                onClick={onCancel}
+                className="rounded-xl px-4 py-2 font-semibold border"
+                style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                className="rounded-xl px-4 py-2 font-semibold"
+                style={{ background: color.teal, color: "#fff", opacity: loading ? 0.7 : 1 }}
+                disabled={loading}
+              >
+                {loading ? "Starting…" : "Yes, start quiz"}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* =======================================================
+   Component
+======================================================= */
 export default function Challenge() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -93,8 +172,8 @@ export default function Challenge() {
   const [authChecked, setAuthChecked] = useState(false);
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [attemptsAll, setAttemptsAll] = useState<QuizAttempt[]>([]); // all users, for counts/sorting
-  const [myAttemptedMap, setMyAttemptedMap] = useState<Record<string, boolean>>({}); // per-quiz gate
+  const [attemptsAll, setAttemptsAll] = useState<QuizAttempt[]>([]);
+  const [myAttemptedMap, setMyAttemptedMap] = useState<Record<string, boolean>>({});
   const [progressRows, setProgressRows] = useState<UserProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -102,6 +181,11 @@ export default function Challenge() {
   const [query, setQuery] = useState("");
   const [difficulty, setDifficulty] = useState<"" | Difficulty>("");
   const [sortBy, setSortBy] = useState<"new" | "popular" | "time" | "best">("new");
+
+  // Start-confirm modal state
+  const [startOpen, setStartOpen] = useState(false);
+  const [startBusy, setStartBusy] = useState(false);
+  const [pendingQuiz, setPendingQuiz] = useState<Quiz | null>(null);
 
   // ✅ On mount, confirm session once and subscribe to changes
   useEffect(() => {
@@ -154,7 +238,7 @@ export default function Challenge() {
 
       const quizIds = qz.map((q) => q.id);
 
-      // 2) Load attempts (ALL users) for popularity counts/sorting
+      // 2) Attempts (ALL)
       const { data: aAll, error: aAllErr } = await supabase
         .from("quiz_attempts")
         .select("id, quiz_id, user_id, score, created_at")
@@ -163,7 +247,7 @@ export default function Challenge() {
       if (aAllErr) throw aAllErr;
       setAttemptsAll((aAll as QuizAttempt[]) ?? []);
 
-      // 3) Load *my* attempts to gate single attempt per quiz
+      // 3) My attempts (gate)
       if (user) {
         const { data: aMine, error: aMineErr } = await supabase
           .from("quiz_attempts")
@@ -181,7 +265,7 @@ export default function Challenge() {
         setMyAttemptedMap({});
       }
 
-      // 4) Load progress (all users)
+      // 4) Progress (all users)
       const { data: pData, error: pErr } = await supabase
         .from("user_progress")
         .select("*")
@@ -199,8 +283,7 @@ export default function Challenge() {
 
   // --- insert attempt on Start (only if none exists) ---
   async function logAttemptOnce(quizId: string, userId: string) {
-    // Server-side safety: if you can, add a UNIQUE constraint on (quiz_id, user_id)
-    // in Supabase (quiz_attempts) to enforce one attempt per user per quiz.
+    // Add UNIQUE(quiz_id, user_id) in DB to enforce on the server too.
     const { data, error } = await supabase
       .from("quiz_attempts")
       .insert({ quiz_id: quizId, user_id: userId, score: null })
@@ -208,8 +291,6 @@ export default function Challenge() {
       .single();
 
     if (error) {
-      // If unique violation occurs, we just treat it as "already attempted"
-      // Postgres unique_violation is "23505"
       if ((error as any).code === "23505") {
         return { alreadyAttempted: true as const, attempt: null };
       }
@@ -218,46 +299,54 @@ export default function Challenge() {
     return { alreadyAttempted: false as const, attempt: data as QuizAttempt };
   }
 
-  const handleStart = async (
-    e: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
-    quizId: string
+  // Open confirm modal instead of instant start
+  const openStartConfirm = (
+    e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement, MouseEvent>,
+    quiz: Quiz
   ) => {
     e.preventDefault();
     if (!user) {
       navigate("/login", { replace: true });
       return;
     }
-
-    // Client-side gate
-    if (myAttemptedMap[quizId]) {
-      toast.info("You can only attempt this challenge once.");
+    if (myAttemptedMap[quiz.id]) {
+      toast.info("You’ve already attempted this challenge.");
       return;
     }
+    setPendingQuiz(quiz);
+    setStartOpen(true);
+  };
 
+  // Confirm from modal → create attempt → navigate
+  const confirmStart = async () => {
+    if (!pendingQuiz || !user) return;
     try {
-      const res = await logAttemptOnce(quizId, user.id);
+      setStartBusy(true);
+      const res = await logAttemptOnce(pendingQuiz.id, user.id);
 
       if (res.alreadyAttempted) {
-        // Sync UI in case it wasn't reflected yet
-        setMyAttemptedMap((m) => ({ ...m, [quizId]: true }));
+        setMyAttemptedMap((m) => ({ ...m, [pendingQuiz.id]: true }));
         toast.info("You’ve already attempted this challenge.");
+        setStartOpen(false);
+        setStartBusy(false);
         return;
       }
 
-      // Optimistically update lists (for counts and gating)
+      // Optimistic UI updates
       if (res.attempt) {
         setAttemptsAll((prev) => [...prev, res.attempt!]);
-        setMyAttemptedMap((m) => ({ ...m, [quizId]: true }));
+        setMyAttemptedMap((m) => ({ ...m, [pendingQuiz.id]: true }));
       }
 
-      // Navigate into the quiz after first (and only) attempt is created
-      navigate(`/quiz/${quizId}`);
+      setStartOpen(false);
+      setStartBusy(false);
+      navigate(`/quiz/${pendingQuiz.id}`);
     } catch (err) {
       console.error(err);
-      toast.error("Couldn’t record attempt");
+      toast.error("Couldn’t start the quiz");
+      setStartBusy(false);
     }
   };
-  // -------------------------------
 
   // Derived maps
   const attemptsCountByQuiz = useMemo(() => {
@@ -622,10 +711,13 @@ export default function Challenge() {
                         />
                       </div>
 
+                      {/* Start button now opens confirm modal */}
                       <Link
                         to={alreadyAttempted ? "#" : `/quiz/${quiz.id}`}
                         onClick={(e) =>
-                          alreadyAttempted ? (e.preventDefault(), toast.info("You can only attempt this challenge once.")) : handleStart(e, quiz.id)
+                          alreadyAttempted
+                            ? (e.preventDefault(), toast.info("You can only attempt this challenge once."))
+                            : openStartConfirm(e, quiz)
                         }
                         aria-disabled={alreadyAttempted}
                         className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 font-semibold transition focus:outline-none ${
@@ -647,6 +739,15 @@ export default function Challenge() {
           </motion.div>
         )}
       </main>
+
+      {/* Confirm-on-start modal */}
+      <ConfirmStartModal
+        open={startOpen}
+        quizTitle={pendingQuiz?.title}
+        onCancel={() => setStartOpen(false)}
+        onConfirm={confirmStart}
+        loading={startBusy}
+      />
     </div>
   );
 }
