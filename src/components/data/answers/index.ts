@@ -81,7 +81,8 @@ export function getAnswerStringsForQuestion(
   questionId: number
 ): string[] | undefined {
   const steps = getAnswerForQuestion(topicId, categoryId, questionId);
-  return steps?.map(step => step.answer);
+  // Flatten the answers - if answer is an array, return all variants; if string, wrap in array
+  return steps?.flatMap(step => Array.isArray(step.answer) ? step.answer : [step.answer]);
 }
 
 // Validation function to check mapping integrity

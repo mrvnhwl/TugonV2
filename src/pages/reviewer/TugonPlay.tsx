@@ -50,6 +50,8 @@ export default function TugonPlay() {
     totalAttempts: number;
   } | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+  // Add exit warning modal state
+  const [showExitWarning, setShowExitWarning] = useState(false);
   // Extract URL parameters
   const topicId = Number(searchParams.get("topic")) || 1;
   const categoryId = Number(searchParams.get("category")) || 1;
@@ -286,6 +288,20 @@ export default function TugonPlay() {
     setSessionStartTime(Date.now());
   };
 
+  // Exit warning handlers
+  const handleExitClick = () => {
+    setShowExitWarning(true);
+  };
+
+  const handleCancelExit = () => {
+    setShowExitWarning(false);
+  };
+
+  const handleConfirmExit = () => {
+    setShowExitWarning(false);
+    navigate("/tugonsense");
+  };
+
   const handleSubmit = (finalSteps: WizardStep[]) => {
     console.log("Wizard steps:", finalSteps);
     console.log("Current expected answer:", getCurrentExpectedAnswer());
@@ -357,6 +373,48 @@ export default function TugonPlay() {
       categoryStats={categoryStats}
     />
 
+    {/* Exit Warning Modal */}
+    {showExitWarning && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 animate-in fade-in zoom-in duration-200">
+          <div className="text-center">
+            {/* Warning Icon */}
+            <div className="mx-auto w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">
+              Are you sure you want to quit?
+            </h3>
+            
+            {/* Description */}
+            <p className="text-gray-600 mb-8">
+              Your progress on this question will be saved, but you'll need to start over when you return.
+            </p>
+            
+            {/* Buttons */}
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleCancelExit}
+                className="px-6 py-3 bg-[#397F85] text-white font-semibold rounded-xl hover:bg-[#2d6368] transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg"
+              >
+               Keep Going
+              </button>
+              <button
+                onClick={handleConfirmExit}
+                className="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                Go Back
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
     {/* MOBILE LAYOUT (sm and below) */}
     <div className="flex-1 overflow-y-auto sm:hidden">
       {/* Mobile: Navbar + CategoryQuestion Combined */}
@@ -380,7 +438,7 @@ export default function TugonPlay() {
             </div>
             
             <button
-              onClick={() => navigate("/tugonsense")}
+              onClick={handleExitClick}
               className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
             >
               ✕
@@ -451,7 +509,7 @@ export default function TugonPlay() {
             </div>
             
             <button
-              onClick={() => navigate("/tugonsense")}
+              onClick={handleExitClick}
               className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
             >
               ✕

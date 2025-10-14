@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { convertLatexToAscii, createScaffold } from '@/utils/latexToAscii';
+import { stripColorCommands } from '../input-system/mathColorComparison';
+import { convertLatexToReadableText } from '@/utils/latexToReadableText';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -8,17 +10,121 @@ interface FeedbackModalProps {
   correctAnswer: string;
 }
 
+/**
+ * Clean LaTeX string by:
+ * 1. Stripping all \textcolor{color}{content} commands
+ * 2. Removing color words (red, green, teal, etc.)
+ * 3. Removing extra braces and whitespace
+ */
+function cleanLatexForDisplay(latex: string): string {
+  if (!latex) return '';
+  
+  // Step 1: Strip all color commands
+  let cleaned = stripColorCommands(latex);
+  
+  // Step 2: Remove any remaining color-related keywords
+  const colorKeywords = ['red', 'green', 'blue', 'yellow', 'teal', 'orange', 'purple', 'pink', 'gray', 'black'];
+  colorKeywords.forEach(color => {
+    // Remove standalone color words
+    cleaned = cleaned.replace(new RegExp(`\\b${color}\\b`, 'gi'), '');
+  });
+  
+  // Step 3: Remove "textcolor" word if it somehow remains
+  cleaned = cleaned.replace(/textcolor/gi, '');
+  
+  // Step 4: Remove empty braces and extra whitespace
+  cleaned = cleaned.replace(/\{\s*\}/g, ''); // Remove empty {}
+  cleaned = cleaned.replace(/\s+/g, ' '); // Normalize whitespace
+  cleaned = cleaned.trim();
+  
+  return cleaned;
+}
+
 export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   isOpen,
   onClose,
   userInput,
   correctAnswer,
 }) => {
-  if (!isOpen) return null;
+  const userInputMathRef = useRef<any>(null);
+  const correctAnswerMathRef = useRef<any>(null);
+  const scaffoldMathRef = useRef<any>(null);
 
-  const userInputAscii = convertLatexToAscii(userInput);
-  const correctAnswerAscii = convertLatexToAscii(correctAnswer);
-  const scaffoldHint = createScaffold(correctAnswer);
+  // Clean inputs before processing
+  const cleanedUserInput = cleanLatexForDisplay(userInput);
+  const cleanedCorrectAnswer = cleanLatexForDisplay(correctAnswer);
+
+  // Generate ASCII versions for fallback
+  const userInputAscii = convertLatexToAscii(cleanedUserInput);
+  const correctAnswerAscii = convertLatexToAscii(cleanedCorrectAnswer);
+  const scaffoldHint = createScaffold(cleanedCorrectAnswer);
+
+  // NEW: Generate readable text versions (convert LaTeX symbols to words)
+  const userInputReadable = convertLatexToReadableText(cleanedUserInput);
+  const correctAnswerReadable = convertLatexToReadableText(cleanedCorrectAnswer);
+  const scaffoldReadable = convertLatexToReadableText(scaffoldHint);
+
+  // Initialize MathLive read-only fields
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const loadMathLive = async () => {
+      try {
+        const { MathfieldElement } = await import('mathlive');
+
+        // User Input MathField
+        if (userInputMathRef.current && cleanedUserInput) {
+          const mf1 = new MathfieldElement();
+          mf1.value = cleanedUserInput;
+          mf1.readOnly = true;
+          mf1.style.fontSize = '18px';
+          mf1.style.padding = '8px';
+          mf1.style.border = '1px solid #fecaca'; // red-200
+          mf1.style.borderRadius = '6px';
+          mf1.style.backgroundColor = '#ffffff';
+          
+          userInputMathRef.current.innerHTML = '';
+          userInputMathRef.current.appendChild(mf1);
+        }
+
+        // Correct Answer MathField
+        if (correctAnswerMathRef.current && cleanedCorrectAnswer) {
+          const mf2 = new MathfieldElement();
+          mf2.value = cleanedCorrectAnswer;
+          mf2.readOnly = true;
+          mf2.style.fontSize = '18px';
+          mf2.style.padding = '8px';
+          mf2.style.border = '1px solid #bbf7d0'; // green-200
+          mf2.style.borderRadius = '6px';
+          mf2.style.backgroundColor = '#ffffff';
+          
+          correctAnswerMathRef.current.innerHTML = '';
+          correctAnswerMathRef.current.appendChild(mf2);
+        }
+
+        // Scaffold MathField
+        if (scaffoldMathRef.current && scaffoldHint) {
+          const mf3 = new MathfieldElement();
+          mf3.value = scaffoldHint;
+          mf3.readOnly = true;
+          mf3.style.fontSize = '18px';
+          mf3.style.padding = '8px';
+          mf3.style.border = '1px solid #99f6e4'; // teal-200
+          mf3.style.borderRadius = '6px';
+          mf3.style.backgroundColor = '#ffffff';
+          
+          scaffoldMathRef.current.innerHTML = '';
+          scaffoldMathRef.current.appendChild(mf3);
+        }
+      } catch (error) {
+        console.warn('MathLive not available, using ASCII fallback:', error);
+      }
+    };
+
+    loadMathLive();
+  }, [isOpen, cleanedUserInput, cleanedCorrectAnswer, scaffoldHint]);
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -49,8 +155,14 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
               <span className="mr-2">👉</span>
               Your Input:
             </h3>
-            <div className="bg-white rounded-md p-3 font-mono text-base text-gray-800 border border-red-200">
+            {/* MathLive Rendering */}
+            <div ref={userInputMathRef} className="bg-white rounded-md p-3 border border-red-200 mb-2">
+              {/* Fallback to ASCII if MathLive fails to load */}
               {userInputAscii || <span className="text-gray-400 italic">Empty</span>}
+            </div>
+            {/* Readable text version */}
+            <div className="text-xs text-gray-600 italic px-2">
+              📝 In words: <span className="font-medium">{userInputReadable || 'Empty'}</span>
             </div>
           </div>
 
@@ -60,8 +172,14 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
               <span className="mr-2">✅</span>
               Expected Format:
             </h3>
-            <div className="bg-white rounded-md p-3 font-mono text-base text-gray-800 border border-green-200">
+            {/* MathLive Rendering */}
+            <div ref={correctAnswerMathRef} className="bg-white rounded-md p-3 border border-green-200 mb-2">
+              {/* Fallback to ASCII if MathLive fails to load */}
               {correctAnswerAscii}
+            </div>
+            {/* Readable text version */}
+            <div className="text-xs text-gray-600 italic px-2">
+              📝 In words: <span className="font-medium">{correctAnswerReadable}</span>
             </div>
           </div>
 
@@ -71,8 +189,14 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
               <span className="mr-2">💡</span>
               Try This Scaffold:
             </h3>
-            <div className="bg-white rounded-md p-3 font-mono text-base text-gray-800 border border-teal-200">
+            {/* MathLive Rendering */}
+            <div ref={scaffoldMathRef} className="bg-white rounded-md p-3 border border-teal-200 mb-2">
+              {/* Fallback to ASCII if MathLive fails to load */}
               {scaffoldHint}
+            </div>
+            {/* Readable text version */}
+            <div className="text-xs text-gray-600 italic px-2 mb-2">
+              📝 In words: <span className="font-medium">{scaffoldReadable}</span>
             </div>
             <p className="text-xs text-[#327373] mt-2 italic">
               Fill in the blank (___) to complete the expression

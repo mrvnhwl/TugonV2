@@ -303,7 +303,7 @@ export function getTokenFeedbackHint(
 ): string {
   if (isIncompleteInput(userTokens, expectedTokens)) {
     const missing = expectedTokens.length - userTokens.length;
-    return `Incomplete answer: ${missing} more token${missing > 1 ? 's' : ''} needed`;
+    return `Incomplete answer: ${missing} more character${missing > 1 ? 's' : ''} needed`;
   }
   
   const greenCount = feedback.filter(f => f.status === "green").length;
@@ -312,19 +312,19 @@ export function getTokenFeedbackHint(
   const greyCount = feedback.filter(f => f.status === "grey").length;
   
   if (greyCount > 0) {
-    return `Too many tokens: remove ${greyCount} extra token${greyCount > 1 ? 's' : ''}`;
+    return `Too many characters: remove ${greyCount} extra character${greyCount > 1 ? 's' : ''}`;
   }
   
   if (redCount > 0) {
-    return `${redCount} wrong token${redCount > 1 ? 's' : ''} - check your expression`;
+    return `${redCount} wrong character${redCount > 1 ? 's' : ''} - check your expression`;
   }
   
   if (yellowCount > 0) {
-    return `${yellowCount} token${yellowCount > 1 ? 's are' : ' is'} in the wrong position`;
+    return `${yellowCount} character${yellowCount > 1 ? 's are' : ' is'} in the wrong position`;
   }
   
   if (greenCount === expectedTokens.length) {
-    return "Perfect match!";
+    return "You got it!";
   }
   
   return "Check your answer";
