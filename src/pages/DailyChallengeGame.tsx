@@ -5,10 +5,16 @@ import {
   Share2, Home, CheckCircle2, XCircle, ChevronRight, X
 } from "lucide-react";
 import Confetti from "react-confetti";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import color from "../styles/color";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
+
+/* 🔊 Audio assets (same set used in Quiz) */
+import bgmSrc from "../components/assets/sound/BGM 5.mp3";
+import sfxCorrectSrc from "../components/assets/sound/Correct 4.mp3";
+import sfxWrongSrc from "../components/assets/sound/wrong.mp3";
+import sfxFinishSrc from "../components/assets/sound/Finish.mp3";
 
 /* ============================
    Math formatting helpers
@@ -208,6 +214,12 @@ export default function DailyChallengeGame() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // 🔊 Audio refs
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const sfxCorrectRef = useRef<HTMLAudioElement | null>(null);
+  const sfxWrongRef = useRef<HTMLAudioElement | null>(null);
+  const sfxFinishRef = useRef<HTMLAudioElement | null>(null);
+
   // Confetti sizing
   const [vw, setVw] = useState(0);
   const [vh, setVh] = useState(0);
@@ -235,6 +247,49 @@ export default function DailyChallengeGame() {
   const pendingPathRef = useRef<string | null>(null);
 
   const currentQ = deck[index];
+
+  /* ------------ AUDIO: init & strict autoplay like Quiz ------------ */
+  useEffect(() => {
+    const bgm = new Audio(bgmSrc);
+    bgm.loop = true;
+    bgm.preload = "auto";
+    bgm.volume = 0.25;
+    bgmRef.current = bgm;
+
+    const sfxCorrect = new Audio(sfxCorrectSrc);
+    sfxCorrect.preload = "auto";
+    sfxCorrect.volume = 0.85;
+    sfxCorrectRef.current = sfxCorrect;
+
+    const sfxWrong = new Audio(sfxWrongSrc);
+    sfxWrong.preload = "auto";
+    sfxWrong.volume = 0.85;
+    sfxWrongRef.current = sfxWrong;
+
+    const sfxFinish = new Audio(sfxFinishSrc);
+    sfxFinish.preload = "auto";
+    sfxFinish.volume = 0.95;
+    sfxFinishRef.current = sfxFinish;
+
+    // STRICT autoplay attempt (no gesture fallback)
+    bgm.play().catch((err) => {
+      console.warn("BGM autoplay was blocked:", err);
+    });
+
+    return () => {
+      try { bgm.pause(); } catch {}
+      bgmRef.current = null;
+      sfxCorrectRef.current = null;
+      sfxWrongRef.current = null;
+      sfxFinishRef.current = null;
+    };
+  }, []);
+
+  const playCorrectSfx = () => { try { if (sfxCorrectRef.current){ sfxCorrectRef.current.currentTime = 0; sfxCorrectRef.current.play(); } } catch {} };
+  const playWrongSfx   = () => { try { if (sfxWrongRef.current)  { sfxWrongRef.current.currentTime   = 0; sfxWrongRef.current.play();   } } catch {} };
+  const playFinishSfx  = () => { try { if (sfxFinishRef.current) { sfxFinishRef.current.currentTime  = 0; sfxFinishRef.current.play();  } } catch {} };
+  const stopBgm        = () => { try { bgmRef.current?.pause(); } catch {} };
+  const startBgm       = () => { try { bgmRef.current?.play(); } catch {} };
 
   // Timer
   useEffect(() => {
@@ -292,7 +347,6 @@ export default function DailyChallengeGame() {
   // Browser-level leave confirm (refresh/close/back)
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Show the native browser confirm dialog
       e.preventDefault();
       e.returnValue = "";
       return "";
@@ -309,15 +363,24 @@ export default function DailyChallengeGame() {
     const correct = opt === currentQ.answer;
 
     if (correct) {
+      playCorrectSfx();
       setScore((s) => s + XP_CORRECT + Math.max(0, streak * 2));
       setStreak((s) => s + 1);
       setResult("correct");
       setConfetti(true);
       setTimeout(() => setConfetti(false), 1000);
     } else {
+      playWrongSfx();
       setResult("wrong");
       setStreak(0);
-      setLives((h) => Math.max(0, h - 1));
+      // compute upcoming hearts to know if we finished
+      const newLives = Math.max(0, lives - 1);
+      setLives(newLives);
+      if (newLives === 0) {
+        // finish moment: play finish sound and stop bgm
+        playFinishSfx();
+        stopBgm();
+      }
     }
 
     // Save immediately
@@ -343,6 +406,8 @@ export default function DailyChallengeGame() {
     setShowHint(false);
     setTimeLeft(TIME_PER_Q);
     setIndex((i) => (i + 1) % deck.length);
+    // resume bgm when continuing after finish
+    startBgm();
   };
 
   const restart = () => {
@@ -356,6 +421,7 @@ export default function DailyChallengeGame() {
     setResult(null);
     setShowHint(false);
     setConfetti(false);
+    startBgm(); // ensure bgm running after full restart
   };
 
   // Intercept internal navigation to show modal
@@ -367,28 +433,41 @@ export default function DailyChallengeGame() {
     setConfirmOpen(false);
     const target = pendingPathRef.current;
     pendingPathRef.current = null;
+    try { stopBgm(); } catch {}
     if (target) navigate(target);
   };
 
   const timerPct = Math.max(0, Math.min(100, (timeLeft / TIME_PER_Q) * 100));
 
+  /* -------------------
+     Polished styling
+  --------------------*/
+  const cardBg =
+    "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(253,253,255,1) 40%, rgba(248,250,252,1) 100%)";
+  const cardBorder = `${color.mist}55`;
+  const glassBg =
+    `radial-gradient(80% 60% at 50% 0%, ${color.aqua}12 0%, transparent 60%), linear-gradient(to bottom, ${color.mist}10, ${color.ocean}08)`;
+
   return (
     <div
       className="min-h-screen flex flex-col items-center px-4 py-8"
-      style={{
-        background: `radial-gradient(80% 60% at 50% 0%, ${color.aqua}14 0%, transparent 60%), linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)`
-      }}
+      style={{ background: glassBg }}
     >
       <AnimatePresence>
         {confetti && (
-          <Confetti width={vw} height={vh} recycle={false} numberOfPieces={220} />
+          <Confetti width={vw} height={vh} recycle={false} numberOfPieces={260} />
         )}
       </AnimatePresence>
 
       {/* Sticky HUD */}
       <div
-        className="sticky top-0 z-10 w-full max-w-3xl rounded-2xl shadow-lg backdrop-blur mb-6"
-        style={{ background: `linear-gradient(120deg, ${color.teal}, ${color.aqua})`, color: "#fff" }}
+        className="sticky top-0 z-10 w-full max-w-3xl rounded-2xl shadow-xl backdrop-blur mb-6 ring-1"
+        style={{
+          background: `linear-gradient(120deg, ${color.teal}, ${color.aqua})`,
+          color: "#fff",
+          borderColor: "#ffffff26",
+          boxShadow: "0 18px 36px rgba(0,0,0,.12)"
+        }}
       >
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-4 pb-3 text-sm md:text-base">
           <div className="flex items-center gap-2">
@@ -420,10 +499,10 @@ export default function DailyChallengeGame() {
         </div>
 
         {/* Timer progress bar */}
-        <div className="h-2 w-full rounded-b-2xl overflow-hidden bg-white/20">
+        <div className="h-2 w-full rounded-b-2xl overflow-hidden bg-white/22">
           <motion.div
             className="h-full"
-            style={{ background: "#ffffff" }}
+            style={{ background: "#fff" }}
             initial={{ width: "0%" }}
             animate={{ width: `${timerPct}%` }}
             transition={{ ease: "linear", duration: 0.2 }}
@@ -433,23 +512,44 @@ export default function DailyChallengeGame() {
 
       {/* Question Card */}
       <motion.div
-        className="w-full max-w-3xl rounded-3xl shadow-xl ring-1 overflow-hidden"
-        style={{ background: "#fff", borderColor: `${color.mist}55` }}
+        className="w-full max-w-3xl rounded-3xl overflow-hidden ring-1 shadow-2xl"
+        style={{
+          background: cardBg,
+          borderColor: cardBorder,
+          boxShadow:
+            "0 24px 50px rgba(2,12,27,0.10), inset 0 0 0 1px rgba(255,255,255,0.5)"
+        }}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
       >
+        {/* Decorative top bar */}
+        <div
+          className="h-1 w-full"
+          style={{ background: `linear-gradient(90deg, ${color.teal}, ${color.aqua})` }}
+        />
+
         {/* Header */}
         <div className="px-6 pt-6">
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-xl md:text-2xl font-bold leading-snug" style={{ color: color.deep }}>
+            <h2
+              className="text-xl md:text-2xl font-extrabold leading-snug"
+              style={{
+                color: color.deep,
+                textWrap: "balance"
+              }}
+            >
               {currentQ ? renderMath(currentQ.question) : "Loading…"}
             </h2>
 
             {currentQ?.hint && (
               <button
                 onClick={() => setShowHint((v) => !v)}
-                className="inline-flex items-center gap-2 text-xs md:text-sm px-3 py-1.5 rounded-full shadow-sm"
-                style={{ background: "#fff", color: color.steel, border: `1px solid ${color.mist}` }}
+                className="inline-flex items-center gap-2 text-xs md:text-sm px-3 py-1.5 rounded-full shadow-sm transition"
+                style={{
+                  background: "#fff",
+                  color: color.steel,
+                  border: `1px solid ${color.mist}`
+                }}
               >
                 <Lightbulb className="h-4 w-4" />
                 {showHint ? "Hide hint" : "Hint"}
@@ -465,7 +565,10 @@ export default function DailyChallengeGame() {
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 className="mt-3 overflow-hidden rounded-xl"
-                style={{ background: `${color.mist}15`, border: `1px dashed ${color.mist}` }}
+                style={{
+                  background: `${color.mist}15`,
+                  border: `1px dashed ${color.mist}`
+                }}
               >
                 <div className="px-4 py-3 text-sm" style={{ color: color.steel }}>
                   {renderMath(currentQ.hint)}
@@ -491,12 +594,16 @@ export default function DailyChallengeGame() {
                     whileTap={{ scale: 0.98 }}
                     onClick={() => lives > 0 && handleAnswer(opt)}
                     disabled={!!result || lives <= 0}
-                    className="w-full text-left rounded-xl px-4 py-3 font-medium shadow-sm border transition group focus:outline-none focus:ring-2"
+                    className="w-full text-left rounded-xl px-4 py-3 font-medium border transition group focus:outline-none focus:ring-2"
                     style={{
                       background: isCorrect ? "#e8f9f0" : isWrong ? "#fdecec" : "#fff",
                       color: isCorrect ? "#117a53" : isWrong ? "#8f1a1a" : color.deep,
                       borderColor: isCorrect ? "#2ecc71" : isWrong ? "#e74c3c" : `${color.mist}`,
-                      boxShadow: "0 1px 8px rgba(16,24,40,0.06)"
+                      boxShadow: isCorrect
+                        ? "0 8px 20px rgba(46, 204, 113,.15)"
+                        : isWrong
+                        ? "0 8px 20px rgba(231, 76, 60,.15)"
+                        : "0 1px 10px rgba(16,24,40,0.06)"
                     }}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -548,7 +655,10 @@ export default function DailyChallengeGame() {
                   whileTap={{ scale: 0.98 }}
                   onClick={nextQuestion}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm"
-                  style={{ background: color.teal, color: "#fff" }}
+                  style={{
+                    background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                    color: "#fff"
+                  }}
                 >
                   Continue
                   <ChevronRight className="h-4 w-4" />
@@ -559,7 +669,14 @@ export default function DailyChallengeGame() {
 
           {/* Out of hearts panel */}
           {lives <= 0 && (
-            <div className="mt-6 rounded-2xl border p-5 text-center" style={{ borderColor: `${color.mist}` }}>
+            <div
+              className="mt-6 rounded-2xl border p-5 text-center ring-1"
+              style={{
+                borderColor: `${color.mist}`,
+                background: "#fff",
+                boxShadow: "0 18px 40px rgba(0,0,0,.08)"
+              }}
+            >
               <div className="text-lg font-semibold mb-1" style={{ color: color.deep }}>
                 You’re out of hearts 💔
               </div>
@@ -570,7 +687,11 @@ export default function DailyChallengeGame() {
                 <button
                   onClick={refillHeartsAndContinue}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm"
-                  style={{ background: color.teal, color: "#fff" }}
+                  style={{
+                    background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                    color: "#fff",
+                    boxShadow: "0 10px 20px rgba(0,0,0,.12)"
+                  }}
                 >
                   Keep going (refill)
                 </button>
@@ -578,7 +699,11 @@ export default function DailyChallengeGame() {
                 <button
                   onClick={() => tryNavigate("/studentDashboard")}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm border"
-                  style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+                  style={{
+                    background: "#fff",
+                    color: color.deep,
+                    borderColor: color.mist
+                  }}
                 >
                   <Home className="h-4 w-4" />
                   Back to Dashboard
@@ -602,7 +727,11 @@ export default function DailyChallengeGame() {
         <button
           onClick={() => tryNavigate("/studentDashboard")}
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm border"
-          style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+          style={{
+            background: "#fff",
+            color: color.deep,
+            borderColor: color.mist
+          }}
         >
           <Home className="h-4 w-4" />
           Dashboard
@@ -610,7 +739,11 @@ export default function DailyChallengeGame() {
         <button
           onClick={restart}
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm"
-          style={{ background: color.teal, color: "#fff" }}
+          style={{
+            background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+            color: "#fff",
+            boxShadow: "0 10px 20px rgba(0,0,0,.12)"
+          }}
         >
           <RefreshCcw className="h-4 w-4" />
           Restart
@@ -618,14 +751,20 @@ export default function DailyChallengeGame() {
         <button
           onClick={() => {
             if (navigator.share) {
-              navigator.share({ title: "Tugon Daily Challenge", text: `I scored ${score}`, url: window.location.href }).catch(() => {});
+              navigator
+                .share({ title: "Tugon Daily Challenge", text: `I scored ${score}`, url: window.location.href })
+                .catch(() => {});
             } else {
               navigator.clipboard.writeText(`I scored ${score} on Tugon!`).catch(() => {});
               alert("Copied text — share with your friends!");
             }
           }}
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm border"
-          style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+          style={{
+            background: "#fff",
+            color: color.deep,
+            borderColor: color.mist
+          }}
         >
           <Share2 className="h-4 w-4" />
           Share

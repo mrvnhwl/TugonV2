@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Play, Trophy, Clock, BarChart, BookOpen, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -7,6 +7,9 @@ import Footer from "../components/Footer";
 import { motion, AnimatePresence } from "framer-motion";
 import color from "../styles/color";
 import Confetti from "react-confetti";
+
+/* 🔊 Welcome popup sound */
+import welcomeSfx from "../components/assets/sound/Welcome 2.mp3";
 
 interface Quiz {
   id: string;
@@ -20,6 +23,23 @@ interface Progress {
   score: number;
   completed_at: string;
   quiz: Quiz | null;
+}
+
+/** Mistakes captured from Daily Challenge runs.
+ *  Expected Supabase table: daily_challenge_mistakes
+ *  Columns:
+ *   - id (uuid)
+ *   - user_id (uuid)
+ *   - question (text)
+ *   - last_wrong_at (timestamp)
+ *   - times_wrong (int)
+ */
+interface Mistake {
+  id: string;
+  user_id: string;
+  question: string;
+  last_wrong_at: string;
+  times_wrong: number | null;
 }
 
 const topics = [
@@ -48,6 +68,13 @@ function StudentDashboard() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [confettiOn, setConfettiOn] = useState(false);
   const [win, setWin] = useState({ width: 0, height: 0 });
+
+  // 🔊 hold welcome audio so it doesn't get GC'd mid-play
+  const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Mistakes from Daily Challenge
+  const [mistakes, setMistakes] = useState<Mistake[]>([]);
+  const [mistakesLoaded, setMistakesLoaded] = useState(false);
 
   // derive username/email safely
   const email = user?.email ?? "";
@@ -91,6 +118,31 @@ function StudentDashboard() {
     }
   }, [user]);
 
+  // 🔊 Play welcome sound when the popup becomes visible
+  useEffect(() => {
+    if (!showWelcome) return;
+
+    try {
+      const a = new Audio(welcomeSfx);
+      a.preload = "auto";
+      a.volume = 0.9;
+      welcomeAudioRef.current = a;
+      a.play().catch((err) => {
+        // Autoplay may be blocked by some browsers; safely ignore.
+        console.warn("Welcome sound could not play:", err);
+      });
+    } catch (e) {
+      console.warn("Welcome sound init failed:", e);
+    }
+
+    return () => {
+      try {
+        welcomeAudioRef.current?.pause();
+      } catch {}
+      welcomeAudioRef.current = null;
+    };
+  }, [showWelcome]);
+
   const closeWelcome = () => setShowWelcome(false);
 
   const loadDashboard = async () => {
@@ -127,10 +179,36 @@ function StudentDashboard() {
         setProgress(fixed);
       }
 
+      // Load mistakes from Daily Challenge (if table exists)
+      await loadMistakes();
+
       setLoading(false);
     } catch (error) {
       console.error("Error loading dashboard:", error);
       setLoading(false);
+    }
+  };
+
+  const loadMistakes = async () => {
+    setMistakesLoaded(false);
+    try {
+      if (!user?.id) return;
+
+      const { data, error } = await supabase
+        .from("daily_challenge_mistakes")
+        .select("id, user_id, question, last_wrong_at, times_wrong")
+        .eq("user_id", user.id)
+        .order("last_wrong_at", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      setMistakes((data ?? []) as Mistake[]);
+    } catch (e) {
+      // If the table doesn't exist or RLS blocks, just leave mistakes empty.
+      console.warn("Could not load mistakes:", e);
+      setMistakes([]);
+    } finally {
+      setMistakesLoaded(true);
     }
   };
 
@@ -166,10 +244,10 @@ function StudentDashboard() {
     0
   );
 
-  // Suggested reviews: last 5 attempts with score < 70 (unique by quiz_id)
+  // Fallback suggestions from low quiz scores (if no mistake data available)
   const weakAttempts = progress.filter((p) => (p.score ?? 0) < 70);
   const seen = new Set<string>();
-  const suggested = weakAttempts
+  const fallbackSuggested = weakAttempts
     .filter((p) => {
       if (seen.has(p.quiz_id)) return false;
       seen.add(p.quiz_id);
@@ -183,9 +261,9 @@ function StudentDashboard() {
     if (t) navigate(t.path);
   };
 
+  // ✅ Connect "Review Mistakes" straight to Daily Challenge
   const goReviewFirst = () => {
-    if (suggested[0]) navigate(`/quiz/${suggested[0].quiz_id}`);
-    else navigate("/studentDashboard");
+    navigate("/daily-challenge");
   };
 
   if (loading) {
@@ -214,6 +292,9 @@ function StudentDashboard() {
       </div>
     );
   }
+
+  // Helper to trim question text for list items
+  const snippet = (s: string, n = 80) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 
   return (
     <div
@@ -472,11 +553,10 @@ function StudentDashboard() {
                   </span>
                 </Link>
 
-                {/* Review Mistakes */}
+                {/* ✅ Review Mistakes → Daily Challenge */}
                 <motion.button
                   onClick={goReviewFirst}
-                  disabled={suggested.length === 0}
-                  className="flex items-center justify-between rounded-xl px-4 py-3 shadow-sm disabled:opacity-60"
+                  className="flex items-center justify-between rounded-xl px-4 py-3 shadow-sm"
                   style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
                   variants={itemVariants}
                   whileHover={{ scale: 1.02, x: 4 }}
@@ -487,34 +567,63 @@ function StudentDashboard() {
                     Review Mistakes
                   </span>
                   <span className="text-xs" style={{ color: color.steel }}>
-                    {suggested.length ? `${suggested.length} suggestion(s)` : "All good!"}
+                    Practice in Daily Challenge
                   </span>
                 </motion.button>
               </div>
 
-              {suggested.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold mb-3" style={{ color: color.deep }}>
-                    Suggested Reviews
-                  </h3>
+              {/* ✅ Suggested Reviews — drive to Daily Challenge, prefer actual mistakes if available */}
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-3" style={{ color: color.deep }}>
+                  Suggested Reviews
+                </h3>
+
+                {!mistakesLoaded ? (
+                  <p className="text-sm" style={{ color: color.steel }}>Loading…</p>
+                ) : (mistakes.length > 0 ? (
                   <ul className="space-y-2">
-                    {suggested.map((s) => (
-                      <li key={s.quiz_id}>
+                    {mistakes.map((m) => (
+                      <li key={m.id}>
                         <Link
-                          to={`/quiz/${s.quiz_id}`}
+                          to="/daily-challenge"
                           className="flex items-center justify-between rounded-lg px-3 py-2"
                           style={{ border: `1px solid ${color.mist}`, background: "#fff", color: color.deep }}
                         >
-                          <span className="truncate">{s.quiz?.title ?? "Untitled Quiz"}</span>
-                          <span className="text-sm" style={{ color: color.steel }}>
-                            Score: {s.score}
+                          <span className="truncate">{snippet(m.question, 96)}</span>
+                          <span className="text-xs" style={{ color: color.steel }}>
+                            {m.times_wrong ?? 1}× wrong
                           </span>
                         </Link>
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
+                ) : (
+                  <>
+                    {fallbackSuggested.length > 0 ? (
+                      <ul className="space-y-2">
+                        {fallbackSuggested.map((s) => (
+                          <li key={s.quiz_id}>
+                            <Link
+                              to="/daily-challenge"
+                              className="flex items-center justify-between rounded-lg px-3 py-2"
+                              style={{ border: `1px solid ${color.mist}`, background: "#fff", color: color.deep }}
+                            >
+                              <span className="truncate">{s.quiz?.title ?? "Daily Challenge practice"}</span>
+                              <span className="text-sm" style={{ color: color.steel }}>
+                                Score: {s.score}
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm" style={{ color: color.steel }}>
+                        No mistakes yet—great job! Jump into the Daily Challenge to keep practicing.
+                      </p>
+                    )}
+                  </>
+                ))}
+              </div>
             </motion.div>
           </div>
 

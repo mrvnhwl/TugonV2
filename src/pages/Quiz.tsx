@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { Timer, CheckCircle, XCircle, X } from "lucide-react";
+import { Timer, CheckCircle, XCircle, X, Volume2, Square } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { toast } from "sonner";
 import { MathJax } from "better-react-mathjax";
 import color from "../styles/color";
+
+// 🔊 Audio assets
+import bgmSrc from "../components/assets/sound/BGM 5.mp3";
+import sfxCorrectSrc from "../components/assets/sound/Correct 4.mp3";
+import sfxWrongSrc from "../components/assets/sound/wrong.mp3";
+import sfxFinishSrc from "../components/assets/sound/Finish.mp3";
 
 interface QuizType {
   id: string;
@@ -36,11 +42,36 @@ type AnswerRecord = {
 const wrapMath = (str: string | undefined | null) => {
   if (!str) return "";
   if (/\\\(|\\\[/.test(str)) return str; // already wrapped
-  // naive inline wrap for LaTeX-ish tokens
   return str.replace(/([a-zA-Z0-9\\]+(\^|_)?(\{[^}]+\})?)/g, (m) => {
     if (/\\|(\^|_)/.test(m)) return `\\(${m}\\)`;
     return m;
   });
+};
+
+/** Convert LaTeX/MathJax-ish content into speech-friendly text */
+const toSpeakable = (s: string | null | undefined) => {
+  if (!s) return "";
+  let t = s;
+  t = t.replace(/\\\(|\\\)|\\\[|\\\]/g, " ");
+  t = t.replace(/\$\$[^$]*\$\$/g, " ");
+  t = t.replace(/\$[^$]*\$/g, " ");
+  t = t
+    .replace(/\\frac\s*\{([^}]*)\}\s*\{([^}]*)\}/g, "$1 over $2")
+    .replace(/\\times/g, " times ")
+    .replace(/\\cdot/g, " dot ")
+    .replace(/\\div/g, " divided by ")
+    .replace(/\\sqrt\{([^}]*)\}/g, " square root of $1")
+    .replace(/\\pi/g, " pi ")
+    .replace(/\\pm/g, " plus or minus ")
+    .replace(/\\leq/g, " less than or equal to ")
+    .replace(/\\geq/g, " greater than or equal to ")
+    .replace(/\\neq/g, " not equal to ")
+    .replace(/\\left|\\right/g, "");
+  t = t.replace(/\\([a-zA-Z]+)/g, "$1 ");
+  t = t.replace(/\^(\{[^}]*\}|[^\s^_]+)/g, (_m, p1) => ` to the power of ${String(p1).replace(/[{}]/g, "")} `);
+  t = t.replace(/_(\{[^}]*\}|[^\s^_]+)/g, (_m, p1) => ` sub ${String(p1).replace(/[{}]/g, "")} `);
+  t = t.replace(/[{}]/g, " ").replace(/\s+/g, " ").trim();
+  return t;
 };
 
 /* ---------------------------
@@ -126,15 +157,179 @@ function Quiz() {
 
   // ---- Leave guard state ----
   const [leaveOpen, setLeaveOpen] = useState(false);
-  const guardEnabled = !showResult; // block leaving while quiz is in progress
-  // track if back navigation was attempted
+  const guardEnabled = !showResult;
   const backAttemptRef = useRef(false);
+
+  // --- Read Aloud (Web Speech API) ---
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const voicesRef = useRef<SpeechSynthesisVoice[] | null>(null);
+
+  // 🔊 Audio refs
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const sfxCorrectRef = useRef<HTMLAudioElement | null>(null);
+  const sfxWrongRef = useRef<HTMLAudioElement | null>(null);
+  const sfxFinishRef = useRef<HTMLAudioElement | null>(null);
 
   // Hide navbar while in quiz
   useEffect(() => {
     document.body.classList.add("hide-navbar");
     return () => {
       document.body.classList.remove("hide-navbar");
+    };
+  }, []);
+
+  // Preload voices
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    const loadVoices = () => {
+      voicesRef.current = synth.getVoices();
+    };
+    loadVoices();
+    if (typeof window !== "undefined") {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, []);
+
+  // Initialize Audio Elements and STRICT autoplay for BGM
+  useEffect(() => {
+    const bgm = new Audio(bgmSrc);
+    bgm.loop = true;         // file is ~42s; loop forever
+    bgm.preload = "auto";
+    bgm.volume = 0.25;       // subtle background
+    bgmRef.current = bgm;
+
+    const sfxCorrect = new Audio(sfxCorrectSrc);
+    sfxCorrect.preload = "auto";
+    sfxCorrect.volume = 0.8;
+    sfxCorrectRef.current = sfxCorrect;
+
+    const sfxWrong = new Audio(sfxWrongSrc);
+    sfxWrong.preload = "auto";
+    sfxWrong.volume = 0.8;
+    sfxWrongRef.current = sfxWrong;
+
+    const sfxFinish = new Audio(sfxFinishSrc);
+    sfxFinish.preload = "auto";
+    sfxFinish.volume = 0.9;
+    sfxFinishRef.current = sfxFinish;
+
+    // 🔊 STRICT autoplay attempt (no gesture fallback)
+    bgm.play().catch((err) => {
+      // Intentionally no fallback; just log for debugging
+      console.warn("BGM autoplay was blocked by the browser:", err);
+    });
+
+    return () => {
+      try { bgm.pause(); } catch {}
+      bgmRef.current = null;
+      sfxCorrectRef.current = null;
+      sfxWrongRef.current = null;
+      sfxFinishRef.current = null;
+    };
+  }, []);
+
+  const playCorrectSfx = () => {
+    const s = sfxCorrectRef.current;
+    if (!s) return;
+    try { s.currentTime = 0; s.play(); } catch {}
+  };
+
+  const playWrongSfx = () => {
+    const s = sfxWrongRef.current;
+    if (!s) return;
+    try { s.currentTime = 0; s.play(); } catch {}
+  };
+
+  const playFinishSfx = () => {
+    const s = sfxFinishRef.current;
+    if (!s) return;
+    try { s.currentTime = 0; s.play(); } catch {}
+  };
+
+  const stopBgm = () => {
+    try { bgmRef.current?.pause(); } catch {}
+  };
+
+  const stopSpeaking = () => {
+    try { window.speechSynthesis.cancel(); } catch {}
+    setIsSpeaking(false);
+  };
+
+  // Builds the speech string WITHOUT "Question N of M"
+  const buildSpeechForCurrent = () => {
+    if (!currentQuestion) return "";
+    const qText = toSpeakable(currentQuestion.question);
+    const alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const choiceText = answers.map((a, i) => {
+      const label = alpha[i] || `${i + 1}`;
+      return `${label}) ${toSpeakable(a.answer)}`;
+    });
+    return `Question: ${qText}. Choices: ${choiceText.join(". ")}.`;
+  };
+
+  const pickStudentFriendlyVoice = (voices: SpeechSynthesisVoice[]) => {
+    const preferredNames = [
+      "Microsoft Aria Online (Natural) - English (United States)",
+      "Microsoft Aria Online (Natural) - English (US)",
+      "Microsoft Jenny Online (Natural) - English (United States)",
+      "Microsoft Ava Online (Natural) - English (United States)",
+      "Google US English",
+      "Google UK English Female",
+      "Google UK English Male",
+      "Samantha",
+      "Victoria",
+    ];
+    const byName =
+      voices.find((v) => preferredNames.includes(v.name)) ||
+      voices.find((v) => /en(-|_| )PH/i.test(v.lang)) ||
+      voices.find((v) => /en(-|_| )US/i.test(v.lang)) ||
+      voices.find((v) => /en(-|_| )GB/i.test(v.lang)) ||
+      voices.find((v) => /^en/i.test(v.lang));
+    return byName || voices[0];
+  };
+
+  const speakCurrent = () => {
+    if (!("speechSynthesis" in window)) {
+      toast.error("Read Aloud is not supported in this browser.");
+      return;
+    }
+    if (isSpeaking) {
+      stopSpeaking();
+      return;
+    }
+    const text = buildSpeechForCurrent();
+    if (!text) return;
+
+    const utter = new SpeechSynthesisUtterance(text);
+    const voices = voicesRef.current || window.speechSynthesis.getVoices();
+    const chosen = pickStudentFriendlyVoice(voices);
+    if (chosen) {
+      utter.voice = chosen;
+      utter.lang = chosen.lang || "en-US";
+    } else {
+      utter.lang = "en-US";
+    }
+    utter.rate = 0.95;
+    utter.pitch = 1.05;
+    utter.volume = 1.0;
+
+    utter.onend = () => setIsSpeaking(false);
+    utter.onerror = () => setIsSpeaking(false);
+
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utter);
+  };
+
+  // Stop speech & music if unmounting
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+      stopBgm();
     };
   }, []);
 
@@ -148,7 +343,8 @@ function Quiz() {
       try {
         const { data: quizData, error: quizError } = await supabase
           .from("quizzes")
-          .select("*")
+          .select("*"
+          )
           .eq("id", id)
           .single();
 
@@ -168,7 +364,7 @@ function Quiz() {
           setQuestions(qs);
           setCurrentQuestion(qs[0]);
           setQuestionIndex(0);
-          setAnswerLog({}); // reset recorded results for fresh run
+          setAnswerLog({});
         } else {
           setQuestions([]);
           setCurrentQuestion(null);
@@ -201,8 +397,8 @@ function Quiz() {
     if (currentQuestion) {
       const start = currentQuestion.time_limit || 30;
       setTimeLeft(start);
-      // If already answered before, reflect that so UI shows solution and disables clicks
       setIsAnswered(!!answerLog[currentQuestion.id]);
+      stopSpeaking();
       loadAnswers(currentQuestion.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,8 +411,7 @@ function Quiz() {
       return () => clearInterval(timer);
     }
     if (!isAnswered && timeLeft === 0) {
-      setIsAnswered(true); // timeout locks the question (no points added)
-      // note: we don't write to answerLog on timeout; no points awarded
+      setIsAnswered(true);
     }
   }, [timeLeft, isAnswered]);
 
@@ -245,20 +440,20 @@ function Quiz() {
   const handleAnswer = (answer: Answer) => {
     if (!currentQuestion) return;
 
-    // If this question was already recorded, don't award again (idempotent)
     if (answerLog[currentQuestion.id]) {
       setIsAnswered(true);
       return;
     }
 
-    // Lock this question; compute awarded points ONCE
     setIsAnswered(true);
 
     if (answer.is_correct) {
       const base = currentQuestion.points || 0;
       const limit = currentQuestion.time_limit || 30;
       const timeBonus = Math.floor((timeLeft / Math.max(1, limit)) * base);
-      // Record result exactly once
+
+      playCorrectSfx();
+
       setAnswerLog((prev) => ({
         ...prev,
         [currentQuestion.id]: {
@@ -268,7 +463,8 @@ function Quiz() {
         },
       }));
     } else {
-      // Record incorrect attempt (0 points)
+      playWrongSfx();
+
       setAnswerLog((prev) => ({
         ...prev,
         [currentQuestion.id]: {
@@ -305,32 +501,29 @@ function Quiz() {
       await supabase.from("user_progress").insert({
         user_id: user?.id,
         quiz_id: id,
-        score, // ← derived score (safe)
+        score,
         user_email: user?.email,
       });
     } catch (e) {
       console.error("Error saving progress:", e);
       toast.error("Failed to save progress.");
     }
+
+    // 🔊 Play finish sound, then stop BGM
+    playFinishSfx();
+    stopBgm();
+
     setShowResult(true);
   };
-
-  /* ---------------------------
-     Leave guards
-     - browser: refresh/close → native confirm
-     - back button: custom modal (pushState trick)
-  ---------------------------- */
 
   // Native browser confirm on refresh/close or hard navigation
   useEffect(() => {
     if (!guardEnabled) return;
-
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = ""; // required for Chrome to show prompt
+      e.returnValue = "";
       return "";
     };
-
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [guardEnabled]);
@@ -338,19 +531,14 @@ function Quiz() {
   // Intercept browser Back with a modal using a history pushState loop
   useEffect(() => {
     if (!guardEnabled) return;
-
-    // push a dummy state so the first Back triggers popstate
     const push = () => window.history.pushState({ qguard: true }, "", window.location.href);
     push();
-
-    const onPop = (ev: PopStateEvent) => {
+    const onPop = (_ev: PopStateEvent) => {
       if (!guardEnabled) return;
-      // we immediately push back to cancel navigation and show modal
       backAttemptRef.current = true;
       setLeaveOpen(true);
       push();
     };
-
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [guardEnabled]);
@@ -362,13 +550,9 @@ function Quiz() {
 
   const handleLeave = () => {
     setLeaveOpen(false);
-    // Temporarily disable guards so we can actually navigate away
-    // If the user pressed Back, allow real back now; else go to returnTo.
+    stopBgm();
     if (backAttemptRef.current) {
       backAttemptRef.current = false;
-      // remove our dummy block then go back one real step
-      // remove listener by turning guard off just for a tick via showResult flag approach:
-      // easiest: hard navigate to returnTo
       navigate(returnTo, { replace: true });
     } else {
       navigate(returnTo, { replace: true });
@@ -411,7 +595,25 @@ function Quiz() {
             <span>{timeLeft}s</span>
           </div>
 
-          {/* Progress */}
+          {/* Read Aloud (no progress spoken) */}
+          <div className="mt-3">
+            <button
+              onClick={speakCurrent}
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold border transition"
+              style={{
+                background: "#ffffff22",
+                borderColor: "#ffffff33",
+                color: "white",
+              }}
+              aria-label={isSpeaking ? "Stop reading" : "Read question and answers"}
+              title={isSpeaking ? "Stop" : "Read Aloud"}
+            >
+              {isSpeaking ? <Square className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              {isSpeaking ? "Stop" : "Read Aloud"}
+            </button>
+          </div>
+
+          {/* Progress (visual only) */}
           <div className="mt-3 text-xs opacity-90">
             Question {questionIndex + 1} of {questions.length}
           </div>
@@ -504,7 +706,7 @@ function Quiz() {
         </div>
       </main>
 
-      {/* Final Score Modal (guards disabled once shown) */}
+      {/* Final Score Modal */}
       {showResult && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
@@ -547,6 +749,7 @@ function Quiz() {
                     setAnswerLog({});
                     setIsAnswered(false);
                     setTimeLeft(questions[0]?.time_limit || 30);
+                    stopSpeaking();
                   }}
                   className="px-4 py-2 rounded-lg border font-semibold"
                   style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
@@ -569,7 +772,7 @@ function Quiz() {
         </div>
       )}
 
-      {/* Leave confirmation modal (only while in-progress) */}
+      {/* Leave confirmation modal */}
       <ConfirmLeaveModal open={leaveOpen && guardEnabled} onStay={handleStay} onLeave={handleLeave} />
     </div>
   );
