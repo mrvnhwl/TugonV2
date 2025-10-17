@@ -32,6 +32,7 @@ type StepProgression = [string, string, boolean, string, number];
 
 type UserAttempt = {
   attempt_id: number;              // incremental ID
+  questionId: number;              // ✨ NEW: which question this belongs to
   stepIndex: number;               // which step/question
   stepLabel: string;
   userInput: string;
@@ -45,6 +46,8 @@ type UserAttempt = {
   stepStartTime: number;           // when step began
   attemptTime: number;             // timestamp (ms)
   timeSpentOnStep?: number;        // optional: total duration when step ends
+  colorHintsShownCount?: number;   // ✨ NEW: cumulative color hints shown
+  shortHintsShownCount?: number;   // ✨ NEW: cumulative toast hints shown
 };
 
 type StepTiming = {
@@ -175,6 +178,12 @@ export default function UserInput({
   const [realtimeColoringEnabled, setRealtimeColoringEnabled] = useState<boolean>(true);
   const [colorComparisonMode, setColorComparisonMode] = useState<'character' | 'term'>('character'); // Use character mode for granular feedback
   const debouncedColoringRef = useRef(createDebouncedColoringFunction(1000)); // 1000ms = 1 second delay
+
+  // ✨ NEW: Comprehensive tracking for SuccessModal statistics
+  const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now()); // Per-question timer (resets)
+  const [colorHintsShown, setColorHintsShown] = useState<number>(0); // Count FeedbackOverlay displays
+  const [shortHintsShown, setShortHintsShown] = useState<number>(0); // Count toast.custom() calls
+  const [currentQuestionId, setCurrentQuestionId] = useState<number>(questionId || 0); // Track question changes
   
   // 🚫 NEW: Track last processed plain value to detect actual changes
   const lastPlainValueRef = useRef<Map<number, string>>(new Map());
@@ -220,6 +229,47 @@ export default function UserInput({
       loadTemplates();
     }
   }, [topicId, categoryId, questionId]); // Reload when context changes
+
+  // ✨ NEW: Reset tracking when question changes (session-based timer)
+  useEffect(() => {
+    if (questionId !== undefined && questionId !== currentQuestionId) {
+      console.log(`🔄 Question changed from ${currentQuestionId} to ${questionId} - Resetting tracking`);
+      
+      // Reset all tracking counters for new question session
+      setSessionStartTime(Date.now()); // Reset timer to now
+      setColorHintsShown(0); // Reset color hint counter
+      setShortHintsShown(0); // Reset toast hint counter
+      setAttemptCounter(0); // Reset attempt counter
+      setCurrentQuestionId(questionId); // Update tracked question ID
+      
+      console.log(`✅ Tracking reset complete for Question ${questionId}`);
+    }
+  }, [questionId, currentQuestionId]);
+
+  // ✨ NEW: Track color hints when FeedbackOverlay displays
+  useEffect(() => {
+    // Count how many lines currently have tokenFeedback displayed (color hints shown)
+    let displayedFeedbackCount = 0;
+    lineValidationStates.forEach((validation, index) => {
+      const trigger = validationTriggers.get(index);
+      if (validation && trigger && validation.tokenFeedback && !validation.isCorrect) {
+        displayedFeedbackCount++;
+      }
+    });
+
+    // Update colorHintsShown to match the number of times feedback was shown
+    // This tracks cumulative displays, not just current visible count
+    if (displayedFeedbackCount > 0) {
+      setColorHintsShown(prev => {
+        // Only increment if we have new feedback displays
+        const newCount = Math.max(prev, displayedFeedbackCount);
+        if (newCount > prev) {
+          console.log(`🎨 TRACKING: Color hint shown (FeedbackOverlay) - Count: ${newCount}`);
+        }
+        return newCount;
+      });
+    }
+  }, [lineValidationStates, validationTriggers]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -538,6 +588,13 @@ export default function UserInput({
       console.log(`🗑️ Dismissed previous toast: ${activeToastIdRef.current}`);
     }
 
+    // ✨ NEW: Track context hint (toast.custom call)
+    setShortHintsShown(prev => {
+      const newCount = prev + 1;
+      console.log(`📊 TRACKING: Context hint shown (toast.custom) - Count: ${newCount}`);
+      return newCount;
+    });
+
     // Display toast with curated message - Styled format with teal theme
     const toastId = toast.custom(
       (t) => (
@@ -744,6 +801,7 @@ export default function UserInput({
 
       const newUserAttempt: UserAttempt = {
         attempt_id: newId,
+        questionId: questionId || 0,              // ✨ NEW: Track which question
         stepIndex,
         stepLabel: stepProgression[0],
         userInput: sanitizedUserInput,                    // Original user input
@@ -757,6 +815,8 @@ export default function UserInput({
         stepStartTime,           // When step timing started
         attemptTime: now,        // When this attempt was made (timestamp ms)
         timeSpentOnStep,         // Total time if step completed
+        colorHintsShownCount: colorHintsShown,     // ✨ NEW: Cumulative color hints shown
+        shortHintsShownCount: shortHintsShown,     // ✨ NEW: Cumulative toast hints shown
       };
 
       setUserAttempt(prevAttempts => {

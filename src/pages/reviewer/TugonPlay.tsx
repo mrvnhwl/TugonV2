@@ -27,6 +27,7 @@ export default function TugonPlay() {
   const [attempts, setAttempts] = useState(0);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [userAttempts, setUserAttempts] = useState<UserAttempt[]>([]);
+  const [allCategoryAttempts, setAllCategoryAttempts] = useState<UserAttempt[]>([]); // ✨ NEW: Track all attempts across questions in category
   const idleTimer = useRef<number | null>(null);
   
   // Add progress tracking
@@ -151,6 +152,57 @@ export default function TugonPlay() {
     return () => { if (idleTimer.current) window.clearTimeout(idleTimer.current); };
   }, []);
 
+  // ✨ NEW: Build category stats from user attempts with proper time tracking
+  const buildCategoryStatsFromAttempts = (allAttempts: UserAttempt[]) => {
+    // Group attempts by questionId
+    const attemptsByQuestion = new Map<number, UserAttempt[]>();
+    
+    allAttempts.forEach(attempt => {
+      const qId = attempt.questionId;
+      if (!attemptsByQuestion.has(qId)) {
+        attemptsByQuestion.set(qId, []);
+      }
+      attemptsByQuestion.get(qId)!.push(attempt);
+    });
+
+    // Build question details from grouped attempts
+    const questionsDetails = Array.from(attemptsByQuestion.entries()).map(([qId, questionAttempts]) => {
+      // Calculate total time for this question
+      // Use the last attempt's sessionStartTime difference
+      const lastAttempt = questionAttempts[questionAttempts.length - 1];
+      const firstAttempt = questionAttempts[0];
+      
+      // Time calculation: difference between last attempt time and session start
+      const timeSpent = lastAttempt.attemptTime && firstAttempt.stepStartTime 
+        ? Math.round((lastAttempt.attemptTime - firstAttempt.stepStartTime) / 1000) // Convert to seconds
+        : 0;
+
+      // Get final counts from the last attempt (cumulative counters)
+      const colorHints = lastAttempt.colorHintsShownCount || 0;
+      const shortHints = lastAttempt.shortHintsShownCount || 0;
+
+      return {
+        questionId: qId,
+        attempts: questionAttempts.length, // Total number of attempts (Submit/Enter presses)
+        timeSpent, // Total time spent on this question in seconds
+        colorCodedHintsUsed: colorHints, // FeedbackOverlay displays
+        shortHintMessagesUsed: shortHints, // toast.custom() calls
+      };
+    });
+
+    // Calculate category totals
+    const totalTimeSpent = questionsDetails.reduce((sum, q) => sum + q.timeSpent, 0);
+    const totalAttempts = questionsDetails.reduce((sum, q) => sum + q.attempts, 0);
+
+    return {
+      categoryCompleted: true, // Will be set by caller
+      totalQuestions: questionsDetails.length,
+      questionsDetails,
+      totalTimeSpent,
+      totalAttempts,
+    };
+  };
+
   // Enhanced attempt handler with progress tracking and success modal
   const handleAttempt = ({ correct }: { correct: boolean }) => {
   const currentTime = Date.now();
@@ -160,7 +212,12 @@ export default function TugonPlay() {
   setAttempts(sessionAttempts);
   setIsCorrect(correct);
   
-  // Record the attempt in progress system (TODO: Add hint tracking later)
+  // ✨ NEW: Get actual hint counts from latest userAttempt (cumulative values)
+  const latestAttempt = userAttempts[userAttempts.length - 1];
+  const colorHintsUsed = latestAttempt?.colorHintsShownCount || 0;
+  const shortHintsUsed = latestAttempt?.shortHintsShownCount || 0;
+  
+  // Record the attempt in progress system with actual hint tracking
   recordAttempt({
     topicId,
     categoryId: finalCategoryId,
@@ -168,9 +225,8 @@ export default function TugonPlay() {
     isCorrect: correct,
     timeSpent,
     score: correct ? 100 : 0,
-    // TODO: Track actual hints used from UI
-    colorCodedHintsUsed: 0,
-    shortHintMessagesUsed: 0
+    colorCodedHintsUsed: colorHintsUsed, // ✨ Updated: Real color hint count
+    shortHintMessagesUsed: shortHintsUsed // ✨ Updated: Real toast hint count
   });
 
   // Console logging for monitoring
@@ -199,25 +255,13 @@ export default function TugonPlay() {
       // Category completed - show full modal with all question details
       console.log('🎊 CATEGORY COMPLETED! Showing full success modal');
       
-      const questionDetails = progressService.getCategoryQuestionDetails(topicId, finalCategoryId);
-      const totalTime = questionDetails.reduce((sum: number, q: any) => sum + q.timeSpent, 0);
-      const totalAttempts = questionDetails.reduce((sum: number, q: any) => sum + q.attempts, 0);
+      // ✨ NEW: Use buildCategoryStatsFromAttempts instead of progressService
+      // This ensures we use the most up-to-date tracking data from UserInput
+      const stats = buildCategoryStatsFromAttempts(allCategoryAttempts);
+      stats.categoryCompleted = true; // Mark as completed
       
-      const stats = {
-        categoryCompleted: true,
-        totalQuestions: questionDetails.length,
-        questionsDetails: questionDetails.map(q => ({
-          questionId: q.questionId,
-          attempts: q.attempts,
-          timeSpent: q.timeSpent,
-          colorCodedHintsUsed: q.colorCodedHintsUsed || 0,
-          shortHintMessagesUsed: q.shortHintMessagesUsed || 0,
-        })),
-        totalTimeSpent: totalTime,
-        totalAttempts
-      };
-      
-      console.log('📊 Category stats:', stats);
+      console.log('📊 Category stats from user attempts:', stats);
+      console.log('📊 Questions details:', stats.questionsDetails);
       
       setCategoryStats(stats);
       setShowSuccessModal(true);
@@ -326,7 +370,16 @@ export default function TugonPlay() {
 }, [topicId, finalCategoryId, questionId]);
   const handleAttemptUpdate = (attempts: UserAttempt[]) => {
     setUserAttempts(attempts);
+    
+    // ✨ NEW: Accumulate all attempts across questions in the category
+    setAllCategoryAttempts(prev => {
+      // Remove old attempts for this question and add new ones
+      const filtered = prev.filter(a => a.questionId !== questionId);
+      return [...filtered, ...attempts];
+    });
+    
     console.log('🎯 TugonPlay received attempts:', attempts);
+    console.log('📊 All category attempts:', allCategoryAttempts.length);
   };
 
   // Progress monitoring component

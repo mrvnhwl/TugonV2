@@ -11,6 +11,21 @@ export interface QuestionProgress {
   // NEW: Hint tracking
   colorCodedHintsUsed: number;
   shortHintMessagesUsed: number;
+  // ✨ NEW: Latest and Fastest attempt tracking
+  latestAttempt?: {
+    timestamp: Date;
+    timeSpent: number;
+    attempts: number;
+    colorHintsUsed: number;
+    shortHintsUsed: number;
+  };
+  fastestAttempt?: {
+    timestamp: Date;
+    timeSpent: number;
+    attempts: number;
+    colorHintsUsed: number;
+    shortHintsUsed: number;
+  };
 }
 
 export interface CategoryProgress {
@@ -258,6 +273,27 @@ class ProgressService {
     if (attemptResult.isCorrect) {
       questionProgress.correctAnswers++;
       questionProgress.isCompleted = true;
+      
+      // ✨ NEW: Save latest attempt (always overwrite with most recent completion)
+      questionProgress.latestAttempt = {
+        timestamp: new Date(),
+        timeSpent: attemptResult.timeSpent,
+        attempts: questionProgress.attempts,
+        colorHintsUsed: attemptResult.colorCodedHintsUsed || 0,
+        shortHintsUsed: attemptResult.shortHintMessagesUsed || 0,
+      };
+      
+      // ✨ NEW: Save fastest attempt (only if faster than previous or first completion)
+      if (!questionProgress.fastestAttempt || attemptResult.timeSpent < questionProgress.fastestAttempt.timeSpent) {
+        questionProgress.fastestAttempt = {
+          timestamp: new Date(),
+          timeSpent: attemptResult.timeSpent,
+          attempts: questionProgress.attempts,
+          colorHintsUsed: attemptResult.colorCodedHintsUsed || 0,
+          shortHintsUsed: attemptResult.shortHintMessagesUsed || 0,
+        };
+        console.log(`🏆 New fastest attempt for Question ${attemptResult.questionId}: ${attemptResult.timeSpent}s`);
+      }
       
       // Move to next random question in category after correct answer
       const topicData = defaultTopics.find(t => t.id === attemptResult.topicId);
