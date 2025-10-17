@@ -1,5 +1,6 @@
 import { TopicProgress } from "./tugon/services/progressServices";
 import color from "@/styles/color";
+import { BookOpen } from "lucide-react";
 
 type OverallStats = {
   totalTopics: number;
@@ -91,7 +92,7 @@ export default function CourseCard({
             color: color.teal,
           }}
         >
-          <span className="text-xl">📘</span>
+          <BookOpen className="w-7 h-7" />
         </div>
 
         <div className="min-w-0 flex-1">

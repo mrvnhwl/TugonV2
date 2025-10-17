@@ -4,7 +4,7 @@ export const Topic1_Category2: Question  =
 
       {
         category_id: 2,
-         title: "PIECEWISE FUNCTIONS",
+         title: "PIECEWISE STAGE",
         category_question: "Choose an Equation and Evaluate, Given:", //not done
         given_question: [
           { question_id: 1, category_text:"f(x) = \\begin{cases} \\text{  } x + 2 & \\text{if } x < 0 & \\\\ 5 & \\text{if } x > 3\\end{cases}", question_text: "x = −3", guide_text: "Substitute 3 for x in the function." },

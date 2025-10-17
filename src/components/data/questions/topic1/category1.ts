@@ -3,7 +3,7 @@ import { Question } from "../types";
 //Introduction to Functions - Category 1
 export const Topic1_Category1: Question =  { 
         category_id: 1, 
-         title: "EASY", 
+         title: "EVALUATION STAGE", 
         category_question: "Provide Complete Solution, Given:",
         given_question: [
           { question_id: 1, category_text:"f(x) = 2x - 7",question_text: "evaluate using f(8).", question_type: "step-by-step", guide_text: "Substitute 8 for x and solve." },
