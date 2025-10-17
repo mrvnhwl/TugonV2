@@ -188,6 +188,9 @@ export default function UserInput({
   // 🚫 NEW: Track last processed plain value to detect actual changes
   const lastPlainValueRef = useRef<Map<number, string>>(new Map());
   
+  // ✨ NEW: Track previous validation states to detect when feedback is newly shown
+  const previousValidationStatesRef = useRef<Map<number, boolean>>(new Map());
+  
   // ⏱️ NEW: Timer refs for stripping colors after 3 seconds
   const colorStripTimersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
 
@@ -240,34 +243,75 @@ export default function UserInput({
       setColorHintsShown(0); // Reset color hint counter
       setShortHintsShown(0); // Reset toast hint counter
       setAttemptCounter(0); // Reset attempt counter
+      previousValidationStatesRef.current.clear(); // Reset previous validation tracking
       setCurrentQuestionId(questionId); // Update tracked question ID
       
       console.log(`✅ Tracking reset complete for Question ${questionId}`);
     }
   }, [questionId, currentQuestionId]);
 
-  // ✨ NEW: Track color hints when FeedbackOverlay displays
+  // ✨ NEW: Track color hints when FeedbackOverlay displays (cumulative - counts EVERY display)
   useEffect(() => {
-    // Count how many lines currently have tokenFeedback displayed (color hints shown)
-    let displayedFeedbackCount = 0;
+    // Track EACH TIME feedback is displayed (not just once per step)
+    let newDisplaysCount = 0;
+    
+    console.log(`🔍 COLOR HINT TRACKING - Checking validation states:`, {
+      validationStatesCount: lineValidationStates.size,
+      triggersCount: validationTriggers.size,
+      previousStatesCount: previousValidationStatesRef.current.size
+    });
+    
     lineValidationStates.forEach((validation, index) => {
       const trigger = validationTriggers.get(index);
-      if (validation && trigger && validation.tokenFeedback && !validation.isCorrect) {
-        displayedFeedbackCount++;
+      
+      // Check if feedback should be shown:
+      // 1. Has validation result
+      // 2. Has trigger (user pressed Enter)
+      // 3. Has token feedback array with items
+      // 4. Answer is not correct
+      const hasTokenFeedback = validation?.tokenFeedback && 
+                               Array.isArray(validation.tokenFeedback) && 
+                               validation.tokenFeedback.length > 0;
+      const shouldShowFeedback = validation && 
+                                 trigger && 
+                                 hasTokenFeedback && 
+                                 !validation.isCorrect;
+      
+      // Get previous state for this step
+      const wasShowingFeedback = previousValidationStatesRef.current.get(index) || false;
+      
+      console.log(`🔍 Step ${index} check:`, {
+        hasValidation: !!validation,
+        hasTrigger: !!trigger,
+        tokenFeedbackLength: validation?.tokenFeedback?.length || 0,
+        hasTokenFeedback,
+        isCorrect: validation?.isCorrect,
+        shouldShowFeedback,
+        wasShowingFeedback,
+        transitionDetected: shouldShowFeedback && !wasShowingFeedback
+      });
+      
+      if (shouldShowFeedback && !wasShowingFeedback) {
+        // NEW feedback display detected (transition from not showing → showing)
+        newDisplaysCount++;
+        console.log(`🎨 TRACKING: Color hint displayed for step ${index} - New displays this render: ${newDisplaysCount}`);
+        previousValidationStatesRef.current.set(index, true);
+      } else if (!shouldShowFeedback && wasShowingFeedback) {
+        // Feedback cleared (user corrected or changed input)
+        console.log(`🔄 TRACKING: Color hint cleared for step ${index}`);
+        previousValidationStatesRef.current.set(index, false);
       }
     });
 
-    // Update colorHintsShown to match the number of times feedback was shown
-    // This tracks cumulative displays, not just current visible count
-    if (displayedFeedbackCount > 0) {
+    // Increment colorHintsShown by the number of NEW displays in this render
+    if (newDisplaysCount > 0) {
       setColorHintsShown(prev => {
-        // Only increment if we have new feedback displays
-        const newCount = Math.max(prev, displayedFeedbackCount);
-        if (newCount > prev) {
-          console.log(`🎨 TRACKING: Color hint shown (FeedbackOverlay) - Count: ${newCount}`);
-        }
-        return newCount;
+        const newTotal = prev + newDisplaysCount;
+        console.log(`🎨 TRACKING: Color hints incremented by ${newDisplaysCount} - New total: ${newTotal}`);
+        return newTotal;
       });
+    } else {
+      console.log(`⏭️ TRACKING: No new color hints to count this render`);
     }
   }, [lineValidationStates, validationTriggers]);
 
@@ -1250,6 +1294,11 @@ export default function UserInput({
       newMap.delete(index);
       return newMap;
     });
+    
+    // ✨ CRITICAL: Reset previous state to false when user starts typing
+    // This allows the tracking to count the NEXT time feedback is shown
+    previousValidationStatesRef.current.set(index, false);
+    console.log(`🔄 User editing step ${index} - Reset tracking state to allow re-counting`);
   };
 
   // Handle key events

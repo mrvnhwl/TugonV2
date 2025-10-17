@@ -252,16 +252,18 @@ export default function TugonPlay() {
     });
     
     if (isCategoryComplete) {
-      // Category completed - show full modal with all question details
+      // Category completed - ALWAYS show full modal with all question details
       console.log('🎊 CATEGORY COMPLETED! Showing full success modal');
       
-      // ✨ NEW: Use buildCategoryStatsFromAttempts instead of progressService
-      // This ensures we use the most up-to-date tracking data from UserInput
+      // ✨ Build stats from user attempts for this session
       const stats = buildCategoryStatsFromAttempts(allCategoryAttempts);
       stats.categoryCompleted = true; // Mark as completed
       
       console.log('📊 Category stats from user attempts:', stats);
       console.log('📊 Questions details:', stats.questionsDetails);
+      
+      // Mark that we're showing the modal (for history tracking)
+      progressService.markSuccessModalShown(topicId, finalCategoryId);
       
       setCategoryStats(stats);
       setShowSuccessModal(true);
