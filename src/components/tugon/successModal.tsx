@@ -71,6 +71,7 @@ export default function SuccessModal({
     return "Keep going! You're doing great! 💪";
   };
 
+  //Modify Later
   const getPerformanceEmoji = () => {
     if (!categoryStats) return "🎉";
     if (categoryStats.categoryCompleted) return "�";
@@ -168,7 +169,7 @@ export default function SuccessModal({
                         
                         <div className="text-center p-2 bg-pink-50 rounded">
                           <div className="font-bold text-pink-600">{detail.shortHintMessagesUsed}</div>
-                          <div className="text-pink-700">Short Hints</div>
+                          <div className="text-pink-700">Context Hints</div>
                         </div>
                       </div>
                     </div>

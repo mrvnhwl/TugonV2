@@ -176,64 +176,35 @@ export default function CourseCard({
             </div>
             <div className="grid grid-cols-3 gap-3 text-center">
               <Tile
-                value={`${completionPercentage}%`}
-                label="Complete"
+                value={`${completionPercentage} min `}
+                label="Time Spent"
                 tint={`${color.aqua}12`}
                 fg={color.teal}
               />
               <Tile
                 value={correctAnswers}
-                label="Solved"
+                label="Question Solved"
                 tint="#ECFDF5"
                 fg="#047857"
               />
+
+              
               <Tile
                 value={
                   <>
                     {completedStages}
                     <span className="text-[10px] text-gray-500">
-                      /{totalStages}
+                      /{totalStages} 
                     </span>
                   </>
                 }
-                label="Stages"
+                label="Stages Complete"
                 tint="#F5F3FF"
                 fg="#6D28D9"
               />
             </div>
 
-            {/* Remaining / time */}
-            <div className="mt-3 text-center">
-              {completionPercentage === 0 ? (
-                <p className="text-xs text-gray-500 italic">
-                  🎯 Start your first question to begin tracking progress
-                </p>
-              ) : completionPercentage === 100 ? (
-                <p className="text-xs" style={{ color: color.teal }}>
-                  🎉 Congratulations! You've mastered this topic!
-                </p>
-              ) : (
-                <p className="text-xs text-gray-600">
-                  📈 {totalQuestions - correctAnswers} questions remaining in
-                  this topic
-                </p>
-              )}
-            </div>
-
-            {timeSpent > 0 && (
-              <div className="mt-2 text-center">
-                <span
-                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs"
-                  style={{
-                    background: `${color.mist}15`,
-                    color: color.steel,
-                    border: `1px solid ${color.mist}40`,
-                  }}
-                >
-                  ⏱️ {timeSpent} minutes spent on this topic
-                </span>
-              </div>
-            )}
+           
           </div>
         </div>
       </div>

@@ -384,7 +384,7 @@ export default function UserInput({
       'magnitude-error': 'off by a large amount',
       'guessing': 'trying random answers',
       'random': 'making general mistakes',
-      'default': 'needing some guidance',
+      'default': 'needing some guidance', 
       'self-correction': 'making progress with corrections'
     };
 
@@ -1993,7 +1993,7 @@ export default function UserInput({
           </div>
         )}
 
-        {/* 🎯 BEHAVIOR DEBUG PANEL - Remove this after testing */}
+        {/* 🎯 BEHAVIOR DEBUG PANEL - Remove this after testing 
         {behaviorProfile && (
           <div className="fixed bottom-4 right-4 bg-black/90 text-white p-4 rounded-lg max-w-md text-xs font-mono z-50">
             <div className="font-bold text-yellow-400 mb-2">🎯 Behavior Detection Debug</div>
@@ -2031,7 +2031,7 @@ export default function UserInput({
               Struggling Steps: {behaviorProfile.strugglingSteps.length}
             </div>
           </div>
-        )}
+        )}*/}
       </div>
     </>
   );
