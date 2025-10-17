@@ -5,7 +5,7 @@ import { Question } from "../types";
 export const Topic1_Category4: Question  = 
        { 
         category_id: 4, 
-         title: "COMPOSITION OF FUNCTIONS",
+         title: "COMPOSITION OF FUNCTIONS STAGE",
         category_question: "Compose the functions:", //not done
         given_question: [
           { question_id: 1, category_text: "f(x) = x^2 + 4x \\text{ and } g(x) = 3x - 5", question_text: "Find (g ∘ f)(x)", guide_text: "First identify f(x), then substitute f(x) into g(x)." },

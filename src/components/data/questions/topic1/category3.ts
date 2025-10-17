@@ -4,7 +4,7 @@ export const Topic1_Category3: Question  =
 
       {
         category_id: 3,
-         title: "OPERATIONS ON FUNCTIONS",
+         title: "OPERATIONS ON FUNCTIONS STAGE",
         category_question: "Combine and Evaluate the Given Equations:", //not done
         given_question: [
           { question_id: 1, category_text:"\\text{f(x)} = 3x - 4 \\text{ and } \\text{g(x)} = x + 5", question_text: "Determine (f + g)(x)", guide_text: "Substitute 3 for x in the function." },

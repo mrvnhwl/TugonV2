@@ -3,6 +3,7 @@ import type { Course } from "../components/data/questions/index";
 import { defaultTopics } from "../components/data/questions/index";
 import { progressService, TopicProgress } from "./tugon/services/progressServices";
 import color from "@/styles/color";
+import { Check, ChevronLeft, ChevronRight, ChevronDown, FileText, CheckCircle, Zap, Play } from "lucide-react";
 
 type Level = {
   id: number;
@@ -15,6 +16,7 @@ type Level = {
 type CategoryInfo = {
   categoryId: number;
   categoryName: string;
+  categoryTitle?: string;
   questions: QuestionInfo[];
   totalQuestions: number;
   currentQuestionIndex: number;
@@ -67,6 +69,7 @@ export default function ProgressMap({
   const [userProgress, setUserProgress] = useState(progressService.getUserProgress());
   const [isMobile, setIsMobile] = useState(false);
   const [activeTopic, setActiveTopic] = useState(0);
+  const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set()); // Track which categories are expanded
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,6 +78,27 @@ export default function ProgressMap({
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Toggle category expansion
+  const toggleCategoryExpansion = (categoryId: number) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
+  // Helper to format time
+  const formatTime = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+  };
 
   const getRandomQuestionIndex = (
     questions: QuestionInfo[],
@@ -134,6 +158,7 @@ export default function ProgressMap({
         return {
           categoryId: category.category_id,
           categoryName: category.category_question,
+          categoryTitle: category.title,
           questions,
           totalQuestions: questions.length,
           currentQuestionIndex,
@@ -228,9 +253,7 @@ export default function ProgressMap({
             className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center"
             style={{ background: "#F8FAFC" }}
           >
-            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+            <FileText className="w-10 h-10 text-gray-400" />
           </div>
           <div className="text-gray-500 text-sm font-medium">No topics available</div>
         </div>
@@ -272,7 +295,7 @@ export default function ProgressMap({
                 color: color.teal,
               }}
             >
-              {currentTopicProgress?.isCompleted ? "✓" : currentLevel?.id}
+              {currentTopicProgress?.isCompleted ? <Check className="w-6 h-6" /> : currentLevel?.id}
             </div>
             <div className="text-[11px] font-bold tracking-[0.18em] uppercase" style={{ color: `${color.mist}` }}>
               {currentLevel?.name}
@@ -333,12 +356,17 @@ export default function ProgressMap({
                         border: `1px solid ${isCompleted ? "#A7F3D0" : `${color.aqua}3a`}`,
                       }}
                     >
-                      {isCompleted ? "✓" : category.categoryId}
+                      {isCompleted ? <Check className="w-5 h-5" /> : category.categoryId}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-bold" style={{ color: color.deep }}>
                         Stage {category.categoryId}
+                        {category.categoryTitle && (
+                          <span className="ml-2 text-xs font-semibold text-teal-600">
+                            • {category.categoryTitle}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">{category.categoryName}</p>
                     </div>
@@ -438,33 +466,147 @@ export default function ProgressMap({
                   </div>
 
                   {/* CTA */}
-                  <button
-                    onClick={() => {
-                      const nextQuestionId = getNextQuestionId(currentLevel.id, category.categoryId);
-                      onStartStage?.(currentLevel.id, category.categoryId, nextQuestionId);
-                    }}
-                    className="w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-transform active:scale-95"
-                    style={{
-                      background: isCompleted
-                        ? "linear-gradient(90deg, #10B981, #059669)"
-                        : `linear-gradient(90deg, ${color.teal}, ${color.aqua})`,
-                      color: "white",
-                      boxShadow: `0 10px 22px ${color.aqua}33`,
-                    }}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <span>Start Stage</span>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    </span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        const nextQuestionId = getNextQuestionId(currentLevel.id, category.categoryId);
+                        onStartStage?.(currentLevel.id, category.categoryId, nextQuestionId);
+                      }}
+                      className="w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-transform active:scale-95"
+                      style={{
+                        background: isCompleted
+                          ? "linear-gradient(90deg, #10B981, #059669)"
+                          : `linear-gradient(90deg, ${color.teal}, ${color.aqua})`,
+                        color: "white",
+                        boxShadow: `0 10px 22px ${color.aqua}33`,
+                      }}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <span>Start Stage</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      </span>
+                    </button>
 
-                  {/* Footer mini-stats */}
+                  {/* Footer mini-stats with expandable details */}
                   {hasProgress && (
-                    <div className="mt-3 flex items-center justify-between text-xs">
-                      <div className="text-gray-600">⚡ {categoryProgress.attempts} attempts</div>
-                      {isCompleted && <div className="text-emerald-600">🏆 Completed</div>}
+                    <div className="mt-3">
+                      <button
+                        onClick={() => toggleCategoryExpansion(category.categoryId)}
+                        className="w-full flex items-center justify-between text-xs transition-colors hover:opacity-70"
+                      >
+                        <div className="flex items-center gap-1.5 text-gray-600">
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>{categoryProgress.attempts} attempts</span>
+                        </div>
+                        {isCompleted && (
+                          <div className="flex items-center gap-1.5 text-emerald-600">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            <span>Completed</span>
+                          </div>
+                        )}
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-400 transition-transform ${
+                            expandedCategories.has(category.categoryId) ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+
+                      {/* Expandable Question Stats */}
+                      {expandedCategories.has(category.categoryId) && (
+                        <div className="mt-3 space-y-2 animate-in slide-in-from-top-2">
+                          {category.questions.map((question) => {
+                            // Get full category progress with questionProgress array
+                            const fullCategoryProgress = progressService.getCategoryProgress(currentLevel.id, category.categoryId);
+                            const questionProgress = fullCategoryProgress?.questionProgress?.find(
+                              (qp: any) => qp.questionId === question.questionId
+                            );
+                            
+                            if (!questionProgress || questionProgress.attempts === 0) {
+                              return null;
+                            }
+
+                            return (
+                              <div
+                                key={question.questionId}
+                                className="p-3 rounded-lg"
+                                style={{
+                                  background: questionProgress.isCompleted ? "#F0FDF4" : "#FEF3C7",
+                                  border: `1px solid ${questionProgress.isCompleted ? "#BBF7D0" : "#FDE68A"}`,
+                                }}
+                              >
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div
+                                    className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold shrink-0"
+                                    style={{
+                                      background: questionProgress.isCompleted
+                                        ? "linear-gradient(135deg, #10B981, #059669)"
+                                        : "linear-gradient(135deg, #F59E0B, #D97706)",
+                                      color: "white",
+                                    }}
+                                  >
+                                    {questionProgress.isCompleted ? "✓" : question.questionId}
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="text-sm font-bold text-gray-800">
+                                      Question {question.questionId}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Time Spent - Inline Display */}
+                                {(() => {
+                                  // Always use latest attempt
+                                  const displayData = questionProgress.latestAttempt || {
+                                    timeSpent: questionProgress.timeSpent,
+                                    attempts: questionProgress.attempts,
+                                    colorHintsUsed: questionProgress.colorCodedHintsUsed,
+                                    shortHintsUsed: questionProgress.shortHintMessagesUsed,
+                                  };
+
+                                  return (
+                                    <>
+                                      <div className="mb-2 text-right text-xs text-gray-600">
+                                        Time spent: <span className="font-bold text-gray-800">{formatTime(displayData.timeSpent)}</span>
+                                      </div>
+
+                                      {/* Stats Grid - 3 metrics */}
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <div className="text-center py-2 px-3 bg-white border border-gray-200 rounded-md shadow-sm">
+                                          <div className="font-bold text-gray-800 text-sm">{displayData.attempts}</div>
+                                          <div className="text-gray-600 text-xs mt-0.5">Attempts</div>
+                                        </div>
+                                        
+                                        <div className="text-center py-2 px-3 bg-white border border-gray-200 rounded-md shadow-sm">
+                                          <div className="font-bold text-gray-800 text-sm">{displayData.colorHintsUsed}</div>
+                                          <div className="text-gray-600 text-xs mt-0.5">Color Hints</div>
+                                        </div>
+                                        
+                                        <div className="text-center py-2 px-3 bg-white border border-gray-200 rounded-md shadow-sm">
+                                          <div className="font-bold text-gray-800 text-sm">{displayData.shortHintsUsed}</div>
+                                          <div className="text-gray-600 text-xs mt-0.5">Context Hints</div>
+                                        </div>
+                                      </div>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            );
+                          })}
+                          
+                          {category.questions.every(q => {
+                            const fullCategoryProgress = progressService.getCategoryProgress(currentLevel.id, category.categoryId);
+                            const qp = fullCategoryProgress?.questionProgress?.find(
+                              (qprog: any) => qprog.questionId === q.questionId
+                            );
+                            return !qp || qp.attempts === 0;
+                          }) && (
+                            <div className="text-center text-xs text-gray-400 py-2">
+                              No statistics yet. Start the stage to track your progress!
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -589,18 +731,23 @@ export default function ProgressMap({
                                   border: `1px solid ${isCompleted ? "#A7F3D0" : `${color.aqua}3a`}`,
                                 }}
                               >
-                                {isCompleted ? "✓" : category.categoryId}
+                                {isCompleted ? <Check className="w-5 h-5" /> : category.categoryId}
                               </div>
 
                               <div className="flex-1 min-w-0">
-                                <div className="text-sm font-bold" style={{ color: color.deep }}>
-                                  Stage {category.categoryId}
+                                <div className="text-lg font-bold" style={{ color: color.deep }}>
+                    
+                                  {category.categoryTitle && (
+                                    <span className="ml-2 text-base font-bold text-teal-600">
+                                      {category.categoryTitle}
+                                    </span>
+                                  )}
                                 </div>
-                                <div className="text-xs text-gray-600 mb-2">{category.categoryName}</div>
+                             
 
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
-                                    <div className="h-1.5 w-20 rounded-full overflow-hidden" style={{ background: "#E6EDF3" }}>
+                                    <div className="h-2 w-24 rounded-full overflow-hidden" style={{ background: "#E6EDF3" }}>
                                       <div
                                         className="h-full rounded-full transition-all duration-700 ease-out"
                                         style={{
@@ -609,47 +756,19 @@ export default function ProgressMap({
                                         }}
                                       />
                                     </div>
-                                    <span className="text-xs text-gray-500 font-medium">
+                                    <span className="text-sm text-gray-600 font-semibold">
                                       {categoryProgress?.correctAnswers || 0}/{category.totalQuestions}
                                     </span>
                                   </div>
-                                  <div className="text-xs text-gray-500">
-                                    Q{category.currentQuestionIndex + 1}/{category.totalQuestions}
+                                  <div className="text-sm text-gray-600 font-medium">
+                                    Question: {category.currentQuestionIndex + 1}/{category.totalQuestions}
                                   </div>
                                 </div>
                               </div>
                             </div>
 
-                            {/* Preview */}
-                            <div
-                              className="p-3 rounded-xl mb-4"
-                              style={{ background: `${color.aqua}08`, border: `1px dashed ${color.aqua}33` }}
-                            >
-                              <div className="flex items-start gap-3">
-                                <div
-                                  className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
-                                  style={{
-                                    background: `linear-gradient(90deg, ${color.teal}, ${color.aqua})`,
-                                    color: "white",
-                                  }}
-                                >
-                                  {currentQuestion.questionId}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm text-gray-900 line-clamp-2 font-medium leading-relaxed mb-1">
-                                    {currentQuestion.questionText}
-                                  </div>
-                                  <div className="flex items-center gap-3 text-[11px]">
-                                    <span style={{ color: color.teal }} className="font-bold">
-                                      NEXT UP
-                                    </span>
-                                    {!!currentQuestion.attempts && currentQuestion.attempts > 0 && (
-                                      <span className="text-orange-600 font-medium">{currentQuestion.attempts} attempts</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                      
+                          
 
                             {/* CTA */}
                             <button
@@ -667,32 +786,145 @@ export default function ProgressMap({
                               }}
                             >
                               <span className="inline-flex items-center gap-2">
-                                <span>{isCompleted ? "Review Stage" : "Start Stage"}</span>
+                                <span>{isCompleted ? "Retry Stage" : "Start Stage"}</span>
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                                 </svg>
                               </span>
                             </button>
 
-                            {/* Footer status */}
-                            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                              <div
-                                className={`text-xs font-bold uppercase tracking-wider ${
-                                  isCompleted ? "text-emerald-600" : hasProgress ? "text-teal-600" : "text-indigo-600"
-                                }`}
+                            {/* Footer status with expandable stats */}
+                            <div className="pt-3 border-t border-gray-100">
+                              <button
+                                onClick={() => toggleCategoryExpansion(category.categoryId)}
+                                className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-colors hover:opacity-70"
                               >
-                                {isCompleted ? "✓ Complete" : hasProgress ? "⚡ In Progress" : "▶ Start Now"}
-                              </div>
-                              <svg
-                                className={`w-5 h-5 ${
-                                  isCompleted ? "text-emerald-500" : hasProgress ? "text-teal-500" : "text-indigo-500"
-                                }`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                              </svg>
+                                <span
+                                  className={`flex items-center gap-1.5 ${
+                                    isCompleted ? "text-emerald-600" : hasProgress ? "text-teal-600" : "text-indigo-600"
+                                  }`}
+                                >
+                                  {isCompleted ? (
+                                    <>
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      <span>See Latest Attempt</span>
+                                    </>
+                                  ) : hasProgress ? (
+                                    <>
+                                      <Zap className="w-3.5 h-3.5" />
+                                      <span>See Current Attempt</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Play className="w-3.5 h-3.5" />
+                                      <span>Try to See Statistics</span>
+                                    </>
+                                  )}
+                                </span>
+                                <ChevronDown
+                                  className={`w-4 h-4 transition-transform ${
+                                    expandedCategories.has(category.categoryId) ? "rotate-180" : ""
+                                  } ${
+                                    isCompleted ? "text-emerald-500" : hasProgress ? "text-teal-500" : "text-indigo-500"
+                                  }`}
+                                />
+                              </button>
+
+                              {/* Expandable Question Stats */}
+                              {expandedCategories.has(category.categoryId) && (
+                                <div className="mt-3 space-y-2 animate-in slide-in-from-top-2">
+                                  {category.questions.map((question) => {
+                                    // Get full category progress with questionProgress array
+                                    const fullCategoryProgress = progressService.getCategoryProgress(level.id, category.categoryId);
+                                    const questionProgress = fullCategoryProgress?.questionProgress?.find(
+                                      (qp: any) => qp.questionId === question.questionId
+                                    );
+                                    
+                                    if (!questionProgress || questionProgress.attempts === 0) {
+                                      return null; // Don't show questions with no attempts
+                                    }
+
+                                    return (
+                                      <div
+                                        key={question.questionId}
+                                        className="p-3 rounded-lg"
+                                        style={{
+                                          background: questionProgress.isCompleted ? "#F0FDF4" : "#FEF3C7",
+                                          border: `1px solid ${questionProgress.isCompleted ? "#BBF7D0" : "#FDE68A"}`,
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-2 mb-3">
+                                          <div
+                                            className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold shrink-0"
+                                            style={{
+                                              background: questionProgress.isCompleted
+                                                ? "linear-gradient(135deg, #10B981, #059669)"
+                                                : "linear-gradient(135deg, #F59E0B, #D97706)",
+                                              color: "white",
+                                            }}
+                                          >
+                                            {questionProgress.isCompleted ? "✓" : question.questionId}
+                                          </div>
+                                          <div className="flex-1 flex items-center justify-between">
+                                            <div className="text-sm font-bold text-gray-800">
+                                              Question {question.questionId}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Time Spent - Inline Display */}
+                                        {(() => {
+                                          // Always use latest attempt
+                                          const displayData = questionProgress.latestAttempt || {
+                                            timeSpent: questionProgress.timeSpent,
+                                            attempts: questionProgress.attempts,
+                                            colorHintsUsed: questionProgress.colorCodedHintsUsed,
+                                            shortHintsUsed: questionProgress.shortHintMessagesUsed,
+                                          };
+
+                                          return (
+                                            <>
+                                              <div className="mb-2 text-right text-xs text-gray-600">
+                                                Time spent: <span className="font-bold text-gray-800">{formatTime(displayData.timeSpent)}</span>
+                                              </div>
+
+                                              {/* Stats Grid - 3 metrics */}
+                                              <div className="grid grid-cols-3 gap-2">
+                                                <div className="text-center py-2 px-3 bg-white border border-gray-200 rounded-md shadow-sm">
+                                                  <div className="font-bold text-gray-800 text-sm">{displayData.attempts}</div>
+                                                  <div className="text-gray-600 text-xs mt-0.5">Attempts</div>
+                                                </div>
+                                                
+                                                <div className="text-center py-2 px-3 bg-white border border-gray-200 rounded-md shadow-sm">
+                                                  <div className="font-bold text-gray-800 text-sm">{displayData.colorHintsUsed}</div>
+                                                  <div className="text-gray-600 text-xs mt-0.5">Color Hints</div>
+                                                </div>
+                                                
+                                                <div className="text-center py-2 px-3 bg-white border border-gray-200 rounded-md shadow-sm">
+                                                  <div className="font-bold text-gray-800 text-sm">{displayData.shortHintsUsed}</div>
+                                                  <div className="text-gray-600 text-xs mt-0.5">Context Hints</div>
+                                                </div>
+                                              </div>
+                                            </>
+                                          );
+                                        })()}
+                                      </div>
+                                    );
+                                  })}
+                                  
+                                  {category.questions.every(q => {
+                                    const fullCategoryProgress = progressService.getCategoryProgress(level.id, category.categoryId);
+                                    const qp = fullCategoryProgress?.questionProgress?.find(
+                                      (qprog: any) => qprog.questionId === q.questionId
+                                    );
+                                    return !qp || qp.attempts === 0;
+                                  }) && (
+                                    <div className="text-center text-xs text-gray-400 py-2">
+                                      No statistics yet. Start the stage to track your progress!
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
@@ -728,9 +960,7 @@ export default function ProgressMap({
             boxShadow: activeTopic === 0 ? "none" : `0 6px 16px ${color.mist}22`,
           }}
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft className="w-6 h-6" />
         </button>
 
         <div className="flex justify-center gap-3">
@@ -762,9 +992,7 @@ export default function ProgressMap({
             boxShadow: activeTopic === levels.length - 1 ? "none" : `0 6px 16px ${color.mist}22`,
           }}
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight className="w-6 h-6" />
         </button>
       </div>
     </div>
