@@ -35,6 +35,23 @@ export default function TugonSense() {
 
   const activeTopicProgress = getTopicProgress(activeCourse.id);
   const stats = getStatistics();
+  
+  // ✨ NEW: Handler for starting a stage (resets if completed)
+  const handleStartStage = (topicId: number, categoryId: number, questionId: number) => {
+    // Import progressService dynamically to avoid circular dependencies
+    import('../../components/tugon/services/progressServices').then(({ progressService }) => {
+      const categoryProgress = progressService.getCategoryProgress(topicId, categoryId);
+      
+      // If category was previously completed (has everCompleted flag), reset it for replay
+      if (categoryProgress?.everCompleted) {
+        console.log(`🔄 Category ${categoryId} was completed before - resetting for replay`);
+        progressService.resetCategoryProgress(topicId, categoryId);
+      }
+      
+      // Navigate to first question (questionId is already set correctly by ProgressMap)
+      navigate(`/tugonplay?topic=${topicId}&category=${categoryId}&question=${questionId}`);
+    });
+  };
 
   // Compact status tile (avoid repeating big topic title from CourseCard)
   const topicStatus = useMemo(() => {
@@ -105,9 +122,7 @@ export default function TugonSense() {
                     courses={courses}
                     onActiveChange={() => {}}
                     onActiveIndexChange={setActiveIndex}
-                    onStartStage={(topicId, categoryId, questionId) => {
-                      navigate(`/tugonplay?topic=${topicId}&category=${categoryId}&question=${questionId}`);
-                    }}
+                    onStartStage={handleStartStage}
                     /* Mobile-merge props (no connection changes) */
                     title={activeCourse.title}
                     description={activeCourse.description}

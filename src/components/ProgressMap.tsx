@@ -195,6 +195,15 @@ export default function ProgressMap({
       ?.categories.find((c) => c.categoryId === categoryId);
 
     if (!category) return 1;
+    
+    // ✨ NEW: If category has been completed before (everCompleted) but isCompleted is false,
+    // it means we're starting a fresh replay - start from question 1
+    const categoryProgress = progressService.getCategoryProgress(topicId, categoryId);
+    if (categoryProgress?.everCompleted && !categoryProgress?.isCompleted) {
+      console.log(`🔄 Starting fresh replay of Category ${categoryId} from Question 1`);
+      return category.questions[0]?.questionId || 1;
+    }
+    
     let nextIndex = categoryStats.currentQuestionIndex;
     for (let i = 0; i < category.questions.length; i++) {
       const questionIndex = (nextIndex + i) % category.questions.length;

@@ -76,7 +76,7 @@ export const Topic1_Category1_Hints: CategoryHints = {
           signErrorHint: "{T1C1}: I see you're {behavior}. Review {wrongPart} during {stepLabel} - all additions here!",
           magnitudeErrorHint: "{T1C1}: Looks like you're {behavior}. Focus on {wrongPart} in the {stepLabel} step - every x becomes 4!",
           closeAttemptHint: "{T1C1}: Great work! You're {behavior}. One more look at {wrongPart} in {stepLabel} - use those parentheses!",
-          repetitionHint: "{T1C1}: I notice you're {behavior}. Try a different approach with {wrongPart} in {stepLabel} - parentheses are key!",
+          repetitionHint: "{T1C1}: IIII notice you're {behavior}. Try a different approach with {wrongPart} in {stepLabel} - parentheses are key!",
           guessingHint: "{T1C1}: Hmm, seems you're {behavior}. Let's approach {wrongPart} in {stepLabel} systematically - substitute carefully!",
           commonMistakes: [
             "Forgetting parentheses around 4 in (4)^2",

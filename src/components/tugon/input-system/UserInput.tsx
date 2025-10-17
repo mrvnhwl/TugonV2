@@ -32,6 +32,7 @@ type StepProgression = [string, string, boolean, string, number];
 
 type UserAttempt = {
   attempt_id: number;              // incremental ID
+  questionId: number;              // ✨ NEW: which question this belongs to
   stepIndex: number;               // which step/question
   stepLabel: string;
   userInput: string;
@@ -45,6 +46,8 @@ type UserAttempt = {
   stepStartTime: number;           // when step began
   attemptTime: number;             // timestamp (ms)
   timeSpentOnStep?: number;        // optional: total duration when step ends
+  colorHintsShownCount?: number;   // ✨ NEW: cumulative color hints shown
+  shortHintsShownCount?: number;   // ✨ NEW: cumulative toast hints shown
 };
 
 type StepTiming = {
@@ -175,9 +178,18 @@ export default function UserInput({
   const [realtimeColoringEnabled, setRealtimeColoringEnabled] = useState<boolean>(true);
   const [colorComparisonMode, setColorComparisonMode] = useState<'character' | 'term'>('character'); // Use character mode for granular feedback
   const debouncedColoringRef = useRef(createDebouncedColoringFunction(1000)); // 1000ms = 1 second delay
+
+  // ✨ NEW: Comprehensive tracking for SuccessModal statistics
+  const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now()); // Per-question timer (resets)
+  const [colorHintsShown, setColorHintsShown] = useState<number>(0); // Count FeedbackOverlay displays
+  const [shortHintsShown, setShortHintsShown] = useState<number>(0); // Count toast.custom() calls
+  const [currentQuestionId, setCurrentQuestionId] = useState<number>(questionId || 0); // Track question changes
   
   // 🚫 NEW: Track last processed plain value to detect actual changes
   const lastPlainValueRef = useRef<Map<number, string>>(new Map());
+  
+  // ✨ NEW: Track previous validation states to detect when feedback is newly shown
+  const previousValidationStatesRef = useRef<Map<number, boolean>>(new Map());
   
   // ⏱️ NEW: Timer refs for stripping colors after 3 seconds
   const colorStripTimersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
@@ -220,6 +232,88 @@ export default function UserInput({
       loadTemplates();
     }
   }, [topicId, categoryId, questionId]); // Reload when context changes
+
+  // ✨ NEW: Reset tracking when question changes (session-based timer)
+  useEffect(() => {
+    if (questionId !== undefined && questionId !== currentQuestionId) {
+      console.log(`🔄 Question changed from ${currentQuestionId} to ${questionId} - Resetting tracking`);
+      
+      // Reset all tracking counters for new question session
+      setSessionStartTime(Date.now()); // Reset timer to now
+      setColorHintsShown(0); // Reset color hint counter
+      setShortHintsShown(0); // Reset toast hint counter
+      setAttemptCounter(0); // Reset attempt counter
+      previousValidationStatesRef.current.clear(); // Reset previous validation tracking
+      setCurrentQuestionId(questionId); // Update tracked question ID
+      
+      console.log(`✅ Tracking reset complete for Question ${questionId}`);
+    }
+  }, [questionId, currentQuestionId]);
+
+  // ✨ NEW: Track color hints when FeedbackOverlay displays (cumulative - counts EVERY display)
+  useEffect(() => {
+    // Track EACH TIME feedback is displayed (not just once per step)
+    let newDisplaysCount = 0;
+    
+    console.log(`🔍 COLOR HINT TRACKING - Checking validation states:`, {
+      validationStatesCount: lineValidationStates.size,
+      triggersCount: validationTriggers.size,
+      previousStatesCount: previousValidationStatesRef.current.size
+    });
+    
+    lineValidationStates.forEach((validation, index) => {
+      const trigger = validationTriggers.get(index);
+      
+      // Check if feedback should be shown:
+      // 1. Has validation result
+      // 2. Has trigger (user pressed Enter)
+      // 3. Has token feedback array with items
+      // 4. Answer is not correct
+      const hasTokenFeedback = validation?.tokenFeedback && 
+                               Array.isArray(validation.tokenFeedback) && 
+                               validation.tokenFeedback.length > 0;
+      const shouldShowFeedback = validation && 
+                                 trigger && 
+                                 hasTokenFeedback && 
+                                 !validation.isCorrect;
+      
+      // Get previous state for this step
+      const wasShowingFeedback = previousValidationStatesRef.current.get(index) || false;
+      
+      console.log(`🔍 Step ${index} check:`, {
+        hasValidation: !!validation,
+        hasTrigger: !!trigger,
+        tokenFeedbackLength: validation?.tokenFeedback?.length || 0,
+        hasTokenFeedback,
+        isCorrect: validation?.isCorrect,
+        shouldShowFeedback,
+        wasShowingFeedback,
+        transitionDetected: shouldShowFeedback && !wasShowingFeedback
+      });
+      
+      if (shouldShowFeedback && !wasShowingFeedback) {
+        // NEW feedback display detected (transition from not showing → showing)
+        newDisplaysCount++;
+        console.log(`🎨 TRACKING: Color hint displayed for step ${index} - New displays this render: ${newDisplaysCount}`);
+        previousValidationStatesRef.current.set(index, true);
+      } else if (!shouldShowFeedback && wasShowingFeedback) {
+        // Feedback cleared (user corrected or changed input)
+        console.log(`🔄 TRACKING: Color hint cleared for step ${index}`);
+        previousValidationStatesRef.current.set(index, false);
+      }
+    });
+
+    // Increment colorHintsShown by the number of NEW displays in this render
+    if (newDisplaysCount > 0) {
+      setColorHintsShown(prev => {
+        const newTotal = prev + newDisplaysCount;
+        console.log(`🎨 TRACKING: Color hints incremented by ${newDisplaysCount} - New total: ${newTotal}`);
+        return newTotal;
+      });
+    } else {
+      console.log(`⏭️ TRACKING: No new color hints to count this render`);
+    }
+  }, [lineValidationStates, validationTriggers]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -384,7 +478,7 @@ export default function UserInput({
       'magnitude-error': 'off by a large amount',
       'guessing': 'trying random answers',
       'random': 'making general mistakes',
-      'default': 'needing some guidance',
+      'default': 'needing some guidance', 
       'self-correction': 'making progress with corrections'
     };
 
@@ -537,6 +631,13 @@ export default function UserInput({
       toast.dismiss(activeToastIdRef.current);
       console.log(`🗑️ Dismissed previous toast: ${activeToastIdRef.current}`);
     }
+
+    // ✨ NEW: Track context hint (toast.custom call)
+    setShortHintsShown(prev => {
+      const newCount = prev + 1;
+      console.log(`📊 TRACKING: Context hint shown (toast.custom) - Count: ${newCount}`);
+      return newCount;
+    });
 
     // Display toast with curated message - Styled format with teal theme
     const toastId = toast.custom(
@@ -744,6 +845,7 @@ export default function UserInput({
 
       const newUserAttempt: UserAttempt = {
         attempt_id: newId,
+        questionId: questionId || 0,              // ✨ NEW: Track which question
         stepIndex,
         stepLabel: stepProgression[0],
         userInput: sanitizedUserInput,                    // Original user input
@@ -757,6 +859,8 @@ export default function UserInput({
         stepStartTime,           // When step timing started
         attemptTime: now,        // When this attempt was made (timestamp ms)
         timeSpentOnStep,         // Total time if step completed
+        colorHintsShownCount: colorHintsShown,     // ✨ NEW: Cumulative color hints shown
+        shortHintsShownCount: shortHintsShown,     // ✨ NEW: Cumulative toast hints shown
       };
 
       setUserAttempt(prevAttempts => {
@@ -1190,6 +1294,11 @@ export default function UserInput({
       newMap.delete(index);
       return newMap;
     });
+    
+    // ✨ CRITICAL: Reset previous state to false when user starts typing
+    // This allows the tracking to count the NEXT time feedback is shown
+    previousValidationStatesRef.current.set(index, false);
+    console.log(`🔄 User editing step ${index} - Reset tracking state to allow re-counting`);
   };
 
   // Handle key events
@@ -1993,7 +2102,7 @@ export default function UserInput({
           </div>
         )}
 
-        {/* 🎯 BEHAVIOR DEBUG PANEL - Remove this after testing */}
+        {/* 🎯 BEHAVIOR DEBUG PANEL - Remove this after testing 
         {behaviorProfile && (
           <div className="fixed bottom-4 right-4 bg-black/90 text-white p-4 rounded-lg max-w-md text-xs font-mono z-50">
             <div className="font-bold text-yellow-400 mb-2">🎯 Behavior Detection Debug</div>
@@ -2031,7 +2140,7 @@ export default function UserInput({
               Struggling Steps: {behaviorProfile.strugglingSteps.length}
             </div>
           </div>
-        )}
+        )}*/}
       </div>
     </>
   );

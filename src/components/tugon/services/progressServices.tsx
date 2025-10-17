@@ -11,6 +11,21 @@ export interface QuestionProgress {
   // NEW: Hint tracking
   colorCodedHintsUsed: number;
   shortHintMessagesUsed: number;
+  // ✨ NEW: Latest and Fastest attempt tracking
+  latestAttempt?: {
+    timestamp: Date;
+    timeSpent: number;
+    attempts: number;
+    colorHintsUsed: number;
+    shortHintsUsed: number;
+  };
+  fastestAttempt?: {
+    timestamp: Date;
+    timeSpent: number;
+    attempts: number;
+    colorHintsUsed: number;
+    shortHintsUsed: number;
+  };
 }
 
 export interface CategoryProgress {
@@ -24,6 +39,8 @@ export interface CategoryProgress {
   completedDate?: Date;
   currentQuestionIndex: number; // Random question index for this category
   attempts: number; // Total attempts for this category
+  successModalShown?: boolean; // ✨ NEW: Track if SuccessModal shown at least once
+  everCompleted?: boolean; // ✨ NEW: Track if category was ever completed (keeps history)
 }
 
 export interface TopicProgress {
@@ -259,6 +276,27 @@ class ProgressService {
       questionProgress.correctAnswers++;
       questionProgress.isCompleted = true;
       
+      // ✨ NEW: Save latest attempt (always overwrite with most recent completion)
+      questionProgress.latestAttempt = {
+        timestamp: new Date(),
+        timeSpent: attemptResult.timeSpent,
+        attempts: questionProgress.attempts,
+        colorHintsUsed: attemptResult.colorCodedHintsUsed || 0,
+        shortHintsUsed: attemptResult.shortHintMessagesUsed || 0,
+      };
+      
+      // ✨ NEW: Save fastest attempt (only if faster than previous or first completion)
+      if (!questionProgress.fastestAttempt || attemptResult.timeSpent < questionProgress.fastestAttempt.timeSpent) {
+        questionProgress.fastestAttempt = {
+          timestamp: new Date(),
+          timeSpent: attemptResult.timeSpent,
+          attempts: questionProgress.attempts,
+          colorHintsUsed: attemptResult.colorCodedHintsUsed || 0,
+          shortHintsUsed: attemptResult.shortHintMessagesUsed || 0,
+        };
+        console.log(`🏆 New fastest attempt for Question ${attemptResult.questionId}: ${attemptResult.timeSpent}s`);
+      }
+      
       // Move to next random question in category after correct answer
       const topicData = defaultTopics.find(t => t.id === attemptResult.topicId);
       const categoryData = topicData?.level.find(cat => cat.category_id === attemptResult.categoryId);
@@ -302,6 +340,10 @@ class ProgressService {
     console.log(`📊 Category ${categoryId} completion check:`, {
       totalQuestions,
       completedQuestions,
+      questionProgress: categoryProgress.questionProgress.map(qp => ({
+        id: qp.questionId,
+        isCompleted: qp.isCompleted
+      })),
       isComplete: completedQuestions >= totalQuestions && totalQuestions > 0
     });
     
@@ -325,6 +367,52 @@ class ProgressService {
     categoryProgress.isCompleted = true;
     categoryProgress.completionPercentage = 100;
     categoryProgress.completedDate = new Date();
+    categoryProgress.everCompleted = true; // Mark as ever completed
+    
+    this.recalculateProgress(progress);
+    this.saveProgress(progress);
+  }
+
+  // ✨ NEW: Mark that SuccessModal has been shown for this category
+  markSuccessModalShown(topicId: number, categoryId: number): void {
+    const progress = this.getUserProgress();
+    const topicProgress = this.getOrCreateTopicProgress(progress, topicId);
+    const categoryProgress = this.getOrCreateCategoryProgress(topicProgress, categoryId);
+    
+    categoryProgress.successModalShown = true;
+    categoryProgress.everCompleted = true; // Also mark as ever completed
+    
+    console.log(`✅ SuccessModal shown marked for Category ${categoryId}`);
+    this.saveProgress(progress);
+  }
+
+  // ✨ NEW: Reset category progress for replay while keeping history
+  resetCategoryProgress(topicId: number, categoryId: number): void {
+    const progress = this.getUserProgress();
+    const topicProgress = this.getOrCreateTopicProgress(progress, topicId);
+    const categoryProgress = this.getOrCreateCategoryProgress(topicProgress, categoryId);
+    
+    console.log(`🔄 Resetting category ${categoryId} progress for replay...`);
+    
+    // Reset all question isCompleted flags but keep history (latest/fastest attempts)
+    categoryProgress.questionProgress.forEach(qp => {
+      qp.isCompleted = false;
+      qp.correctAnswers = 0; // Reset correct answers count for this session
+      // Keep latestAttempt and fastestAttempt for history
+      console.log(`  Reset Question ${qp.questionId} (keeping history)`);
+    });
+    
+    // Reset category flags for current session
+    categoryProgress.isCompleted = false;
+    categoryProgress.successModalShown = false; // Allow SuccessModal to show again
+    categoryProgress.completionPercentage = 0;
+    categoryProgress.correctAnswers = 0;
+    categoryProgress.attempts = 0;
+    categoryProgress.currentQuestionIndex = 0; // Start from first question
+    // Keep everCompleted = true to show it has been done before
+    // Keep completedDate to show when first completed
+    
+    console.log(`✅ Category ${categoryId} reset complete - ready for replay from Question 1`);
     
     this.recalculateProgress(progress);
     this.saveProgress(progress);
