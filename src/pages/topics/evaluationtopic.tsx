@@ -107,7 +107,7 @@ function Evaluationtopic() {
 
       <main className="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Topic Description */}
-        <section className="rounded-2xl border bg-white p-6 md:p-7 -mt-8" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+        <section className="relative -mt-8 z-10 rounded-2xl border bg-white p-6 md:p-7" style={{ ...cardBorder, boxShadow: subtleShadow }}>
           <p className="leading-relaxed" style={{ color: color.steel }}>
             To <strong>evaluate a function</strong> means to find the output value <code>f(x)</code> for a given input <code>x</code> by substituting the
             value and simplifying the result.

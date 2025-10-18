@@ -123,7 +123,7 @@ function Logarithmictopic() {
 
       <main className="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Overview */}
-        <section className="rounded-2xl border bg-white p-6 md:p-7 -mt-8" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+        <section className="relative -mt-8 z-10 rounded-2xl border bg-white p-6 md:p-7" style={{ ...cardBorder, boxShadow: subtleShadow }}>
           <p className="leading-relaxed" style={{ color: color.steel }}>
             A <strong>logarithmic function</strong> is the inverse of an exponential function. In general, <code>logₐ(x)</code> answers:
             “To what power must the base <code>a</code> be raised to get <code>x</code>?”

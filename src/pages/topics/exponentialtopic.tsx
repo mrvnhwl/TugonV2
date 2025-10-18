@@ -104,7 +104,7 @@ function Exponentialtopic() {
 
       <main className="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Description */}
-        <section className="rounded-2xl border bg-white p-6 md:p-7 -mt-8" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+        <section className="relative -mt-8 z-10 rounded-2xl border bg-white p-6 md:p-7" style={{ ...cardBorder, boxShadow: subtleShadow }}>
           <p className="leading-relaxed" style={{ color: color.steel }}>
             An <strong>exponential function</strong> has the form <code>f(x) = a^x</code>, where the variable is in the exponent. These functions model
             growth/decay in science, finance, and engineering.

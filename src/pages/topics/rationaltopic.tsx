@@ -69,7 +69,7 @@ function Rationaltopic() {
 
       <main className="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-10">
         {/* Description */}
-        <section className="rounded-2xl border bg-white p-6 md:p-7 -mt-8" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+        <section className="relative -mt-8 z-10 rounded-2xl border bg-white p-6 md:p-7" style={{ ...cardBorder, boxShadow: subtleShadow }}>
           <p className="leading-relaxed" style={{ color: color.steel }}>
             A <strong>rational function</strong> is a ratio of two polynomial functions, e.g., <code>f(x) = 1/x</code> or{" "}
             <code>f(x) = 1/(x - 2)</code>. The denominator cannot be zero, which creates domain restrictions and often asymptotes.
