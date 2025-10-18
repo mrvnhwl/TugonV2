@@ -36,7 +36,7 @@ export default function TugonPlay() {
   const successModalSoundRef = useRef<HTMLAudioElement | null>(null);
   
   // Add progress tracking
-  const { recordAttempt, getQuestionProgress, progress } = useProgress();
+  const { recordAttempt, getQuestionProgress, resetQuestionSession, progress } = useProgress();
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   // Add success modal state
@@ -76,6 +76,12 @@ export default function TugonPlay() {
     setIsCorrect(null); // Reset correct state
     console.log(`🎯 Starting question: Topic ${topicId}, Category ${finalCategoryId}, Question ${questionId}`);
     
+    // ✨ NEW: Reset session attempts ONLY if question was previously completed (retry scenario)
+    if (currentQuestionProgress?.isCompleted) {
+      console.log(`♻️ Question ${questionId} was completed, resetting session for retry`);
+      resetQuestionSession(topicId, finalCategoryId, questionId);
+    }
+    
     // ADD THESE RESETS FOR USER INPUT:
   setUserAttempts([]); // Reset user attempts
 
@@ -90,7 +96,7 @@ export default function TugonPlay() {
     } else {
       console.log('📊 No previous progress for this question');
     }
-  }, [topicId, finalCategoryId, questionId]);
+  }, [topicId, finalCategoryId, questionId]); // ✨ REMOVED resetQuestionSession from dependencies to prevent infinite loops
 
   // Get the guide_text from question.ts based on current question
   const getGuideText = () => {

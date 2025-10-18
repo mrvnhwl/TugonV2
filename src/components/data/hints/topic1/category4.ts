@@ -129,11 +129,11 @@ export const Topic1_Category4_Hints: CategoryHints = {
         },
         {
           stepLabel: "final",
-          genericHint: " Hey there, you're {behavior}. Check {wrongPart} in your {stepLabel} - write the final answer!",
-          signErrorHint: " I see you're {behavior}. Focus on {wrongPart} in your {stepLabel} - keep it as 1/(x + 1)!",
-          magnitudeErrorHint: " Looks like you're {behavior}. Review {wrongPart} during {stepLabel} - this is already simplified!",
-          closeAttemptHint: " So close! You're {behavior}. Just fix {wrongPart} in your {stepLabel} - final form is 1/(x + 1)!",
-          repetitionHint: " I notice you're {behavior}. Try a different approach with {wrongPart} in {stepLabel} - don't over-complicate!",
+          genericHint: "You're {behavior}. Check {wrongPart} in your {stepLabel} - write the final answer!",
+          signErrorHint: "I see you're {behavior}. Focus on {wrongPart} in your {stepLabel} - keep it as 1/(x + 1)!",
+          magnitudeErrorHint: "Looks like you're {behavior}. Review {wrongPart} during {stepLabel} - this is already simplified!",
+          closeAttemptHint: "So close! You're {behavior}. Just fix {wrongPart} in your {stepLabel} - final form is 1/(x + 1)!",
+          repetitionHint: "I notice you're {behavior}. Try a different approach with {wrongPart} in {stepLabel} - don't over-complicate!",
           guessingHint: " Hmm, seems you're {behavior}. Let's approach {wrongPart} in {stepLabel} systematically - keep it simple!",
           commonMistakes: [
             "Trying to expand further",
