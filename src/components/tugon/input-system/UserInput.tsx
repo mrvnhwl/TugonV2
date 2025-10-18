@@ -716,10 +716,30 @@ export default function UserInput({
     const toastId = toast.custom(
       (t) => (
         <div 
-          className={`max-w-md w-full bg-white border-l-8 border-teal-500 shadow-xl rounded-xl p-5 mb-4 transition-all duration-300 ${
+          className={`max-w-md w-full bg-white border-l-8 border-teal-500 shadow-xl rounded-xl p-5 mb-4 transition-all duration-300 relative ${
             t.visible ? 'animate-enter' : 'animate-leave'
           }`}
         >
+          {/* Close button */}
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors duration-200"
+            aria-label="Close notification"
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              className="h-4 w-4" 
+              viewBox="0 0 20 20" 
+              fill="currentColor"
+            >
+              <path 
+                fillRule="evenodd" 
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" 
+                clipRule="evenodd" 
+              />
+            </svg>
+          </button>
+
           {/* Header with emoji badge and greeting */}
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center text-white text-xl">
@@ -735,7 +755,7 @@ export default function UserInput({
         </div>
       ),
       {
-        duration: 3500,
+        duration: 5000,
         position: 'top-center',
       }
     );
@@ -1927,7 +1947,7 @@ export default function UserInput({
           ref={containerRef}
           className={cn(
             "relative",
-            isScrollable ? "h-[200px]" : "min-h-[50px]"
+            isScrollable ? "h-[250px]" : "min-h-[80px]" // 📏 Increased from 200px to 300px and min from 50px to 80px
           )}
         >
           {/* Scrollable content */}
@@ -1946,7 +1966,7 @@ export default function UserInput({
               const validationTrigger = validationTriggers.get(index);
 
               return (
-                <div key={index} className="relative group" style={{ minHeight: '50px' }}>
+                <div key={index} className="relative group" style={{ minHeight: '70px' }}> {/* 📏 Increased from 50px to 70px */}
                   <div className={cn(
                     "flex items-center transition-colors duration-200",
                     focusedIndex === index && "bg-blue-50",
@@ -1999,10 +2019,10 @@ export default function UserInput({
                               width: "100%",
                               border: "none",
                               background: "transparent",
-                              padding: "8px",
+                              padding: "12px", // 📏 Increased from 8px to 12px
                               color: "#1f2937",
-                              fontSize: "1.75rem",
-                              minHeight: "48px",
+                              fontSize: "2rem", // 📏 Increased from 1.75rem to 2rem
+                              minHeight: "60px", // 📏 Increased from 48px to 60px
                               outline: "none",
                               cursor: "text",
                               userSelect: "text"
@@ -2010,7 +2030,7 @@ export default function UserInput({
                             className={cn(
                               "focus:ring-0 focus:outline-none transition-all duration-200",
                               "placeholder-gray-400 text-gray-900",
-                              "text-base sm:text-2xl", // 📱 Medium font on mobile (1.75rem from style)
+                              "text-lg sm:text-3xl", // � Increased from text-base sm:text-2xl to text-lg sm:text-3xl
                               disabled && "bg-gray-50 text-gray-500",
                               checkCooldownStatus() && "opacity-60 cursor-not-allowed",
                               wrongAttemptCounter >= 3 && !disabled && "ring-2 ring-red-500 ring-opacity-50"
@@ -2074,8 +2094,9 @@ export default function UserInput({
                         disabled={disabled}
                         placeholder={getStepPlaceholder(index)}
                         className={cn(
-                          "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-3 px-3",
+                          "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-4 px-4", // 📏 Increased padding from py-3 px-3 to py-4 px-4
                           "placeholder-gray-400 text-gray-900 transition-all duration-200",
+                          "text-lg sm:text-2xl", // 📏 Added larger font size
                           disabled && "bg-gray-50 text-gray-500",
                           checkCooldownStatus() && "opacity-60 cursor-not-allowed",
                           wrongAttemptCounter >= 3 && !disabled && "ring-2 ring-red-500 ring-opacity-50"
