@@ -342,7 +342,13 @@ export default function ProgressMap({
                   className="rounded-2xl p-4 transition-all"
                   style={{
                     background: "linear-gradient(180deg, #FFFFFF 0%, #FAFCFE 100%)",
-                    border: "1px solid #E6EDF3",
+                    border: `2px solid ${
+                      isCompleted 
+                        ? "#10B981" // Green border for completed
+                        : hasProgress 
+                        ? "#F59E0B" // Orange border for in progress
+                        : "#E6EDF3" // Light gray for not started
+                    }`,
                     boxShadow: hasProgress ? `0 10px 20px ${color.mist}22` : "0 4px 10px rgba(2, 16, 15, 0.04)",
                   }}
                 >
@@ -718,7 +724,13 @@ export default function ProgressMap({
                             className="rounded-2xl p-4 transition-all"
                             style={{
                               background: "linear-gradient(180deg, #FFFFFF 0%, #FAFCFE 100%)",
-                              border: "1px solid #E6EDF3",
+                              border: `2px solid ${
+                                isCompleted 
+                                  ? "#10B981" // Green border for completed
+                                  : hasProgress 
+                                  ? "#F59E0B" // Orange border for in progress
+                                  : "#E6EDF3" // Light gray for not started
+                              }`,
                               boxShadow: hasProgress ? `0 10px 20px ${color.mist}22` : "0 4px 10px rgba(2,16,15,0.04)",
                             }}
                           >

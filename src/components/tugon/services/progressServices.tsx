@@ -11,18 +11,20 @@ export interface QuestionProgress {
   // NEW: Hint tracking
   colorCodedHintsUsed: number;
   shortHintMessagesUsed: number;
+  // ✨ Session tracking for current attempt
+  currentSessionAttempts?: number; // Tracks attempts since question was started/reset
   // ✨ NEW: Latest and Fastest attempt tracking
   latestAttempt?: {
     timestamp: Date;
     timeSpent: number;
-    attempts: number;
+    attempts: number; // Attempts for THIS specific completion session
     colorHintsUsed: number;
     shortHintsUsed: number;
   };
   fastestAttempt?: {
     timestamp: Date;
     timeSpent: number;
-    attempts: number;
+    attempts: number; // Attempts for THIS specific completion session
     colorHintsUsed: number;
     shortHintsUsed: number;
   };
@@ -216,6 +218,7 @@ class ProgressService {
         lastAttemptDate: new Date(),
         colorCodedHintsUsed: 0,
         shortHintMessagesUsed: 0,
+        currentSessionAttempts: 0, // ✨ Initialize session attempts
       };
       categoryProgress.questionProgress.push(questionProgress);
     }
@@ -256,8 +259,14 @@ class ProgressService {
     const categoryProgress = this.getOrCreateCategoryProgress(topicProgress, attemptResult.categoryId);
     const questionProgress = this.getOrCreateQuestionProgress(categoryProgress, attemptResult.questionId);
 
+    // Initialize session attempts if not exists (reset when question is started fresh)
+    if (questionProgress.currentSessionAttempts === undefined) {
+      questionProgress.currentSessionAttempts = 0;
+    }
+
     // Update question progress
-    questionProgress.attempts++;
+    questionProgress.attempts++; // Cumulative total
+    questionProgress.currentSessionAttempts++; // Session-specific
     questionProgress.timeSpent += attemptResult.timeSpent;
     questionProgress.lastAttemptDate = new Date();
     
@@ -276,11 +285,11 @@ class ProgressService {
       questionProgress.correctAnswers++;
       questionProgress.isCompleted = true;
       
-      // ✨ NEW: Save latest attempt (always overwrite with most recent completion)
+      // ✨ NEW: Save latest attempt with SESSION attempts (not cumulative)
       questionProgress.latestAttempt = {
         timestamp: new Date(),
         timeSpent: attemptResult.timeSpent,
-        attempts: questionProgress.attempts,
+        attempts: questionProgress.currentSessionAttempts, // ← Use session attempts!
         colorHintsUsed: attemptResult.colorCodedHintsUsed || 0,
         shortHintsUsed: attemptResult.shortHintMessagesUsed || 0,
       };
@@ -290,12 +299,15 @@ class ProgressService {
         questionProgress.fastestAttempt = {
           timestamp: new Date(),
           timeSpent: attemptResult.timeSpent,
-          attempts: questionProgress.attempts,
+          attempts: questionProgress.currentSessionAttempts, // ← Use session attempts!
           colorHintsUsed: attemptResult.colorCodedHintsUsed || 0,
           shortHintsUsed: attemptResult.shortHintMessagesUsed || 0,
         };
         console.log(`🏆 New fastest attempt for Question ${attemptResult.questionId}: ${attemptResult.timeSpent}s`);
       }
+      
+      // ✨ Reset session attempts after successful completion
+      questionProgress.currentSessionAttempts = 0;
       
       // Move to next random question in category after correct answer
       const topicData = defaultTopics.find(t => t.id === attemptResult.topicId);
