@@ -1927,7 +1927,7 @@ export default function UserInput({
           ref={containerRef}
           className={cn(
             "relative",
-            isScrollable ? "h-[200px]" : "min-h-[50px]"
+            isScrollable ? "h-[250px]" : "min-h-[80px]" // 📏 Increased from 200px to 300px and min from 50px to 80px
           )}
         >
           {/* Scrollable content */}
@@ -1946,7 +1946,7 @@ export default function UserInput({
               const validationTrigger = validationTriggers.get(index);
 
               return (
-                <div key={index} className="relative group" style={{ minHeight: '50px' }}>
+                <div key={index} className="relative group" style={{ minHeight: '70px' }}> {/* 📏 Increased from 50px to 70px */}
                   <div className={cn(
                     "flex items-center transition-colors duration-200",
                     focusedIndex === index && "bg-blue-50",
@@ -1999,10 +1999,10 @@ export default function UserInput({
                               width: "100%",
                               border: "none",
                               background: "transparent",
-                              padding: "8px",
+                              padding: "12px", // 📏 Increased from 8px to 12px
                               color: "#1f2937",
-                              fontSize: "1.75rem",
-                              minHeight: "48px",
+                              fontSize: "2rem", // 📏 Increased from 1.75rem to 2rem
+                              minHeight: "60px", // 📏 Increased from 48px to 60px
                               outline: "none",
                               cursor: "text",
                               userSelect: "text"
@@ -2010,7 +2010,7 @@ export default function UserInput({
                             className={cn(
                               "focus:ring-0 focus:outline-none transition-all duration-200",
                               "placeholder-gray-400 text-gray-900",
-                              "text-base sm:text-2xl", // 📱 Medium font on mobile (1.75rem from style)
+                              "text-lg sm:text-3xl", // � Increased from text-base sm:text-2xl to text-lg sm:text-3xl
                               disabled && "bg-gray-50 text-gray-500",
                               checkCooldownStatus() && "opacity-60 cursor-not-allowed",
                               wrongAttemptCounter >= 3 && !disabled && "ring-2 ring-red-500 ring-opacity-50"
@@ -2074,8 +2074,9 @@ export default function UserInput({
                         disabled={disabled}
                         placeholder={getStepPlaceholder(index)}
                         className={cn(
-                          "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-3 px-3",
+                          "flex-1 border-0 bg-transparent focus:ring-0 focus:outline-none py-4 px-4", // 📏 Increased padding from py-3 px-3 to py-4 px-4
                           "placeholder-gray-400 text-gray-900 transition-all duration-200",
+                          "text-lg sm:text-2xl", // 📏 Added larger font size
                           disabled && "bg-gray-50 text-gray-500",
                           checkCooldownStatus() && "opacity-60 cursor-not-allowed",
                           wrongAttemptCounter >= 3 && !disabled && "ring-2 ring-red-500 ring-opacity-50"
