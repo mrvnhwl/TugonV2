@@ -29,6 +29,7 @@ export default function TugonPlay() {
   const [userAttempts, setUserAttempts] = useState<UserAttempt[]>([]);
   const [allCategoryAttempts, setAllCategoryAttempts] = useState<UserAttempt[]>([]); // ✨ NEW: Track all attempts across questions in category
   const idleTimer = useRef<number | null>(null);
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null); // 🎵 Background music ref
   
   // Add progress tracking
   const { recordAttempt, getQuestionProgress, progress } = useProgress();
@@ -151,6 +152,39 @@ export default function TugonPlay() {
     resetIdle();
     return () => { if (idleTimer.current) window.clearTimeout(idleTimer.current); };
   }, []);
+
+  // 🎵 Background music management
+  useEffect(() => {
+    // Create and configure audio element
+    const audio = new Audio('/tugonsenseSounds/BGMusic.mp3');
+    audio.loop = true; // Loop the background music
+    audio.volume = 0.3; // Set volume to 30% (adjust as needed)
+    bgMusicRef.current = audio;
+
+    // Play music when component mounts
+    const playMusic = async () => {
+      try {
+        await audio.play();
+        console.log('🎵 Background music started');
+      } catch (error) {
+        console.log('🔇 Background music autoplay blocked:', error);
+        // Note: Autoplay might be blocked by browser policy
+        // Music will play on first user interaction
+      }
+    };
+
+    playMusic();
+
+    // Cleanup: Stop and remove audio when component unmounts
+    return () => {
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause();
+        bgMusicRef.current.currentTime = 0;
+        bgMusicRef.current = null;
+        console.log('🎵 Background music stopped');
+      }
+    };
+  }, []); // Empty dependency array - run once on mount
 
   // ✨ NEW: Build category stats from user attempts with proper time tracking
   const buildCategoryStatsFromAttempts = (allAttempts: UserAttempt[]) => {
