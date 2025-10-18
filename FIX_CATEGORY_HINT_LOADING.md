@@ -2,7 +2,7 @@
 
 ## Problem Identified
 
-Only `{T1C1}:` hints were being loaded for ALL categories (1, 2, 3, 4). The issue was in `UserInput.tsx`.
+Only `:` hints were being loaded for ALL categories (1, 2, 3, 4). The issue was in `UserInput.tsx`.
 
 ## Root Cause
 
@@ -83,25 +83,25 @@ useEffect(() => {
 ### Category 1 (Function Evaluation)
 
 - URL: `?topic=1&category=1&question=1`
-- Should show hints with `{T1C1}:` prefix
+- Should show hints with `:` prefix
 - Hints from `src/components/data/hints/topic1/category1.ts`
 
 ### Category 2 (Piecewise Functions)
 
 - URL: `?topic=1&category=2&question=1`
-- Should show hints with `{T1C2}:` prefix ✅
+- Should show hints with `` prefix ✅
 - Hints from `src/components/data/hints/topic1/category2.ts`
 
 ### Category 3 (Operations on Functions)
 
 - URL: `?topic=1&category=3&question=1`
-- Should show hints with `{T1C3}:` prefix ✅
+- Should show hints with `` prefix ✅
 - Hints from `src/components/data/hints/topic1/category3.ts`
 
 ### Category 4 (Function Composition)
 
 - URL: `?topic=1&category=4&question=1`
-- Should show hints with `{T1C4}:` prefix ✅
+- Should show hints with `` prefix ✅
 - Hints from `src/components/data/hints/topic1/category4.ts`
 
 ## How to Test
@@ -109,7 +109,7 @@ useEffect(() => {
 1. **Start your dev server** (if not already running)
 2. **Navigate to Category 2**: `localhost:5173/tugonplay?topic=1&category=2&question=1`
 3. **Make an error** to trigger a hint
-4. **Check the hint text** - should see `{T1C2}:` at the beginning
+4. **Check the hint text** - should see `` at the beginning
 5. **Repeat for Categories 3 and 4**
 
 ### What to Look For in Console
@@ -139,10 +139,10 @@ When you navigate to a question, you should see:
 
 All hint template files now have visual indicators:
 
-- `category1.ts`: All hints start with `{T1C1}:`
-- `category2.ts`: All hints start with `{T1C2}:`
-- `category3.ts`: All hints start with `{T1C3}:`
-- `category4.ts`: All hints start with `{T1C4}:`
+- `category1.ts`: All hints start with `:`
+- `category2.ts`: All hints start with ``
+- `category3.ts`: All hints start with ``
+- `category4.ts`: All hints start with ``
 
 ## Troubleshooting
 
@@ -157,6 +157,6 @@ If you still see the wrong category prefix:
 
 Once you confirm this is working:
 
-1. Remove the debug prefixes `{T1C1}:`, `{T1C2}:`, etc. from the hint files
+1. Remove the debug prefixes `:`, ``, etc. from the hint files
 2. Optionally reduce console logging verbosity
 3. Add more categories/topics as needed using the same pattern
