@@ -1,74 +1,133 @@
-
-// Category 3: OPERATIONS ON FUNCTIONS UNFINISHED
+// Category 4: OPERATIONS ON FUNCTIONS
 import type { PredefinedAnswer } from '../types'; 
 export const Topic1_Category4_Answers: PredefinedAnswer[] = [
-    {
+  {
     questionId: 1,
     questionText: "If f(x) = x² + 4x and g(x) = 3x - 5, find (g ∘ f)(x)",
     type: "multiLine",
     steps: [
-  { label: "choose", answer: "f(x) = x^2 + 4x", placeholder: "\\text{Determine f(x) equation}" }, 
-  { label: "substitution", answer: " g(f(x)) = 3(x^2 + 4x) - 5", placeholder: "\\text{Substitute g(f(x)) value}" }, 
-  { label: "final", answer: " g(f(x)) = 3x^2 + 12x - 5", placeholder: "\\text{Substitute g(f(x)) value}" }, 
+      { 
+        label: "choose", 
+        answer: [
+          "f(x) = x^2 + 4x",
+          "f(x)=x^2+4x"
+        ], 
+        placeholder: "\\text{Identify f(x) to be substituted into g(x).}" 
+      }, 
+      { 
+        label: "substitution", 
+        answer: [
+          "g(f(x)) = 3(x^2 + 4x) - 5",
+          "g(f(x))=3(x^2+4x)-5",
+          "3(x^2+4x)-5"
+        ], 
+        placeholder: "\\text{Substitute f(x) into g(x).}" 
+      }, 
+      { 
+        label: "final", 
+        answer: [
+          "g(f(x)) = 3x^2 + 12x - 5",
+          "g(f(x))=3x^2+12x-5",
+          "(g∘f)(x)=3x^2+12x-5",
+          "3x^2+12x-5"
+        ], 
+        placeholder: "\\text{Simplify the expression to find (g∘f)(x).}" 
+      }
     ]
   },
-/*
-2) If f(x) = x² + 4x and g(x) = 3x − 5, find (g ∘ f)(x).
-Given: f(x) = x² + 4x,   g(x) = 3x − 5
-Compute f(x): f(x) = x² + 4x.
-Substitute into g: g(f(x)) = 3(x² + 4x) − 5.
-Simplify: 3x² + 12x − 5.
-Answer: (g ∘ f)(x) = 3x² + 12x − 5
 
-*/ 
- 
   {
     questionId: 2,
     questionText: "If f(x) = 1/(x - 1) and g(x) = x + 2, find (f ∘ g)(x)",
     type: "multiLine",
     steps: [
-  { label: "choose", answer: "g(x) = x + 2", placeholder: "\\text{Choose the expression to substitute}" }, 
-      { label: "evaluation", answer: "f(g(x)) = 1/((x + 2) - 1)", placeholder: "\\text{Substitute g(x) value to f(g(x))}" }, 
-      { label: "final", answer: "(f(g(x)) = (1)/(x + 1)", placeholder: "\\text{Simplify step by step}" },
-    ] 
+      { 
+        label: "choose", 
+        answer: [
+          "g(x) = x + 2",
+          "g(x)=x+2"
+        ], 
+        placeholder: "\\text{Identify g(x) for substitution.}" 
+      }, 
+      { 
+        label: "substitution", 
+        answer: [
+          "f(g(x)) = 1/((x + 2) - 1)",
+          "f(g(x))=1/((x+2)-1)",
+          "1/((x+2)-1)"
+        ], 
+        placeholder: "\\text{Substitute g(x) into f(x).}" 
+      }, 
+      { 
+        label: "final", 
+        answer: [
+          "f(g(x)) = 1/(x + 1)",
+          "f(g(x))=1/(x+1)",
+          "(f∘g)(x)=1/(x+1)",
+          "1/(x+1)"
+        ], 
+        placeholder: "\\text{Simplify the denominator to get (f∘g)(x).}" 
+      }
+    ]
   },
- /*
 
-3) If f(x) = 1/(x − 1) and g(x) = x + 2, find (f ∘ g)(x).
-Given: f(x) = 1/(x − 1),   g(x) = x + 2
-Compute g(x): g(x) = x + 2.
-Substitute into f: f(g(x)) = 1/((x + 2) − 1).
-Simplify: 1/(x + 1).  (Restriction: x ≠ −1)
-Answer: (f ∘ g)(x) = 1/(x + 1)
-
-
-*/ 
- 
   {
     questionId: 3,
     questionText: "If f(x) = 3x - 4 and g(x) = x² + 2x, find (f ∘ g)(-1)",
     type: "multiLine",
     steps: [
-  { label: "choose", answer: "g(x) = x^2 + 2x", placeholder: "\\text{Choose the expression to substitute}" }, 
-  { label: "choose", answer: "f(g(x))=3x-4", placeholder: "\\text{Choose the expression to evaluate}" }, 
-  { label: "substitution", answer: "f(g(x))=3(x^2+2x)-4", placeholder: "\\text{Substitute the value of g(x)}" },
-  { label: "evaluation", answer: "f(g(x))=3(x^2+2x)-4", placeholder: "\\text{Distribute 3}" },
-  { label: "evaluation", answer: "f(g(x))=3x^2+6x-4", placeholder: "\\text{Substitute the value of x}" },
-  { label: "evaluation", answer: "f(g(-1))=3(-1)^2+6(-1)-4", placeholder: "\\text{Evaluate the expression}" },
-  { label: "evaluation", answer: "f(g(-1))=3(1)-6-4", placeholder: "\\text{Evaluate the remaining expression}" },
-  { label: "evaluation", answer: "f(g(-1))=3-6-4", placeholder: "\\text{Combine the values}" },
-  { label: "final", answer: "(f * g)(-2) = -7", placeholder: "\\text{Write the final result clearly}" }
+      { 
+        label: "choose", 
+        answer: [
+          "g(x) = x^2 + 2x",
+          "g(x)=x^2+2x"
+        ], 
+        placeholder: "\\text{Identify g(x) to evaluate first.}" 
+      }, 
+      { 
+        label: "evaluation", 
+        answer: [
+          "g(-1) = (-1)^2 + 2(-1)",
+          "g(-1)=(-1)^2+2(-1)",
+          "(−1)^2+2(−1)"
+        ], 
+        placeholder: "\\text{Substitute x = -1 into g(x).}" 
+      },
+      { 
+        label: "evaluation", 
+        answer: [
+          "g(-1) = 1 - 2",
+          "g(-1)=1-2"
+        ], 
+        placeholder: "\\text{Simplify g(-1) step by step.}" 
+      },
+      { 
+        label: "substitution", 
+        answer: [
+          "f(g(-1)) = f(-1)",
+          "f(g(-1))=f(-1)"
+        ], 
+        placeholder: "\\text{Use the result of g(-1) in f(x).}" 
+      },
+      { 
+        label: "evaluation", 
+        answer: [
+          "f(-1) = 3(-1) - 4",
+          "f(-1)=3(-1)-4"
+        ], 
+        placeholder: "\\text{Substitute x = -1 into f(x).}" 
+      },
+      { 
+        label: "final", 
+        answer: [
+          "f(-1) = -3 - 4",
+          "f(-1)=-3-4",
+          "f(-1)=-7",
+          "(f∘g)(-1)=-7",
+          "-7"
+        ], 
+        placeholder: "\\text{Simplify to find the final result.}" 
+      }
     ]
-  },
-
-  /*
-
-5) If f(x) = 3x − 4 and g(x) = x² + 2x, find (f ∘ g)(−1).
-Given: f(x) = 3x − 4,   g(x) = x² + 2x
-Evaluate g(−1): g(−1) = (−1)² + 2(−1) = 1 − 2 = −1.
-Then f(g(−1)): f(−1) = 3(−1) − 4 = −3 − 4 = −7.
-Answer: (f ∘ g)(−1) = −7
-
-
-*/ 
+  }
 ];

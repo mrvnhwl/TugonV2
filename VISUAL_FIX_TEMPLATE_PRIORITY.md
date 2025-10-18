@@ -17,7 +17,7 @@ HintGeneratorService.generateContextualTemplates()
     ↓
     Return AI templates (no category context)
     ↓
-    Result: {T1C1} shown for ALL categories ❌
+    Result:  shown for ALL categories ❌
 
     ⚠️ CuratedHintLoader.getContextualTemplates() NEVER CALLED!
 ```
@@ -41,7 +41,7 @@ HintGeneratorService.generateContextualTemplates()
     ↓
     Found: Topic1_Category2_Hints from category2.ts
     ↓
-    Return curated templates with {T1C2}: prefix
+    Return curated templates with  prefix
     ↓
     Result: Category 2 shows {T1C2} hints ✅
            Category 3 shows {T1C3} hints ✅

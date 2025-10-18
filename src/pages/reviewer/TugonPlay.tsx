@@ -29,6 +29,11 @@ export default function TugonPlay() {
   const [userAttempts, setUserAttempts] = useState<UserAttempt[]>([]);
   const [allCategoryAttempts, setAllCategoryAttempts] = useState<UserAttempt[]>([]); // ✨ NEW: Track all attempts across questions in category
   const idleTimer = useRef<number | null>(null);
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null); // 🎵 Background music ref
+  
+  // 🔊 NEW: Sound effect refs
+  const hooraySoundRef = useRef<HTMLAudioElement | null>(null);
+  const successModalSoundRef = useRef<HTMLAudioElement | null>(null);
   
   // Add progress tracking
   const { recordAttempt, getQuestionProgress, progress } = useProgress();
@@ -152,6 +157,82 @@ export default function TugonPlay() {
     return () => { if (idleTimer.current) window.clearTimeout(idleTimer.current); };
   }, []);
 
+  // 🎵 Background music management
+  useEffect(() => {
+    // Create and configure audio element
+    const audio = new Audio('/tugonsenseSounds/BGMusic.mp3');
+    audio.loop = true; // Loop the background music
+    audio.volume = 0.3; // Set volume to 30% (adjust as needed)
+    bgMusicRef.current = audio;
+
+    // Play music when component mounts
+    const playMusic = async () => {
+      try {
+        await audio.play();
+        console.log('🎵 Background music started');
+      } catch (error) {
+        console.log('🔇 Background music autoplay blocked:', error);
+        // Note: Autoplay might be blocked by browser policy
+        // Music will play on first user interaction
+      }
+    };
+
+    playMusic();
+
+    // Cleanup: Stop and remove audio when component unmounts
+    return () => {
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause();
+        bgMusicRef.current.currentTime = 0;
+        bgMusicRef.current = null;
+        console.log('🎵 Background music stopped');
+      }
+    };
+  }, []); // Empty dependency array - run once on mount
+
+  // 🔊 NEW: Sound effects initialization
+  useEffect(() => {
+    // Initialize sound effects
+    hooraySoundRef.current = new Audio('/tugonsenseSounds/hooraybgsound.mp3');
+    successModalSoundRef.current = new Audio('/tugonsenseSounds/successmodalbgsound.mp3');
+    
+    // Preload sounds
+    hooraySoundRef.current.load();
+    successModalSoundRef.current.load();
+    
+    // Cleanup
+    return () => {
+      if (hooraySoundRef.current) {
+        hooraySoundRef.current.pause();
+        hooraySoundRef.current = null;
+      }
+      if (successModalSoundRef.current) {
+        successModalSoundRef.current.pause();
+        successModalSoundRef.current = null;
+      }
+    };
+  }, []);
+
+  // 🔊 Play hooray sound (for QuestionSuccessNotification)
+  const playHooraySound = () => {
+    if (hooraySoundRef.current) {
+      hooraySoundRef.current.currentTime = 0;
+      hooraySoundRef.current.play().catch(err => {
+        console.warn('Could not play hooray sound:', err);
+      });
+    }
+  };
+
+  // 🔊 Play success modal sound (for SuccessModal)
+  const playSuccessModalSound = () => {
+    if (successModalSoundRef.current) {
+      successModalSoundRef.current.currentTime = 0;
+      successModalSoundRef.current.play().catch(err => {
+        console.warn('Could not play success modal sound:', err);
+      });
+    }
+  };
+
   // ✨ NEW: Build category stats from user attempts with proper time tracking
   const buildCategoryStatsFromAttempts = (allAttempts: UserAttempt[]) => {
     // Group attempts by questionId
@@ -265,11 +346,18 @@ export default function TugonPlay() {
       // Mark that we're showing the modal (for history tracking)
       progressService.markSuccessModalShown(topicId, finalCategoryId);
       
+      // 🔊 Play success modal sound
+      playSuccessModalSound();
+      
       setCategoryStats(stats);
       setShowSuccessModal(true);
     } else {
       // Question completed but category not done - show quick notification
       console.log('✨ Question correct! Showing quick notification and moving to next...');
+      
+      // 🔊 Play hooray sound
+      playHooraySound();
+      
       setShowQuickNotification(true);
       
       // Auto-navigate to next question after notification

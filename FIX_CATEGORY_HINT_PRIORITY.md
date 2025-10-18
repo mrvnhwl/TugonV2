@@ -2,7 +2,7 @@
 
 ## Problem Identified
 
-Even after implementing context-aware template loading, ALL categories were still showing `{T1C1}:` hints from Category 1 instead of their respective category hints (C2, C3, C4).
+Even after implementing context-aware template loading, ALL categories were still showing `:` hints from Category 1 instead of their respective category hints (C2, C3, C4).
 
 ## Root Cause Analysis
 
@@ -32,7 +32,7 @@ async generateContextualTemplates(...) {
 
 - AI template generation (`generateBehaviorTemplates()`) was **SUCCEEDING** and returning **generic templates**
 - These generic AI templates had NO category context - they were universal
-- The contextual curated templates (with `{T1C1}`, `{T1C2}`, etc.) were **NEVER being used**
+- The contextual curated templates (with ``, `{T1C2}`, etc.) were **NEVER being used**
 - Result: All categories got the same generic AI hints
 
 ## Solution Applied
@@ -119,21 +119,21 @@ async generateContextualTemplates(
 4. Calls `CuratedHintLoader.getContextualTemplates(1, 2, 1)`
 5. `CuratedHintLoader` looks up registry key `"1-2"`
 6. Returns hints from `Topic1_Category2_Hints` (from `category2.ts`)
-7. All hints now have `{T1C2}:` prefix ✅
+7. All hints now have `` prefix ✅
 
 ### Category-Specific Hints:
 
-- **Category 1**: `{T1C1}:` prefix from `category1.ts` ✅
-- **Category 2**: `{T1C2}:` prefix from `category2.ts` ✅
-- **Category 3**: `{T1C3}:` prefix from `category3.ts` ✅
-- **Category 4**: `{T1C4}:` prefix from `category4.ts` ✅
+- **Category 1**: `:` prefix from `category1.ts` ✅
+- **Category 2**: ``prefix from`category2.ts` ✅
+- **Category 3**: ``prefix from`category3.ts` ✅
+- **Category 4**: ``prefix from`category4.ts` ✅
 
 ## How to Test
 
 1. **Clear browser cache** (important!): `Ctrl + Shift + Delete` or hard refresh with `Ctrl + Shift + R`
 2. **Navigate to Category 2**: `localhost:5173/tugonplay?topic=1&category=2&question=1`
 3. **Make an error** to trigger a hint
-4. **Check the hint text** - should see `{T1C2}:` at the beginning
+4. **Check the hint text** - should see `` at the beginning
 5. **Check console logs** - should see:
 
    ```
@@ -176,7 +176,7 @@ generateContextualTemplates(1, 2, 1)
          ↓
     YES → Try CuratedHintLoader.getContextualTemplates()
          ↓
-    SUCCESS → Return category2.ts hints with {T1C2}:
+    SUCCESS → Return category2.ts hints with
          ↓
     FAIL → Try AI templates
          ↓
@@ -192,14 +192,14 @@ generateContextualTemplates(1, 2, 1)
 1. **Test thoroughly** - Verify all 4 categories show correct prefixes
 2. **Monitor console logs** - Ensure contextual templates are being loaded
 3. **Consider removing AI templates entirely** - Since curated templates are working well, you might want to simplify by removing AI template generation for faster loading
-4. **Remove debug prefixes** - Once verified working, clean up `{T1C1}:` etc. from hint files
+4. **Remove debug prefixes** - Once verified working, clean up `:` etc. from hint files
 
 ## Related Files
 
 - `src/components/tugon/services/hintGenerator.ts` - **MODIFIED** (priority fix)
 - `src/components/tugon/services/curatedHintLoader.ts` - No changes needed
 - `src/components/tugon/input-system/UserInput.tsx` - Already correct from previous fix
-- `src/components/data/hints/topic1/category1.ts` - Has {T1C1} prefix
+- `src/components/data/hints/topic1/category1.ts` - Has prefix
 - `src/components/data/hints/topic1/category2.ts` - Has {T1C2} prefix
 - `src/components/data/hints/topic1/category3.ts` - Has {T1C3} prefix
 - `src/components/data/hints/topic1/category4.ts` - Has {T1C4} prefix
