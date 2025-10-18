@@ -194,6 +194,79 @@ export default function UserInput({
   // ⏱️ NEW: Timer refs for stripping colors after 3 seconds
   const colorStripTimersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
 
+  // 🔊 NEW: Audio refs for sound effects
+  const correctSoundRef = useRef<HTMLAudioElement | null>(null);
+  const wrongSoundRef = useRef<HTMLAudioElement | null>(null);
+  const typingSoundRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize audio elements
+  useEffect(() => {
+    correctSoundRef.current = new Audio('/tugonsenseSounds/correctline.mp3');
+    wrongSoundRef.current = new Audio('/tugonsenseSounds/wrong.mp3');
+    typingSoundRef.current = new Audio('/tugonsenseSounds/typing.wav');
+    
+    // Set volume levels
+    if (wrongSoundRef.current) {
+      wrongSoundRef.current.volume = 0.3; // 30% volume (lower sound)
+    }
+    if (typingSoundRef.current) {
+      typingSoundRef.current.volume = 0.4; // 40% volume for typing
+    }
+    
+    // Preload audio for better performance
+    correctSoundRef.current.load();
+    wrongSoundRef.current.load();
+    typingSoundRef.current.load();
+    
+    return () => {
+      // Cleanup
+      if (correctSoundRef.current) {
+        correctSoundRef.current.pause();
+        correctSoundRef.current = null;
+      }
+      if (wrongSoundRef.current) {
+        wrongSoundRef.current.pause();
+        wrongSoundRef.current = null;
+      }
+      if (typingSoundRef.current) {
+        typingSoundRef.current.pause();
+        typingSoundRef.current = null;
+      }
+    };
+  }, []);
+
+  // 🔊 Play correct sound
+  const playCorrectSound = useCallback(() => {
+    if (correctSoundRef.current) {
+      correctSoundRef.current.currentTime = 0; // Reset to start
+      correctSoundRef.current.play().catch(err => {
+        console.warn('Could not play correct sound:', err);
+      });
+    }
+  }, []);
+
+  // 🔊 Play wrong sound
+  const playWrongSound = useCallback(() => {
+    if (wrongSoundRef.current) {
+      wrongSoundRef.current.currentTime = 0; // Reset to start
+      wrongSoundRef.current.play().catch(err => {
+        console.warn('Could not play wrong sound:', err);
+      });
+    }
+  }, []);
+
+  // 🔊 Play typing sound
+  const playTypingSound = useCallback(() => {
+    if (typingSoundRef.current) {
+      // Clone the audio to allow overlapping sounds when typing quickly
+      const audio = typingSoundRef.current.cloneNode() as HTMLAudioElement;
+      audio.volume = 0.4; // 40% volume
+      audio.play().catch(err => {
+        console.warn('Could not play typing sound:', err);
+      });
+    }
+  }, []);
+
   // Sync with prop changes
   useEffect(() => {
     setLines(value);
@@ -969,6 +1042,9 @@ export default function UserInput({
         clearingHistory: true
       });
 
+      // 🔊 Play correct sound
+      playCorrectSound();
+
       showSuccessMessage(attemptCount);
       setWrongAttemptCounter(0);
       setAttemptHistory([]); // Clear history on correct answer
@@ -986,6 +1062,9 @@ export default function UserInput({
       const sanitizedInput = line.trim();
       // ✨ Use first answer for feedback
       const correctAnswer = Array.isArray(expectedStep.answer) ? expectedStep.answer[0] : expectedStep.answer;
+
+      // 🔊 Play wrong sound
+      playWrongSound();
 
       // Update attempt history
       setAttemptHistory(prev => [...prev, sanitizedInput]);
@@ -1279,9 +1358,15 @@ export default function UserInput({
     setLastInputTime(now);
 
     const newLines = [...lines];
+    const oldValue = newLines[index];
     newLines[index] = newValue;
     setLines(newLines);
     onChange(newLines);
+
+    // 🔊 Play typing sound when input changes (added or deleted)
+    if (oldValue !== newValue) {
+      playTypingSound();
+    }
 
     // Clear any existing validation state for this line
     setLineValidationStates(prev => {

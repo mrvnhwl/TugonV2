@@ -31,6 +31,10 @@ export default function TugonPlay() {
   const idleTimer = useRef<number | null>(null);
   const bgMusicRef = useRef<HTMLAudioElement | null>(null); // 🎵 Background music ref
   
+  // 🔊 NEW: Sound effect refs
+  const hooraySoundRef = useRef<HTMLAudioElement | null>(null);
+  const successModalSoundRef = useRef<HTMLAudioElement | null>(null);
+  
   // Add progress tracking
   const { recordAttempt, getQuestionProgress, progress } = useProgress();
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
@@ -186,6 +190,49 @@ export default function TugonPlay() {
     };
   }, []); // Empty dependency array - run once on mount
 
+  // 🔊 NEW: Sound effects initialization
+  useEffect(() => {
+    // Initialize sound effects
+    hooraySoundRef.current = new Audio('/tugonsenseSounds/hooraybgsound.mp3');
+    successModalSoundRef.current = new Audio('/tugonsenseSounds/successmodalbgsound.mp3');
+    
+    // Preload sounds
+    hooraySoundRef.current.load();
+    successModalSoundRef.current.load();
+    
+    // Cleanup
+    return () => {
+      if (hooraySoundRef.current) {
+        hooraySoundRef.current.pause();
+        hooraySoundRef.current = null;
+      }
+      if (successModalSoundRef.current) {
+        successModalSoundRef.current.pause();
+        successModalSoundRef.current = null;
+      }
+    };
+  }, []);
+
+  // 🔊 Play hooray sound (for QuestionSuccessNotification)
+  const playHooraySound = () => {
+    if (hooraySoundRef.current) {
+      hooraySoundRef.current.currentTime = 0;
+      hooraySoundRef.current.play().catch(err => {
+        console.warn('Could not play hooray sound:', err);
+      });
+    }
+  };
+
+  // 🔊 Play success modal sound (for SuccessModal)
+  const playSuccessModalSound = () => {
+    if (successModalSoundRef.current) {
+      successModalSoundRef.current.currentTime = 0;
+      successModalSoundRef.current.play().catch(err => {
+        console.warn('Could not play success modal sound:', err);
+      });
+    }
+  };
+
   // ✨ NEW: Build category stats from user attempts with proper time tracking
   const buildCategoryStatsFromAttempts = (allAttempts: UserAttempt[]) => {
     // Group attempts by questionId
@@ -299,11 +346,18 @@ export default function TugonPlay() {
       // Mark that we're showing the modal (for history tracking)
       progressService.markSuccessModalShown(topicId, finalCategoryId);
       
+      // 🔊 Play success modal sound
+      playSuccessModalSound();
+      
       setCategoryStats(stats);
       setShowSuccessModal(true);
     } else {
       // Question completed but category not done - show quick notification
       console.log('✨ Question correct! Showing quick notification and moving to next...');
+      
+      // 🔊 Play hooray sound
+      playHooraySound();
+      
       setShowQuickNotification(true);
       
       // Auto-navigate to next question after notification
