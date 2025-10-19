@@ -28,14 +28,14 @@ import { useNavigate } from "react-router-dom";
 import color from "../styles/color";
 
 /* ========= Tugon AI (kept as-is, just wrapped) ========= */
-const apiKey = "AIzaSyAj2V_O5fndQJWcAJ5SbMZQyfcfOJ1YBUQ";
+const apiKey = "AIzaSyBkR1CB2lN7utRit0tcRFUEQobqY195Nis";
 
 
 // ✅ FIXED Gemini 2.0 Flash API
 export const askTugonAI = async (prompt: string): Promise<string> => {
   const apiKey =
     import.meta.env.VITE_GEMINI_API_KEY ||
-    "AIzaSyD2GkQTaqXIPLOYSKLbBI6SyNjvDVZ4QP4";
+    "AIzaSyBkR1CB2lN7utRit0tcRFUEQobqY195Nis";
 
   try {
     const response = await fetch(
