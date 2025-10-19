@@ -262,11 +262,25 @@ class ProgressService {
     // Initialize session attempts if not exists (reset when question is started fresh)
     if (questionProgress.currentSessionAttempts === undefined) {
       questionProgress.currentSessionAttempts = 0;
+      console.log(`🔧 Initialized currentSessionAttempts to 0 for Question ${attemptResult.questionId}`);
     }
+
+    console.log(`📝 Before increment - Question ${attemptResult.questionId}:`, {
+      currentSessionAttempts: questionProgress.currentSessionAttempts,
+      cumulativeAttempts: questionProgress.attempts,
+      isCorrect: attemptResult.isCorrect
+    });
 
     // Update question progress
     questionProgress.attempts++; // Cumulative total
     questionProgress.currentSessionAttempts++; // Session-specific
+    
+    console.log(`📈 After increment - Question ${attemptResult.questionId}:`, {
+      currentSessionAttempts: questionProgress.currentSessionAttempts,
+      cumulativeAttempts: questionProgress.attempts,
+      isCorrect: attemptResult.isCorrect
+    });
+    
     questionProgress.timeSpent += attemptResult.timeSpent;
     questionProgress.lastAttemptDate = new Date();
     
@@ -285,6 +299,11 @@ class ProgressService {
       questionProgress.correctAnswers++;
       questionProgress.isCompleted = true;
       
+      console.log(`✅ CORRECT ANSWER - Saving latestAttempt for Question ${attemptResult.questionId}:`, {
+        currentSessionAttempts: questionProgress.currentSessionAttempts,
+        willSaveAs: questionProgress.currentSessionAttempts
+      });
+      
       // ✨ NEW: Save latest attempt with SESSION attempts (not cumulative)
       questionProgress.latestAttempt = {
         timestamp: new Date(),
@@ -293,6 +312,8 @@ class ProgressService {
         colorHintsUsed: attemptResult.colorCodedHintsUsed || 0,
         shortHintsUsed: attemptResult.shortHintMessagesUsed || 0,
       };
+      
+      console.log(`💾 Saved latestAttempt:`, questionProgress.latestAttempt);
       
       // ✨ NEW: Save fastest attempt (only if faster than previous or first completion)
       if (!questionProgress.fastestAttempt || attemptResult.timeSpent < questionProgress.fastestAttempt.timeSpent) {
@@ -410,6 +431,7 @@ class ProgressService {
     categoryProgress.questionProgress.forEach(qp => {
       qp.isCompleted = false;
       qp.correctAnswers = 0; // Reset correct answers count for this session
+      qp.currentSessionAttempts = 0; // ✨ NEW: Reset session attempts for replay
       // Keep latestAttempt and fastestAttempt for history
       console.log(`  Reset Question ${qp.questionId} (keeping history)`);
     });
@@ -434,6 +456,20 @@ class ProgressService {
   shouldAdvanceToNextQuestion(topicId: number, categoryId: number, questionId: number): boolean {
     const questionProgress = this.getQuestionProgress(topicId, categoryId, questionId);
     return questionProgress?.isCompleted || false;
+  }
+
+  // ✨ NEW: Reset session attempts when starting/retrying a question
+  // Call this when questionId changes or when user navigates to a new question
+  resetQuestionSession(topicId: number, categoryId: number, questionId: number): void {
+    const progress = this.getUserProgress();
+    const topicProgress = this.getOrCreateTopicProgress(progress, topicId);
+    const categoryProgress = this.getOrCreateCategoryProgress(topicProgress, categoryId);
+    const questionProgress = this.getOrCreateQuestionProgress(categoryProgress, questionId);
+
+    // Reset session attempts to 0 (start fresh session)
+    questionProgress.currentSessionAttempts = 0;
+    
+    this.saveProgress(progress);
   }
 
   // Get category statistics for ProgressMap

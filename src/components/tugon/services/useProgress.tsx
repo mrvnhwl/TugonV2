@@ -39,6 +39,15 @@ export function useProgress() {
     }
   }, [refreshProgress]);
 
+  const resetQuestionSession = useCallback((topicId: number, categoryId: number, questionId: number) => {
+    try {
+      progressService.resetQuestionSession(topicId, categoryId, questionId);
+      refreshProgress();
+    } catch (error) {
+      console.error('Error resetting question session:', error);
+    }
+  }, [refreshProgress]);
+
   const getStatistics = useCallback(() => {
     return progressService.getStatistics();
   }, []);
@@ -56,6 +65,7 @@ export function useProgress() {
     recordAttempt,
     resetProgress,
     resetTopicProgress,
+    resetQuestionSession,
     refreshProgress,
     getStatistics,
     // Convenience methods

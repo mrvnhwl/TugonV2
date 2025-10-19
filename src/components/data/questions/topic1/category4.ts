@@ -8,9 +8,9 @@ export const Topic1_Category4: Question  =
          title: "COMPOSITION OF FUNCTIONS STAGE",
         category_question: "Compose the functions:", //not done
         given_question: [
-          { question_id: 1, category_text: "f(x) = x^2 + 4x \\text{ and } g(x) = 3x - 5", question_text: "Find (g ∘ f)(x)", guide_text: "First identify f(x), then substitute f(x) into g(x)." },
-          { question_id: 2, category_text: "f(x) = \\frac{1}{x - 1} \\text{ and } g(x) = x + 2", question_text: "Find (f ∘ g)(x)", guide_text: "First find g(x), then substitute g(x) into f(x)." },
-          { question_id: 3, category_text: "f(x) = 3x - 4 \\text{ and } g(x) = x^2 + 2x", question_text: "Find (f ∘ g)(-1)", guide_text: "First evaluate g(-1), then substitute that result into f(x)." },
+          { question_id: 1, category_text: "f(x) = x^2 + 4x \\text{ and } g(x) = 3x - 5", question_text: "Find g(f(x))", guide_text: "First identify f(x), then substitute f(x) into g(x)." },
+          { question_id: 2, category_text: "f(x) = \\frac{1}{x - 1} \\text{ and } g(x) = x + 2", question_text: "Find f(g(x))", guide_text: "First find g(x), then substitute g(x) into f(x)." },
+          { question_id: 3, category_text: "f(x) = 3x - 4 \\text{ and } g(x) = x^2 + 2x", question_text: "Find f(g(x))", guide_text: "First evaluate g(-1), then substitute that result into f(x)." },
         ]
       };
  

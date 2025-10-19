@@ -145,7 +145,8 @@ export default function ProgressMap({
             questionId: question.question_id,
             questionText: question.question_text || `Question ${question.question_id}`,
             isCompleted: progressData?.isCompleted || false,
-            attempts: progressData?.attempts || 0,
+            // ✨ FIX: Use latestAttempt.attempts (session-based) instead of cumulative attempts
+            attempts: progressData?.latestAttempt?.attempts || progressData?.currentSessionAttempts || 0,
           };
         });
 
@@ -562,13 +563,23 @@ export default function ProgressMap({
 
                                 {/* Time Spent - Inline Display */}
                                 {(() => {
-                                  // Always use latest attempt
+                                  // 🔍 DEBUG: Check latestAttempt structure
+                                  console.log(`[MOBILE] Question ${question.questionId} latestAttempt:`, questionProgress.latestAttempt);
+                                  console.log(`[MOBILE] Question ${question.questionId} all data:`, {
+                                    latestAttempt: questionProgress.latestAttempt,
+                                    currentSessionAttempts: questionProgress.currentSessionAttempts,
+                                    attempts: questionProgress.attempts
+                                  });
+
+                                  // ✨ FIX: Use latestAttempt for session-based stats, fallback to current session
                                   const displayData = questionProgress.latestAttempt || {
                                     timeSpent: questionProgress.timeSpent,
-                                    attempts: questionProgress.attempts,
+                                    attempts: questionProgress.currentSessionAttempts || 0,
                                     colorHintsUsed: questionProgress.colorCodedHintsUsed,
                                     shortHintsUsed: questionProgress.shortHintMessagesUsed,
                                   };
+
+                                  console.log(`[MOBILE] Question ${question.questionId} displayData:`, displayData);
 
                                   return (
                                     <>
@@ -886,13 +897,23 @@ export default function ProgressMap({
 
                                         {/* Time Spent - Inline Display */}
                                         {(() => {
-                                          // Always use latest attempt
+                                          // 🔍 DEBUG: Check latestAttempt structure
+                                          console.log(`Question ${question.questionId} latestAttempt:`, questionProgress.latestAttempt);
+                                          console.log(`Question ${question.questionId} all data:`, {
+                                            latestAttempt: questionProgress.latestAttempt,
+                                            currentSessionAttempts: questionProgress.currentSessionAttempts,
+                                            attempts: questionProgress.attempts
+                                          });
+
+                                          // ✨ FIX: Use latestAttempt for session-based stats, fallback to current session
                                           const displayData = questionProgress.latestAttempt || {
                                             timeSpent: questionProgress.timeSpent,
-                                            attempts: questionProgress.attempts,
+                                            attempts: questionProgress.currentSessionAttempts || 0,
                                             colorHintsUsed: questionProgress.colorCodedHintsUsed,
                                             shortHintsUsed: questionProgress.shortHintMessagesUsed,
                                           };
+
+                                          console.log(`Question ${question.questionId} displayData:`, displayData);
 
                                           return (
                                             <>
