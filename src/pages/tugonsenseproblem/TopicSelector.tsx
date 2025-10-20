@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, X, Pencil, FileQuestion, Eye, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Trash2, X, Pencil, FileQuestion, ChevronUp, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../hooks/useAuth";
@@ -128,11 +128,18 @@ export default function TopicSelector() {
   const [questionToEdit, setQuestionToEdit] = useState<Question | null>(null);
   const [questionToDelete, setQuestionToDelete] = useState<Question | null>(null);
   
+  // Add question modal state
+  const [showAddQuestionModal, setShowAddQuestionModal] = useState(false);
+  const [addQuestionText, setAddQuestionText] = useState("");
+  const [addQuestionType, setAddQuestionType] = useState("step-by-step");
+  const [addAnswerType, setAddAnswerType] = useState("multiLine");
+  const [addCategoryText, setAddCategoryText] = useState("");
+  
   // Edit question form state
   const [editQuestionText, setEditQuestionText] = useState("");
-  const [editQuestionType, setEditQuestionType] = useState("");
+  const [editQuestionType, setEditQuestionType] = useState("step-by-step");
   const [editGuideText, setEditGuideText] = useState("");
-  const [editAnswerType, setEditAnswerType] = useState("");
+  const [editAnswerType, setEditAnswerType] = useState("multiLine");
   const [editCategoryText, setEditCategoryText] = useState("");
 
   // Answer steps state
@@ -618,7 +625,7 @@ export default function TopicSelector() {
   const openEditQuestionModal = async (question: Question) => {
     setQuestionToEdit(question);
     setEditQuestionText(question.question_text);
-    setEditQuestionType(question.question_type);
+    setEditQuestionType(question.question_type || "step-by-step");
     setEditGuideText(question.guide_text || "");
     setEditAnswerType(question.answer_type || "multiLine");
     setEditCategoryText(question.category_text || "");
@@ -631,9 +638,9 @@ export default function TopicSelector() {
   const resetEditQuestionModal = () => {
     setQuestionToEdit(null);
     setEditQuestionText("");
-    setEditQuestionType("");
+    setEditQuestionType("step-by-step");
     setEditGuideText("");
-    setEditAnswerType("");
+    setEditAnswerType("multiLine");
     setEditCategoryText("");
     setAnswerSteps([]);
     setStepForms([]);
@@ -718,6 +725,118 @@ export default function TopicSelector() {
     }
   };
 
+  /* ----------------------------- Add Question Functions ----------------------------- */
+
+  const openAddQuestionModal = () => {
+    setAddQuestionText("");
+    setAddQuestionType("step-by-step");
+    setAddAnswerType("multiLine");
+    setAddCategoryText("");
+    setStepForms([]);
+    setMaxSteps(4);
+    setShowAddQuestionModal(true);
+  };
+
+  const resetAddQuestionModal = () => {
+    setAddQuestionText("");
+    setAddQuestionType("step-by-step");
+    setAddAnswerType("multiLine");
+    setAddCategoryText("");
+    setStepForms([]);
+    setMaxSteps(4);
+    setShowAddQuestionModal(false);
+  };
+
+  const addQuestion = async () => {
+    if (!addQuestionText.trim()) {
+      alert("Please enter question text");
+      return;
+    }
+
+    if (!selectedCategory) {
+      alert("No category selected");
+      return;
+    }
+
+    if (!user?.id) {
+      alert("You must be signed in to create questions");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      // Get the highest question_id for this category
+      const { data: existingQuestions, error: fetchError } = await supabase
+        .from("tugonsense_questions")
+        .select("question_id")
+        .eq("topic_id", selectedCategory.topic_id)
+        .eq("category_id", selectedCategory.category_id)
+        .order("question_id", { ascending: false })
+        .limit(1);
+
+      if (fetchError) throw fetchError;
+
+      // Calculate next question_id
+      const nextQuestionId = existingQuestions && existingQuestions.length > 0
+        ? existingQuestions[0].question_id + 1
+        : 1;
+
+      // Insert new question
+      const { data: newQuestion, error: insertError } = await supabase
+        .from("tugonsense_questions")
+        .insert({
+          topic_id: selectedCategory.topic_id,
+          category_id: selectedCategory.category_id,
+          question_id: nextQuestionId,
+          question_text: addQuestionText.trim(),
+          question_type: addQuestionType,
+          answer_type: addAnswerType,
+          category_text: addCategoryText.trim() || null,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Add answer steps if forms are populated
+      if (newQuestion && stepForms.length > 0) {
+        const stepsToInsert = stepForms.map((form, index) => ({
+          topic_id: selectedCategory.topic_id,
+          category_id: selectedCategory.category_id,
+          question_id: nextQuestionId,
+          step_order: index + 1,
+          label: form.label,
+          answer_variants: form.variants.filter(v => v.trim() !== ""),
+          placeholder: form.placeholder.trim() ? `\\text{${form.placeholder.trim()}}` : null,
+          created_by: user.id
+        }));
+
+        const { error: stepsError } = await supabase
+          .from("tugonsense_answer_steps")
+          .insert(stepsToInsert);
+
+        if (stepsError) throw stepsError;
+      }
+
+      // Add to local state
+      if (newQuestion) {
+        setQuestions((prev) => [...prev, newQuestion].sort((a, b) => a.question_id - b.question_id));
+      }
+
+      // Reset modal
+      resetAddQuestionModal();
+      alert("Question added successfully!");
+    } catch (err: any) {
+      console.error("Error adding question:", err);
+      alert(err.message || "Failed to add question");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   /* ----------------------------- Answer Steps Functions ----------------------------- */
 
   const loadAnswerSteps = async (topicId: number, categoryId: number, questionId: number) => {
@@ -766,12 +885,30 @@ export default function TopicSelector() {
 
   const initializeSteps = () => {
     const numSteps = Math.min(Math.max(1, maxSteps), 10);
-    const newForms = Array.from({ length: numSteps }, () => ({
-      placeholder: "",
-      label: "Substitution",
-      variants: [""]
-    }));
-    setStepForms(newForms);
+    
+    // If steps already exist, adjust the count
+    if (stepForms.length > 0) {
+      if (numSteps > stepForms.length) {
+        // Add more steps
+        const additionalSteps = Array.from({ length: numSteps - stepForms.length }, () => ({
+          placeholder: "",
+          label: "substitution",
+          variants: [""]
+        }));
+        setStepForms([...stepForms, ...additionalSteps]);
+      } else if (numSteps < stepForms.length) {
+        // Remove excess steps
+        setStepForms(stepForms.slice(0, numSteps));
+      }
+    } else {
+      // Create new steps from scratch
+      const newForms = Array.from({ length: numSteps }, () => ({
+        placeholder: "",
+        label: "substitution",
+        variants: [""]
+      }));
+      setStepForms(newForms);
+    }
   };
 
   const updateStepForm = (index: number, field: keyof typeof stepForms[0], value: any) => {
@@ -2002,8 +2139,7 @@ export default function TopicSelector() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      // TODO: Implement add question functionality
-                      alert("Add Question feature coming soon!");
+                      openAddQuestionModal();
                     }}
                     disabled={saving}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 border-white/30 hover:border-white hover:bg-white/10"
@@ -2095,31 +2231,6 @@ export default function TopicSelector() {
 
                         {/* Action Buttons */}
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {/* View Button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openViewQuestionModal(question);
-                            }}
-                            disabled={saving}
-                            className="p-2.5 rounded-lg transition-all disabled:opacity-50 border-2 border-transparent hover:border-current"
-                            style={{ 
-                              color: color.steel,
-                              background: `${color.steel}15`,
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = `${color.steel}25`;
-                              e.currentTarget.style.borderColor = color.steel;
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = `${color.steel}15`;
-                              e.currentTarget.style.borderColor = "transparent";
-                            }}
-                            title="View question"
-                          >
-                            <Eye size={20} />
-                          </button>
-
                           {/* Edit Question Button */}
                           <button
                             onClick={(e) => {
@@ -2390,9 +2501,10 @@ export default function TopicSelector() {
                           className="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white disabled:bg-gray-100"
                           style={{ borderColor: color.mist }}
                         >
-                          <option value="EVALUATION">EVALUATION</option>
-                          <option value="SIMPLIFICATION">SIMPLIFICATION</option>
-                          <option value="GENERAL">GENERAL</option>
+                          <option value="step-by-step">step-by-step</option>
+                          <option value="multiple-choice">multiple-choice</option>
+                          <option value="true-false">true-false</option>
+                          <option value="fill-in-blank">fill-in-blank</option>
                         </select>
                       </div>
 
@@ -2428,7 +2540,7 @@ export default function TopicSelector() {
                           {/* Decrement Button */}
                           <button
                             onClick={() => setMaxSteps(prev => Math.max(1, prev - 1))}
-                            disabled={saving || stepForms.length > 0 || maxSteps <= 1}
+                            disabled={saving || maxSteps <= 1}
                             className="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100"
                             style={{ borderColor: color.mist, color: color.steel }}
                             title="Decrease steps"
@@ -2443,7 +2555,7 @@ export default function TopicSelector() {
                             max="10"
                             value={maxSteps}
                             onChange={(e) => setMaxSteps(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
-                            disabled={saving || stepForms.length > 0}
+                            disabled={saving}
                             className="w-14 px-2 py-1 border-2 rounded-lg text-sm text-center font-semibold disabled:bg-gray-50"
                             style={{ borderColor: color.mist, color: color.deep }}
                           />
@@ -2451,7 +2563,7 @@ export default function TopicSelector() {
                           {/* Increment Button */}
                           <button
                             onClick={() => setMaxSteps(prev => Math.min(10, prev + 1))}
-                            disabled={saving || stepForms.length > 0 || maxSteps >= 10}
+                            disabled={saving || maxSteps >= 10}
                             className="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100"
                             style={{ borderColor: color.mist, color: color.steel }}
                             title="Increase steps"
@@ -2462,7 +2574,7 @@ export default function TopicSelector() {
                         
                         <button
                           onClick={initializeSteps}
-                          disabled={saving || stepForms.length > 0}
+                          disabled={saving}
                           className="px-3 py-1 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
                           style={{ background: color.teal, color: "white" }}
                         >
@@ -2521,10 +2633,10 @@ export default function TopicSelector() {
                                   className="w-full px-3 py-2 border rounded-lg text-sm"
                                   style={{ borderColor: color.mist }}
                                 >
-                                  <option value="Substitution">Substitution</option>
-                                  <option value="Evaluation">Evaluation</option>
-                                  <option value="Simplification">Simplification</option>
-                                  <option value="Final">Final</option>
+                                  <option value="substitution">substitution</option>
+                                  <option value="evaluation">evaluation</option>
+                                  <option value="simplification">simplification</option>
+                                  <option value="final">final</option>
                                 </select>
                               </div>
 
@@ -2701,6 +2813,312 @@ export default function TopicSelector() {
                   style={{ background: "#ef4444", color: "#fff" }}
                 >
                   {saving ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ----------------------------- Add Question Modal ----------------------------- */}
+      <AnimatePresence>
+        {showAddQuestionModal && selectedCategory && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                resetAddQuestionModal();
+              }
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden ring-1"
+              style={{ borderColor: `${color.mist}55` }}
+            >
+              {/* Modal Header */}
+              <div 
+                className="px-6 py-4 flex items-center justify-between"
+                style={{ background: color.teal }}
+              >
+                <h2 className="text-xl font-bold text-white">Add New Question</h2>
+                <button
+                  onClick={resetAddQuestionModal}
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                  disabled={saving}
+                  title="Close"
+                >
+                  <X size={20} className="text-white" />
+                </button>
+              </div>
+
+              {/* Modal Body - Scrollable */}
+              <div className="overflow-y-auto" style={{ maxHeight: "calc(90vh - 140px)" }}>
+                <div className="p-6 space-y-6">
+                  {/* Question Fields */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: color.teal }}>
+                      Question Details
+                    </h3>
+                    
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
+                        Question Text *
+                      </label>
+                      <textarea
+                        value={addQuestionText}
+                        onChange={(e) => setAddQuestionText(e.target.value)}
+                        disabled={saving}
+                        className="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white placeholder-gray-400 resize-none disabled:bg-gray-100"
+                        style={{ borderColor: color.mist }}
+                        placeholder="Enter question text (supports LaTeX)..."
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
+                        Category Text
+                      </label>
+                      <input
+                        type="text"
+                        value={addCategoryText}
+                        onChange={(e) => setAddCategoryText(e.target.value)}
+                        disabled={saving}
+                        className="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white placeholder-gray-400 disabled:bg-gray-100"
+                        style={{ borderColor: color.mist }}
+                        placeholder="Enter category text (optional)..."
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
+                          Question Type *
+                        </label>
+                        <select
+                          value={addQuestionType}
+                          onChange={(e) => setAddQuestionType(e.target.value)}
+                          disabled={saving}
+                          className="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white disabled:bg-gray-100"
+                          style={{ borderColor: color.mist }}
+                        >
+                          <option value="step-by-step">step-by-step</option>
+                          <option value="multiple-choice">multiple-choice</option>
+                          <option value="true-false">true-false</option>
+                          <option value="fill-in-blank">fill-in-blank</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
+                          Answer Type
+                        </label>
+                        <select
+                          value={addAnswerType}
+                          onChange={(e) => setAddAnswerType(e.target.value)}
+                          disabled={saving}
+                          className="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white disabled:bg-gray-100"
+                          style={{ borderColor: color.mist }}
+                        >
+                          <option value="multiLine">Multi Line</option>
+                          <option value="singleLine">Single Line</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Answer Steps Section */}
+                  <div className="border-t pt-6" style={{ borderColor: color.mist }}>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: color.teal }}>
+                        Answer Steps
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold uppercase" style={{ color: color.steel }}>
+                          Steps (Max 10):
+                        </label>
+                        <div className="flex items-center gap-1">
+                          {/* Decrement Button */}
+                          <button
+                            onClick={() => setMaxSteps(prev => Math.max(1, prev - 1))}
+                            disabled={saving || maxSteps <= 1}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100"
+                            style={{ borderColor: color.mist, color: color.steel }}
+                            title="Decrease steps"
+                          >
+                            <ChevronDown size={16} />
+                          </button>
+                          
+                          {/* Number Input */}
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={maxSteps}
+                            onChange={(e) => setMaxSteps(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
+                            disabled={saving}
+                            className="w-14 px-2 py-1 border-2 rounded-lg text-sm text-center font-semibold disabled:bg-gray-50"
+                            style={{ borderColor: color.mist, color: color.deep }}
+                          />
+                          
+                          {/* Increment Button */}
+                          <button
+                            onClick={() => setMaxSteps(prev => Math.min(10, prev + 1))}
+                            disabled={saving || maxSteps >= 10}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg border-2 transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100"
+                            style={{ borderColor: color.mist, color: color.steel }}
+                            title="Increase steps"
+                          >
+                            <ChevronUp size={16} />
+                          </button>
+                        </div>
+                        
+                        <button
+                          onClick={initializeSteps}
+                          disabled={saving}
+                          className="px-3 py-1 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                          style={{ background: color.teal, color: "white" }}
+                        >
+                          Submit Steps
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Steps Forms */}
+                    {stepForms.length > 0 && (
+                      <div className="space-y-4">
+                        {stepForms.map((form, stepIndex) => (
+                          <div
+                            key={stepIndex}
+                            className="p-4 rounded-xl border"
+                            style={{ borderColor: color.mist, background: `${color.teal}05` }}
+                          >
+                            <div className="flex items-center gap-2 mb-3">
+                              <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+                                style={{ background: color.teal, color: "white" }}
+                              >
+                                {stepIndex + 1}
+                              </div>
+                              <span className="text-xs font-bold uppercase" style={{ color: color.teal }}>
+                                STEP {stepIndex + 1}
+                              </span>
+                            </div>
+
+                            <div className="space-y-3">
+                              {/* Direction (Placeholder) */}
+                              <div>
+                                <label className="block text-xs font-semibold mb-1" style={{ color: color.deep }}>
+                                  Direction
+                                </label>
+                                <input
+                                  type="text"
+                                  value={form.placeholder}
+                                  onChange={(e) => updateStepForm(stepIndex, "placeholder", e.target.value)}
+                                  disabled={saving}
+                                  className="w-full px-3 py-2 border rounded-lg text-sm disabled:bg-gray-50"
+                                  style={{ borderColor: color.mist }}
+                                  placeholder="Enter direction (will be wrapped in \text{})"
+                                />
+                              </div>
+
+                              {/* Label */}
+                              <div>
+                                <label className="block text-xs font-semibold mb-1" style={{ color: color.deep }}>
+                                  Label
+                                </label>
+                                <select
+                                  value={form.label}
+                                  onChange={(e) => updateStepForm(stepIndex, "label", e.target.value)}
+                                  disabled={saving}
+                                  className="w-full px-3 py-2 border rounded-lg text-sm disabled:bg-gray-50"
+                                  style={{ borderColor: color.mist }}
+                                >
+                                  <option value="substitution">substitution</option>
+                                  <option value="evaluation">evaluation</option>
+                                  <option value="simplification">simplification</option>
+                                  <option value="final">final</option>
+                                </select>
+                              </div>
+
+                              {/* Answer Variants */}
+                              <div>
+                                <label className="block text-xs font-semibold mb-1" style={{ color: color.deep }}>
+                                  Answer Variants
+                                </label>
+                                <div className="space-y-2">
+                                  {form.variants.map((variant, variantIndex) => (
+                                    <div key={variantIndex} className="flex gap-2">
+                                      <input
+                                        type="text"
+                                        value={variant}
+                                        onChange={(e) => updateVariant(stepIndex, variantIndex, e.target.value)}
+                                        disabled={saving}
+                                        className="flex-1 px-3 py-2 border rounded-lg text-sm disabled:bg-gray-50"
+                                        style={{ borderColor: color.mist }}
+                                        placeholder={`Variant ${variantIndex + 1}`}
+                                      />
+                                      {form.variants.length > 1 && (
+                                        <button
+                                          onClick={() => removeVariant(stepIndex, variantIndex)}
+                                          disabled={saving}
+                                          className="px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                                          style={{ background: "#fee", color: "#ef4444" }}
+                                        >
+                                          <X size={16} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {form.variants.length < 5 && (
+                                    <button
+                                      onClick={() => addVariant(stepIndex)}
+                                      disabled={saving}
+                                      className="w-full px-3 py-2 border-2 border-dashed rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                      style={{ borderColor: color.teal, color: color.teal }}
+                                    >
+                                      + Add Variant
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div 
+                className="border-t p-6 flex gap-3 rounded-b-2xl"
+                style={{ borderColor: color.mist, background: `${color.mist}11` }}
+              >
+                <button
+                  onClick={resetAddQuestionModal}
+                  disabled={saving}
+                  className="flex-1 py-2.5 sm:py-3 rounded-xl font-semibold text-sm sm:text-base transition-colors disabled:opacity-50 shadow-sm"
+                  style={{ background: color.mist, color: color.deep }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={addQuestion}
+                  disabled={saving || !addQuestionText.trim()}
+                  className="flex-1 py-2.5 sm:py-3 rounded-xl font-semibold text-sm sm:text-base transition-colors disabled:opacity-50 shadow-md"
+                  style={{ background: color.teal, color: "#fff" }}
+                >
+                  {saving ? "Adding..." : "Add Question & Steps"}
                 </button>
               </div>
             </motion.div>

@@ -1,8 +1,9 @@
 // src/components/tugon/templates/QuestionTemplate.tsx
-import React from "react";
+import { useState, useEffect } from "react";
 import AnswerWizard, { WizardStep } from "../input-system/AnswerWizard";
 import { FillInBlanksTemplate } from "./FillInTheBlanks";
-import { getQuestionByIds } from "../../data/questions/index";
+import { supabase } from "../../../lib/supabase";
+import type { GivenQuestion } from "../../data/questions/types";
 
 interface QuestionTemplateProps {
   topicId: number;
@@ -35,8 +36,79 @@ export default function QuestionTemplate({
   onAnswerChange,
   onAttemptUpdate,
 }: QuestionTemplateProps) {
-  // 🔹 Get question data from JSON structure
-  const question = getQuestionByIds(topicId, categoryId, questionId);
+  // 🔹 State for question data from Supabase
+  const [question, setQuestion] = useState<GivenQuestion | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 🔹 Fetch question data from Supabase
+  useEffect(() => {
+    const fetchQuestion = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const { data, error: fetchError } = await supabase
+          .from("tugonsense_questions")
+          .select("*")
+          .eq("topic_id", topicId)
+          .eq("category_id", categoryId)
+          .eq("question_id", questionId)
+          .single();
+
+        if (fetchError) {
+          console.error("Error fetching question:", fetchError);
+          setError(fetchError.message);
+          return;
+        }
+
+        if (!data) {
+          setError("Question not found");
+          return;
+        }
+
+        // 🔹 Map database fields to GivenQuestion format
+        const mappedQuestion: GivenQuestion = {
+          question_id: data.question_id,
+          question_text: data.question_text,
+          guide_text: data.guide_text || "",
+          category_text: data.category_text || undefined,
+          question_type: data.question_type as GivenQuestion["question_type"],
+        };
+
+        setQuestion(mappedQuestion);
+      } catch (err: any) {
+        console.error("Error loading question:", err);
+        setError(err.message || "Failed to load question");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQuestion();
+  }, [topicId, categoryId, questionId]);
+
+  // 🔸 Loading state
+  if (loading) {
+    return (
+      <div className="p-6 text-center bg-white rounded-2xl shadow-sm border border-gray-200">
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto mb-3"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
+        </div>
+        <p className="text-gray-500 text-sm mt-3">Loading question...</p>
+      </div>
+    );
+  }
+
+  // 🔸 Error state
+  if (error) {
+    return (
+      <div className="p-4 text-center text-red-600 bg-red-50 rounded-xl">
+        ⚠️ Error loading question: {error}
+      </div>
+    );
+  }
 
   // 🔸 Fallback if the question is missing or invalid
   if (!question) {
