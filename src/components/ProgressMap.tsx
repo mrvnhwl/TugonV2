@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Course } from "../components/data/questions/index";
 import { defaultTopics } from "../components/data/questions/index";
-import { progressService, TopicProgress } from "./tugon/services/progressServices";
+import { hybridProgressService } from "../lib/hybridProgressService";
+import { progressService } from "./tugon/services/progressServices";
+import type { TopicProgress, UserProgress } from "./tugon/services/progressServices";
 import color from "@/styles/color";
 import { Check, ChevronLeft, ChevronRight, ChevronDown, FileText, CheckCircle, Zap, Play } from "lucide-react";
 
@@ -66,11 +68,29 @@ export default function ProgressMap({
   progress,
   overallStats,
 }: Props) {
-  const [userProgress, setUserProgress] = useState(progressService.getUserProgress());
+  const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [activeTopic, setActiveTopic] = useState(0);
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set()); // Track which categories are expanded
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Load user progress (works with both localStorage and Supabase)
+  useEffect(() => {
+    const loadProgress = async () => {
+      setIsLoading(true);
+      try {
+        const progress = await Promise.resolve(hybridProgressService.getUserProgress());
+        setUserProgress(progress);
+      } catch (error) {
+        console.error('Failed to load user progress:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProgress();
+  }, []);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -169,9 +189,13 @@ export default function ProgressMap({
   }, [userProgress]);
 
   useEffect(() => {
-    const refreshProgress = () => {
-      const p = progressService.getUserProgress();
-      if (p) setUserProgress(p);
+    const refreshProgress = async () => {
+      try {
+        const p = await Promise.resolve(hybridProgressService.getUserProgress());
+        if (p) setUserProgress(p);
+      } catch (error) {
+        console.error('Failed to refresh progress:', error);
+      }
     };
     refreshProgress();
     window.addEventListener("focus", refreshProgress);
@@ -206,7 +230,7 @@ export default function ProgressMap({
   };
 
   const getCategoryProgress = (topicId: number, categoryId: number) =>
-    progressService.getCategoryStats(topicId, categoryId);
+    hybridProgressService.getCategoryStats(topicId, categoryId);
 
   const getTopicProgress = (topicId: number) =>
     userProgress?.topicProgress?.find((tp: { topicId: number }) => tp.topicId === topicId);
@@ -214,8 +238,8 @@ export default function ProgressMap({
   const getCurrentQuestion = (category: CategoryInfo): QuestionInfo =>
     category.questions[category.currentQuestionIndex] || category.questions[0];
 
-  const getNextQuestionId = (topicId: number, categoryId: number): number => {
-    const categoryStats = progressService.getCategoryStats(topicId, categoryId);
+  const getNextQuestionId = async (topicId: number, categoryId: number): Promise<number> => {
+    const categoryStats = await Promise.resolve(hybridProgressService.getCategoryStats(topicId, categoryId));
     const category = levels
       .find((l) => l.id === topicId)
       ?.categories.find((c) => c.categoryId === categoryId);
@@ -224,7 +248,7 @@ export default function ProgressMap({
     
     // ✨ NEW: If category has been completed before (everCompleted) but isCompleted is false,
     // it means we're starting a fresh replay - start from question 1
-    const categoryProgress = progressService.getCategoryProgress(topicId, categoryId);
+    const categoryProgress = await Promise.resolve(hybridProgressService.getCategoryProgress(topicId, categoryId));
     if (categoryProgress?.everCompleted && !categoryProgress?.isCompleted) {
       console.log(`🔄 Starting fresh replay of Category ${categoryId} from Question 1`);
       return category.questions[0]?.questionId || 1;
@@ -238,6 +262,33 @@ export default function ProgressMap({
     }
     return category.questions[0]?.questionId || 1;
   };
+
+  // Show loading spinner while fetching progress
+  if (isLoading) {
+    return (
+      <div
+        className="w-full max-w-lg mx-auto rounded-3xl p-6 md:p-8"
+        style={{
+          background: "white",
+          border: "1px solid #E6EDF3",
+          boxShadow: `0 12px 28px ${color.mist}22`,
+        }}
+      >
+        <div className="text-center py-16">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center animate-spin">
+            <div className="w-16 h-16 border-4 border-t-transparent rounded-full" 
+                 style={{ borderColor: `${color.teal} ${color.teal} transparent ${color.teal}` }} />
+          </div>
+          <h3 className="text-xl font-semibold mb-2" style={{ color: color.deep }}>
+            Loading Progress...
+          </h3>
+          <p className="text-sm" style={{ color: color.steel }}>
+            Please wait while we fetch your learning data
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (levels.length === 0) {
     return (
@@ -423,8 +474,8 @@ export default function ProgressMap({
                         </div>
 
                         <button
-                          onClick={() => {
-                            const nextQuestionId = getNextQuestionId(currentLevel.id, category.categoryId);
+                          onClick={async () => {
+                            const nextQuestionId = await getNextQuestionId(currentLevel.id, category.categoryId);
                             onStartStage?.(currentLevel.id, category.categoryId, nextQuestionId);
                           }}
                           className="py-2 px-4 rounded-xl font-bold text-sm transition-all duration-300 transform hover:scale-105 active:scale-95 shadow hover:shadow-md text-white"
@@ -474,8 +525,8 @@ export default function ProgressMap({
 
                   {/* CTA */}
                     <button
-                      onClick={() => {
-                        const nextQuestionId = getNextQuestionId(currentLevel.id, category.categoryId);
+                      onClick={async () => {
+                        const nextQuestionId = await getNextQuestionId(currentLevel.id, category.categoryId);
                         onStartStage?.(currentLevel.id, category.categoryId, nextQuestionId);
                       }}
                       className="w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-transform active:scale-95"
@@ -795,8 +846,8 @@ export default function ProgressMap({
 
                             {/* CTA */}
                             <button
-                              onClick={() => {
-                                const nextQuestionId = getNextQuestionId(level.id, category.categoryId);
+                              onClick={async () => {
+                                const nextQuestionId = await getNextQuestionId(level.id, category.categoryId);
                                 onStartStage?.(level.id, category.categoryId, nextQuestionId);
                               }}
                               className="w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-transform active:scale-95"

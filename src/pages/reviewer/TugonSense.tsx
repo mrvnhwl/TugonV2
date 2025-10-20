@@ -1,11 +1,13 @@
 // src/pages/reviewer/TugonSense.tsx
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import CourseCard from "../../components/CourseCard";
 import ProgressMap from "../../components/ProgressMap";
-import { courses } from "../../components/data/questions/index";
+import { courses as localCourses } from "../../components/data/questions/index";
 import { useProgress } from "../../components/tugon/services/useProgress";
+import { fetchTopics, Course } from "../../lib/supabaseTopics";
 import color from "@/styles/color";
+import HybridProgressServiceTester from '@/components/HybridProgressServiceTester'; //testing remove later
 
 /** Tugon logo (gradient badge + white “T”) – uses the main palette */
 function TugonLogo({ size = 32 }: { size?: number }) {
@@ -28,7 +30,27 @@ function TugonLogo({ size = 32 }: { size?: number }) {
 export default function TugonSense() {
   const navigate = useNavigate();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [courses, setCourses] = useState<Course[]>(localCourses);
+  const [loading, setLoading] = useState(true);
   const { getTopicProgress, getStatistics } = useProgress();
+
+  // Fetch topics from Supabase on mount
+  useEffect(() => {
+    fetchTopics()
+      .then((supabaseTopics) => {
+        if (supabaseTopics.length > 0) {
+          console.log('✅ Loaded topics from Supabase:', supabaseTopics);
+          setCourses(supabaseTopics);
+        } else {
+          console.log('⚠️ No topics in Supabase, using local data');
+        }
+      })
+      .catch((error) => {
+        console.error('❌ Failed to load topics from Supabase:', error);
+        console.log('📁 Falling back to local data');
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const clampedIndex = Math.min(Math.max(activeIndex, 0), courses.length - 1);
   const activeCourse = courses[clampedIndex];
@@ -60,6 +82,18 @@ export default function TugonSense() {
     if (pct >= 100 || activeTopicProgress.isCompleted) return { label: "Completed", chip: "🏆", pct: 100 };
     return { label: "In progress", chip: "⚡", pct };
   }, [activeTopicProgress]);
+
+  // Show loading state while fetching from Supabase
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mb-4"></div>
+          <p className="text-gray-600">Loading topics from Supabase...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full bg-white">
@@ -131,8 +165,10 @@ export default function TugonSense() {
                     overallStats={stats}
                   />
   
-   
+
             </section>
+            
+         
           </div>
         </div>
       </main>
@@ -153,3 +189,4 @@ function HeroTile({ label, value, sub }: { label: string; value: string | number
     </div>
   );
 }
+
