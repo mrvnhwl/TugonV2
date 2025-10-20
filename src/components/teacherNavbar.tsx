@@ -83,7 +83,6 @@ function NavItem({
   );
 }
 
-
 function TeacherNavbar({ className = "" }: { className?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hideNav, setHideNav] = useState(false);
@@ -118,14 +117,12 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
   const closeMenuOnNavigate = () => setMenuOpen(false);
 
   return (
-
     <nav
-      className="shadow-lg sticky top-0 z-50"
+      className={`shadow-lg sticky top-0 z-50 ${className}`}
       role="navigation"
       aria-label="Teacher main"
       style={{ background: color.steel, color: "#fff", borderBottom: `1px solid ${color.ocean}` }}
     >
-
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
@@ -151,12 +148,16 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 <NavItem to="/student-progress" onNavigate={closeMenuOnNavigate}>
                   Student Progress
                 </NavItem>
+                {/* NEW: Manage Topics */}
+                <NavItem to="/manage-topics" onNavigate={closeMenuOnNavigate}>
+                  Manage Topics
+                </NavItem>
 
                 <span aria-hidden className="mx-2" style={{ width: 1, height: 24, background: "#ffffff33" }} />
 
                 <div className="flex items-center gap-2">
                   <Initials email={user.email} />
-                  <span className="text-sm font-medium truncate max-w-[160px] opacity-90">
+                  <span className="text-sm font-medium truncate max-w:[160px] opacity-90">
                     {user.email}
                   </span>
                   <button
@@ -214,7 +215,7 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
           id="teacher-mobile-menu"
           ref={menuRef}
           className="md:hidden overflow-hidden transition-[max-height] duration-300 ease-out"
-          style={{ maxHeight: menuOpen ? 360 : 0 }}
+          style={{ maxHeight: menuOpen ? 420 : 0 }}
         >
           <div className="mt-2 space-y-1 pb-4">
             {user ? (
@@ -227,6 +228,10 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 </NavItem>
                 <NavItem to="/student-progress" onNavigate={closeMenuOnNavigate}>
                   Student Progress
+                </NavItem>
+                {/* NEW: Manage Topics (mobile) */}
+                <NavItem to="/manage-topics" onNavigate={closeMenuOnNavigate}>
+                  Manage Topics
                 </NavItem>
 
                 <div className="px-2 pt-2 flex items-center gap-2">
