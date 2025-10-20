@@ -10,6 +10,7 @@ import {
   PenSquare,
   ChevronLeft,
   ChevronRight,
+  FolderCog
 } from "lucide-react";
 import Footer from "../components/Footer";
 import { motion } from "framer-motion";
@@ -32,7 +33,7 @@ interface StudentProgress {
   completed_at: string;
 }
 
-type Section = { id: string; name: string }; // <-- added
+type Section = { id: string; name: string };
 
 function TeacherDashboard() {
   const { user } = useAuth();
@@ -67,7 +68,7 @@ function TeacherDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        // NEW: load teacher's sections (by id or email)
+        // Sections owned by this teacher
         const { data: sectionRows, error: secErr } = await supabase
           .from("sections")
           .select("id, name")
@@ -119,7 +120,7 @@ function TeacherDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Function for CSV import
+  // CSV Import
   const handleCSVImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -172,12 +173,11 @@ function TeacherDashboard() {
     });
   };
 
-  // NEW: helper to (re)build StudentProgress list, optionally filtered by section
+  // Build latest-per-student list, optionally filtered by section
   const buildStudentProgress = async (rows: any[], sectionId: string) => {
     let filtered = rows;
 
     if (sectionId) {
-      // get member emails for the chosen section
       const { data: members, error: mErr } = await supabase
         .from("section_students")
         .select("student_email")
@@ -199,8 +199,7 @@ function TeacherDashboard() {
     const latestPerStudent: StudentProgress[] = Array.from(latestMap.values())
       .map((row: any) => ({
         student_id: row.user_id,
-        student_name:
-          row.user_email || (row.user_id ?? "").slice(0, 8) || "Unknown",
+        student_name: row.user_email || (row.user_id ?? "").slice(0, 8) || "Unknown",
         latest_quiz_title: row.quizzes?.title ?? "Untitled quiz",
         completed_at: row.completed_at,
       }))
@@ -209,13 +208,13 @@ function TeacherDashboard() {
     setStudentProgress(latestPerStudent);
   };
 
-  // NEW: when dropdown changes, rebuild filtered list
+  // Rebuild filtered list when dropdown changes
   useEffect(() => {
     buildStudentProgress(progressAll, selectedSection);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSection]);
 
-  // ---------- KPI: Average Score (per selected quiz) ----------
+  // ---------- KPI: Average Score ----------
   const averageScore = useMemo(() => {
     if (!quizForAvg) return 0;
     const subset = progressAll.filter((r) => r.quiz_id === quizForAvg);
@@ -223,7 +222,7 @@ function TeacherDashboard() {
 
     const toPct = (n: number) => {
       const x = Number(n ?? 0);
-      const pct = x > 100 ? x / 10 : x; // normalize if points-like
+      const pct = x > 100 ? x / 10 : x;
       return Math.max(0, Math.min(100, pct));
     };
 
@@ -247,8 +246,6 @@ function TeacherDashboard() {
   const totalPages = Math.max(1, Math.ceil(totalStudents / PER_PAGE));
   const start = (page - 1) * PER_PAGE;
   const pagedStudents = studentProgress.slice(start, start + PER_PAGE);
-
-  const avgMinutes = 0;
 
   // ---------- Motion variants ----------
   const containerVariants = {
@@ -321,6 +318,15 @@ function TeacherDashboard() {
               >
                 <PenSquare className="mr-2 h-4 w-4" />
                 Create quiz
+              </Link>
+              {/* NEW: Manage Topics button */}
+              <Link
+                to="/manage-topics"
+                className="inline-flex items-center justify-center rounded-xl border px-3 py-2 sm:px-5 sm:py-3 text-sm sm:text-base font-semibold transition w-full sm:w-auto"
+                style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
+              >
+                <FolderCog className="mr-2 h-4 w-4" />
+                Manage topics
               </Link>
               <Link
                 to="/teacherDashboard"
@@ -437,7 +443,8 @@ function TeacherDashboard() {
                   </div>
                 </motion.div>
               </motion.div>
-              {/* CSV Import (kept as-is) */}
+
+              {/* CSV Import */}
               <div className="mt-8">
                 <label htmlFor="csv-upload" className="block text-sm font-medium mb-2" style={{ color: color.deep }}>
                   Import Students via CSV
@@ -464,7 +471,7 @@ function TeacherDashboard() {
               </div>
             </motion.div>
 
-            {/* Student Progress (latest per student) */}
+            {/* Student Progress */}
             <motion.div
               className="rounded-2xl p-4 sm:p-6 shadow-xl ring-1"
               style={{ background: "#fff", borderColor: `${color.mist}55` }}
@@ -475,7 +482,7 @@ function TeacherDashboard() {
                 Student Progress 📈
               </h2>
 
-              {/* NEW: Section dropdown */}
+              {/* Section dropdown */}
               <div className="mb-4">
                 <label className="block text-xs mb-1" style={{ color: color.steel }}>
                   Filter by Section
@@ -605,7 +612,7 @@ function TeacherDashboard() {
             <QuizzesBlock quizzes={quizzes} />
           </div>
 
-          {/* RIGHT: Topics w/ favorites */}
+          {/* RIGHT: Topics w/ realtime updates */}
           <TopicsBlock favorites={favorites} toggleFavorite={toggleFavorite} />
         </div>
       </main>
@@ -696,19 +703,51 @@ function TopicsBlock({
   favorites: Set<string>;
   toggleFavorite: (title: string) => void;
 }) {
-  const topics = [
-    { title: "Introduction to Functions", path: "/introductiontopic" },
-    { title: "Evaluating Functions", path: "/evaluationtopic" },
-    { title: "Piecewise-Defined Functions", path: "/piecewise" },
-    { title: "Operations on Functions", path: "/operationstopic" },
-    { title: "Composition of Functions", path: "/compositiontopic" },
-    { title: "Rational Functions", path: "/rationaltopic" },
-    { title: "Vertical, Horizontal and Oblique Asymptotes", path: "/asymptotestopic" },
-    { title: "Rational Equations and Inequalities", path: "/rationalinequalitiestopic" },
-    { title: "Inverse Functions", path: "/inversetopic" },
-    { title: "Exponential Functions", path: "/exponentialtopic" },
-    { title: "Logarithmic Functions", path: "/logarithmictopic" },
-  ];
+  type TopicRow = { id: string; title: string; file_url: string | null; created_at: string };
+
+  const [topics, setTopics] = useState<TopicRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Initial load
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("topics")
+        .select("id, title, file_url, created_at")
+        .order("created_at", { ascending: false });
+      if (!alive) return;
+      if (error) {
+        console.error(error);
+        setTopics([]);
+      } else {
+        setTopics((data ?? []) as TopicRow[]);
+      }
+      setLoading(false);
+    })();
+
+    // Realtime subscription (INSERT | UPDATE | DELETE)
+    const channel = supabase
+      .channel("public:topics")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "topics" },
+        async (payload) => {
+          // Re-fetch list on any change to keep it simple & consistent
+          const { data, error } = await supabase
+            .from("topics")
+            .select("id, title, file_url, created_at")
+            .order("created_at", { ascending: false });
+          if (!error && data) setTopics(data as TopicRow[]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      alive = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -735,47 +774,71 @@ function TopicsBlock({
           className="rounded-full px-2.5 sm:px-3 py-1 text-xs font-medium whitespace-nowrap"
           style={{ background: `${color.teal}15`, color: color.teal, border: `1px solid ${color.teal}40` }}
         >
-          {topics.length} total
+          {loading ? "…" : `${topics.length} total`}
         </span>
       </div>
 
-      <motion.div className="space-y-3" variants={containerVariants}>
-        {topics.map((topic) => {
-          const fav = favorites.has(topic.title);
-          return (
-            <motion.div
-              key={topic.title}
-              variants={itemVariants}
-              whileHover={{ scale: 1.01, x: 4 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div
-                className="flex items-center rounded-lg p-3 sm:p-4 transition relative"
-                style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+      {loading ? (
+        <div className="text-sm" style={{ color: color.steel }}>Loading…</div>
+      ) : topics.length === 0 ? (
+        <div className="text-sm" style={{ color: color.steel }}>
+          No topics yet. Click <Link to="/manage-topics" className="underline" style={{ color: color.teal }}>Manage topics</Link> to add one.
+        </div>
+      ) : (
+        <motion.div className="space-y-3" variants={containerVariants}>
+          {topics.map((t) => {
+            const fav = favorites.has(t.title);
+            return (
+              <motion.div
+                key={t.id}
+                variants={itemVariants}
+                whileHover={{ scale: 1.01, x: 4 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <Link to={topic.path} className="flex-grow flex items-center min-w-0">
-                  <BookOpen className="h-5 w-5 mr-3 flex-shrink-0" style={{ color: color.teal }} />
-                  <span className="font-medium truncate" style={{ color: color.deep }} title={topic.title}>
-                    {topic.title}
-                  </span>
-                </Link>
-                <button
-                  onClick={() => toggleFavorite(topic.title)}
-                  className="ml-2 sm:ml-3 p-2 rounded-full transition"
-                  aria-label={`Toggle favorite for ${topic.title}`}
-                  style={{
-                    color: fav ? color.teal : "#9CA3AF",
-                    background: fav ? `${color.teal}15` : "transparent",
-                  }}
-                  title={fav ? "Unfavorite" : "Favorite"}
+                <div
+                  className="flex items-center rounded-lg p-3 sm:p-4 transition relative"
+                  style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
                 >
-                  <Heart className="h-5 w-5" fill={fav ? color.teal : "none"} />
-                </button>
-              </div>
-            </motion.div>
-          );
-        })}
-      </motion.div>
+                  {t.file_url ? (
+                    <a
+                      href={t.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-grow flex items-center min-w-0"
+                      title={t.title}
+                    >
+                      <BookOpen className="h-5 w-5 mr-3 flex-shrink-0" style={{ color: color.teal }} />
+                      <span className="font-medium truncate" style={{ color: color.deep }}>
+                        {t.title}
+                      </span>
+                    </a>
+                  ) : (
+                    <div className="flex-grow flex items-center min-w-0">
+                      <BookOpen className="h-5 w-5 mr-3 flex-shrink-0" style={{ color: color.teal }} />
+                      <span className="font-medium truncate" style={{ color: color.deep }}>
+                        {t.title}
+                      </span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => toggleFavorite(t.title)}
+                    className="ml-2 sm:ml-3 p-2 rounded-full transition"
+                    aria-label={`Toggle favorite for ${t.title}`}
+                    style={{
+                      color: fav ? color.teal : "#9CA3AF",
+                      background: fav ? `${color.teal}15` : "transparent",
+                    }}
+                    title={fav ? "Unfavorite" : "Favorite"}
+                  >
+                    <Heart className="h-5 w-5" fill={fav ? color.teal : "none"} />
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      )}
     </motion.div>
   );
 }

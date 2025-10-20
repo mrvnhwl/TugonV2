@@ -15,8 +15,8 @@ import StudentDashboard from "./pages/studentDashboard";
 import Challenge from "./pages/Challenge";
 import Leaderboards from "./pages/LeaderBoards";
 import Game from "./pages/Game";
-import TugonSense from './pages/reviewer/TugonSense';
-import TugonPlay from './pages/reviewer/TugonPlay';
+import TugonSense from "./pages/reviewer/TugonSense";
+import TugonPlay from "./pages/reviewer/TugonPlay";
 import Operation from "./pages/tugonsense/operations";
 import Evaluation from "./pages/tugonsense/evaluation";
 import Radio from "./components/Radio";
@@ -26,12 +26,12 @@ import HostGame from "./pages/HostGame";
 
 // TugonSense challenges
 import EvaluationDifficultySelector from "./pages/tugonsense/Evaluation/evaluationdifficulty";
-
 import EvaluationPhase1 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase1";
 import EvaluationPhase2 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase2";
 import EvaluationPhase3 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase3";
 import EvaluationPhase4 from "./pages/tugonsense/Evaluation/eEvaluation/eEvaluationPhase4";
 
+// Built-in topic pages
 import Introductiontopic from "./pages/topics/introductiontopic";
 import Operationstopic from "./pages/topics/operationstopic";
 import Evaluationtopic from "./pages/topics/evaluationtopic";
@@ -44,19 +44,27 @@ import Inversetopic from "./pages/topics/inversetopic";
 import Exponentialtopic from "./pages/topics/exponentialtopic";
 import Logarithmictopic from "./pages/topics/logarithmictopic";
 
+// NEW: topics CRUD flow
+import ManageTopics from "./pages/ManageTopics";
+import TopicView from "./pages/TopicView";
+import EditTopic from "./pages/EditTopic";
+
+import StudentTopics from "./pages/StudentTopics";
+import StudentTopicView from "./pages/StudentTopicView";
+
 // Role selection
 import UserTypeSelection from "./pages/UserTypeSelection";
 
-// ✨ Edit quiz page
+// Edit quiz page
 import EditQuiz from "./pages/editQuiz";
 
-// ✨ New: Student Progress page
+// Student Progress page
 import StudentProgress from "./pages/StudentProgress";
 
-// ✨ New: Daily Challenge page
+// Daily Challenge page
 import DailyChallengeGame from "./pages/DailyChallengeGame";
 
-// MathJax config (inline: \( ... \), block: \[ ... \])
+// MathJax config
 const mathJaxConfig = {
   tex: {
     inlineMath: [["\\(", "\\)"]],
@@ -73,23 +81,20 @@ function App() {
     <MathJaxContext version={3} config={mathJaxConfig}>
       <Router>
         <AppContent />
-        <Toaster 
+        <Toaster
           position="top-center"
           reverseOrder={false}
-          containerStyle={{
-            top: '50%',
-            transform: 'translateY(-50%)',
-          }}
+          containerStyle={{ top: "50%", transform: "translateY(-50%)" }}
           toastOptions={{
             duration: 5000,
             style: {
-              borderRadius: '10px',
-              background: '#333',
-              color: '#fff',
-              padding: '16px',
-              fontSize: '15px',
-              maxWidth: '500px',
-              textAlign: 'center',
+              borderRadius: "10px",
+              background: "#333",
+              color: "#fff",
+              padding: "16px",
+              fontSize: "15px",
+              maxWidth: "500px",
+              textAlign: "center",
             },
           }}
         />
@@ -110,33 +115,35 @@ function AppContent() {
     "/eEvaluationPhase4",
   ];
 
-
-  // Use prefixes so nested paths (like /edit-quiz/:id) match correctly
+  // Show Teacher navbar on teacher pages (includes new topics routes)
   const teacherPrefixes = [
     "/teacherDashboard",
     "/create-quiz",
     "/teacherHome",
     "/edit-quiz",
-    "/quiz/", // keep teacher navbar visible on /quiz/:id/edit alias
-    "/student-progress", // 👈 show Teacher navbar on Student Progress page
+    "/quiz/",               // keep teacher navbar visible on /quiz/:id/edit alias
+    "/student-progress",
+    "/manage-topics",       // NEW
+    "/topic/",              // NEW (covers /topic/:slug and /topic/:slug/edit)
   ];
+
   const studentPrefixes = ["/", "/studentDashboard", "/studentHome"];
 
   const isEvaluationRoute = evaluationRoutes.includes(path);
   const isTeacherRoute = teacherPrefixes.some((p) => path.startsWith(p));
-  const isStudentRoute = studentPrefixes.some((p) => path === p); // landing strict
+  const isStudentRoute = studentPrefixes.some((p) => path === p);
 
-  // Hide AI button on these routes
+  // Hide AI button on certain routes
   const hideOnRoutes = [
     "/login",
     "/",
     "/userTypeSelection",
     "/tugon-play",
-    "/tugonplay",      // ✨ Added: Hide on TugonPlay route
+    "/tugonplay",
     "/tugonSense",
     "/tugonsense",
   ];
-  const hideOnPrefixes = ["/edit-quiz"]; // optional: hide on edit page
+  const hideOnPrefixes = ["/edit-quiz"];
   const shouldShowAIButton =
     !hideOnRoutes.includes(path) && !hideOnPrefixes.some((p) => path.startsWith(p));
 
@@ -154,28 +161,33 @@ function AppContent() {
         </main>
       ) : (
         <div>
-          {/* Correct navbar per role */}
           {isTeacherRoute ? <TeacherNavbar /> : isStudentRoute ? <StudentNavbar /> : null}
 
           <Routes>
-            {/* Landing page */}
+            {/* Landing */}
             <Route path="/" element={<StudentHome />} />
 
-            {/* Route for Sign In → role selection */}
+            {/* Auth / role */}
             <Route path="/userTypeSelection" element={<UserTypeSelection />} />
+            <Route path="/login" element={<Login />} />
 
+            {/* Teacher */}
             <Route path="/teacherHome" element={<TeacherHome />} />
-            <Route path="/studentHome" element={<StudentHome />} />
-            <Route path="/quiz/:id" element={<Quiz />} />
+            <Route path="/teacherDashboard" element={<TeacherDashboard />} />
             <Route path="/create-quiz" element={<CreateQuiz />} />
-            {/* Edit quiz routes (both supported) */}
             <Route path="/edit-quiz/:id" element={<EditQuiz />} />
             <Route path="/quiz/:id/edit" element={<EditQuiz />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/teacherDashboard" element={<TeacherDashboard />} />
-            <Route path="/studentDashboard" element={<StudentDashboard />} />
-            {/* ✨ New: Student Progress */}
             <Route path="/student-progress" element={<StudentProgress />} />
+            <Route path="/manage-topics" element={<ManageTopics />} />
+            <Route path="/topic/:slug" element={<TopicView />} />
+            <Route path="/topic/:slug/edit" element={<EditTopic />} />
+
+            {/* Student */}
+            <Route path="/studentHome" element={<StudentHome />} />
+            <Route path="/studentDashboard" element={<StudentDashboard />} />
+
+            {/* Shared / games / reviewers */}
+            <Route path="/quiz/:id" element={<Quiz />} />
             <Route path="/challenge" element={<Challenge />} />
             <Route path="/tugonsense" element={<TugonSense />} />
             <Route path="/tugonplay" element={<TugonPlay />} />
@@ -184,11 +196,8 @@ function AppContent() {
             <Route path="/game/:id" element={<Game />} />
             <Route path="/operations" element={<Operation />} />
             <Route path="/evaluation" element={<Evaluation />} />
-            <Route path="/evaluationdifficulty" element={<EvaluationDifficultySelector />} />
-            <Route path="/eEvaluationPhase1" element={<EvaluationPhase1 />} />
-            <Route path="/eEvaluationPhase2" element={<EvaluationPhase2 />} />
-            <Route path="/eEvaluationPhase3" element={<EvaluationPhase3 />} />
-            <Route path="/eEvaluationPhase4" element={<EvaluationPhase4 />} />
+
+            {/* Built-in topic pages */}
             <Route path="/introductiontopic" element={<Introductiontopic />} />
             <Route path="/operationstopic" element={<Operationstopic />} />
             <Route path="/evaluationtopic" element={<Evaluationtopic />} />
@@ -202,10 +211,15 @@ function AppContent() {
             <Route path="/exponentialtopic" element={<Exponentialtopic />} />
             <Route path="/logarithmictopic" element={<Logarithmictopic />} />
             <Route path="/daily-challenge" element={<DailyChallengeGame />} />
+
+            <Route path="/student/topics" element={<StudentTopics />} />
+            <Route path="/student/topics/:slug" element={<StudentTopicView />} />
           </Routes>
 
           {shouldShowAIButton && (
-            <FloatingAIButton onWrongAnswer={(questionId) => console.log("Wrong answer for:", questionId)} />
+            <FloatingAIButton
+              onWrongAnswer={(questionId) => console.log("Wrong answer for:", questionId)}
+            />
           )}
         </div>
       )}
