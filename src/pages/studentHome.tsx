@@ -171,7 +171,7 @@ function StudentHome() {
     try {
       const { data: section, error: sErr } = await supabase
         .from("sections")
-        .select("id, name, join_code")
+        .select("id, name, join_code, expires_at")
         .eq("join_code", cleaned)
         .limit(1);
 
@@ -180,6 +180,16 @@ function StudentHome() {
       if (!sec) {
         setJoinErr("No section found for that code.");
         return;
+      }
+
+      // Check if section has expired
+      if (sec.expires_at) {
+        const expiryDate = new Date(sec.expires_at);
+        const now = new Date();
+        if (expiryDate <= now) {
+          setJoinErr("This section code has expired.");
+          return;
+        }
       }
 
       const { error: iErr } = await supabase.from("section_students").insert({

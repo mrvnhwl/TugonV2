@@ -26,6 +26,7 @@ interface Quiz {
   difficulty?: Difficulty | null;
   estimated_minutes?: number | null;
   created_at?: string | null;
+  publish_to?: string[] | null;
 }
 
 interface QuizAttempt {
@@ -42,7 +43,6 @@ interface UserProgress {
   quiz_id: string;
   score: number | null;
   completed_at: string | null;
-  // Optional, only used if you later add it:
   duration_seconds?: number | null;
 }
 
@@ -162,9 +162,6 @@ function ConfirmStartModal({
   );
 }
 
-/* =======================================================
-   Component
-======================================================= */
 export default function Challenge() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -219,7 +216,7 @@ export default function Challenge() {
   const loadAll = async () => {
     try {
       setLoading(true);
-      // 1) Load quizzes
+      // 1) Load quizzes (include publish_to)
       const { data: quizzesData, error: quizzesErr } = await supabase
         .from("quizzes")
         .select("*")
@@ -227,16 +224,66 @@ export default function Challenge() {
 
       if (quizzesErr) throw quizzesErr;
       const qz = (quizzesData as Quiz[]) ?? [];
-      setQuizzes(qz);
 
-      if (qz.length === 0) {
+      // --- determine student's section ids via section_students table ---
+      // section_students has rows { student_id, section_id }
+      let studentSectionIds: string[] = [];
+      if (user) {
+        try {
+          const { data: ssRows, error: ssErr } = await supabase
+            .from("section_students")
+            .select("section_id")
+            .eq("student_id", user.id);
+          if (ssErr) throw ssErr;
+          for (const r of (ssRows ?? []) as any[]) {
+            if (r.section_id) studentSectionIds.push(r.section_id);
+          }
+          studentSectionIds = Array.from(new Set(studentSectionIds.filter(Boolean)));
+        } catch (e) {
+          console.warn("Failed to fetch section_students:", e);
+          studentSectionIds = [];
+        }
+      }
+
+      // --- filter quizzes: ONLY include quizzes that explicitly list section ids and match the student's section(s) ---
+      // Do NOT show quizzes where publish_to is null/empty. Normalize both sides to strings to avoid type mismatches.
+      const studentSectionIdsStr = studentSectionIds.map((s) => String(s));
+      const normalizePublishTo = (pub: any): string[] => {
+        if (!pub) return [];
+        if (Array.isArray(pub)) return pub.map((x) => String(x));
+        if (typeof pub === "string") {
+          // maybe a JSON array string like '["id1","id2"]' or comma-separated
+          try {
+            const parsed = JSON.parse(pub);
+            if (Array.isArray(parsed)) return parsed.map((x) => String(x));
+          } catch {}
+          // fallback: comma separated
+          return pub.split(",").map((x) => x.trim()).filter(Boolean).map((x) => String(x));
+        }
+        // other types
+        return [String(pub)];
+      };
+
+      const filteredQz = qz.filter((qq) => {
+        if (!user) return false; // require login
+        if (!studentSectionIdsStr.length) return false; // no sections -> nothing
+        const pubs = normalizePublishTo(qq.publish_to);
+        if (!pubs.length) return false;
+        return pubs.some((p) => studentSectionIdsStr.includes(p));
+      });
+
+      setQuizzes(filteredQz);
+
+      // if no quizzes after filtering, clear dependent state and return early
+      if (filteredQz.length === 0) {
         setAttemptsAll([]);
         setMyAttemptedMap({});
         setProgressRows([]);
         return;
       }
 
-      const quizIds = qz.map((q) => q.id);
+      // use filtered list for subsequent queries
+      const quizIds = filteredQz.map((q) => q.id);
 
       // 2) Attempts (ALL)
       const { data: aAll, error: aAllErr } = await supabase
