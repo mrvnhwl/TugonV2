@@ -23,12 +23,32 @@ export default function StudentTopics() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [sectionId, setSectionId] = useState<string | null>(null);
 
   async function loadTopics() {
-    // 1) load topics
+    // 1) get student's section
+    const { data: sectionRows, error: sectionErr } = await supabase
+      .from("section_students")
+      .select("section_id")
+      .eq("student_id", (await supabase.auth.getUser()).data.user?.id ?? "");
+    if (sectionErr) {
+      console.error(sectionErr);
+      setTopics([]);
+      setSectionId(null);
+      return;
+    }
+    const section_id = sectionRows?.[0]?.section_id ?? null;
+    setSectionId(section_id ?? null);
+    console.log('Student section_id:', section_id);
+    if (!section_id) {
+      setTopics([]);
+      return;
+    }
+
+    // 2) load topics
     const { data, error } = await supabase
       .from("topics")
-      .select("id,title,description,slug,file_url,route_path,html_url,created_at,created_by")
+      .select("id,title,description,slug,file_url,route_path,html_url,created_at,created_by,publish_to")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -37,12 +57,29 @@ export default function StudentTopics() {
       return;
     }
 
-    const baseRows: Topic[] = (data ?? []).map((r) => ({
+    // Only show topics where section_id is in publish_to
+    const baseRows: Topic[] = (data ?? []).filter((r) => {
+      const pub = r.publish_to;
+      if (!pub) return false;
+      let arr: string[] = [];
+      if (Array.isArray(pub)) arr = pub.map(String);
+      else if (typeof pub === "string") {
+        try {
+          const parsed = JSON.parse(pub);
+          if (Array.isArray(parsed)) arr = parsed.map(String);
+        } catch {
+          arr = pub.split(",").map((x) => x.trim()).filter(Boolean);
+        }
+      }
+      // Debug log for publish_to
+      console.log('Topic:', r.title, 'publish_to:', arr, 'section_id:', String(section_id));
+      return arr.map(String).includes(String(section_id));
+    }).map((r) => ({
       ...(r as Topic),
       route_path: (r as Topic).route_path || `/topic/${(r as Topic).slug}`,
     }));
 
-    // 2) join teacher emails from the public view (RLS-friendly)
+    // 3) join teacher emails from the public view (RLS-friendly)
     const ids = Array.from(new Set(baseRows.map((r) => r.created_by).filter(Boolean)));
     const emailMap = new Map<string, string | null>();
 
@@ -89,6 +126,7 @@ export default function StudentTopics() {
 
   // client-side filter
   const filtered = useMemo(() => {
+    if (!sectionId) return [];
     if (!q.trim()) return topics;
     const s = q.toLowerCase();
     return topics.filter(
@@ -97,7 +135,7 @@ export default function StudentTopics() {
         (t.description ?? "").toLowerCase().includes(s) ||
         (t.created_by_email ?? "").toLowerCase().includes(s)
     );
-  }, [q, topics]);
+  }, [q, topics, sectionId]);
 
   const containerVariants = {
     hidden: { opacity: 0 },

@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   BookOpen,
-  Heart,
   Users,
   BarChart as BarChartIcon,
   Timer,
@@ -18,7 +17,6 @@ import color from "../styles/color";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabase";
 import Papa from "papaparse";
-
 interface Quiz {
   id: string;
   title: string;
@@ -48,8 +46,10 @@ export default function TeacherDashboard() {
   );
 
   // ---------- State ----------
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [publishModalOpenFor, setPublishModalOpenFor] = useState<string | null>(null);
+  const [publishSelection, setPublishSelection] = useState<Set<string>>(new Set());
+  const [sectionSearch, setSectionSearch] = useState("");
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [progressAll, setProgressAll] = useState<any[]>([]);
@@ -234,14 +234,7 @@ export default function TeacherDashboard() {
     return Number(mean.toFixed(1));
   }, [progressAll, quizForAvg]);
 
-  // ---------- Favorites ----------
-  const toggleFavorite = (topicTitle: string) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      next.has(topicTitle) ? next.delete(topicTitle) : next.add(topicTitle);
-      return next;
-    });
-  };
+
 
   // ---------- update quiz publish_to on DB and reflect locally
   const updateQuizPublish = async (quizId: string, publishTo: string[]) => {
@@ -639,7 +632,7 @@ export default function TeacherDashboard() {
           </div>
 
           {/* RIGHT: Topics w/ realtime updates */}
-          <TopicsBlock favorites={favorites} toggleFavorite={toggleFavorite} />
+          <TopicsBlock sections={sections} />
         </div>
       </main>
 
@@ -747,7 +740,7 @@ function QuizzesBlock({
             className="w-full sm:w-64 px-4 py-2 pr-8 rounded-xl border text-sm"
             style={{ borderColor: color.mist, color: color.deep }}
           />
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: color.steel }} />
+          <FolderCog className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: color.steel }} />
         </div>
       </div>
 
@@ -756,7 +749,14 @@ function QuizzesBlock({
           No quizzes yet. Create one to get started.
         </div>
       ) : (
-        <motion.div className="space-y-3 sm:space-y-4" variants={containerVariants}>
+        <motion.div 
+          className="space-y-3 sm:space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar" 
+          variants={containerVariants}
+          style={{ 
+            scrollbarWidth: 'thin',
+            scrollbarColor: `${color.teal}40 transparent`
+          }}
+        >
           {quizzes
             .filter(quiz => 
               !quizSearch || 
@@ -849,7 +849,7 @@ function QuizzesBlock({
                   className="w-full px-4 py-2 pr-8 rounded-xl border text-sm"
                   style={{ borderColor: color.mist, color: color.deep }}
                 />
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: color.steel }} />
+                <FolderCog className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: color.steel }} />
               </div>
               
               <label className="flex items-center gap-3 py-2 px-2 hover:bg-gray-50 rounded transition-colors">
@@ -929,16 +929,88 @@ function QuizzesBlock({
 }
 
 function TopicsBlock({
-  favorites,
-  toggleFavorite,
+  sections
 }: {
-  favorites: Set<string>;
-  toggleFavorite: (title: string) => void;
+  sections: Section[];
 }) {
-  type TopicRow = { id: string; title: string; file_url: string | null; created_at: string };
+  type TopicRow = { 
+    id: string; 
+    title: string; 
+    file_url: string | null; 
+    created_at: string;
+    publish_to?: string[] | null | string;
+  };
 
   const [topics, setTopics] = useState<TopicRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [publishModalOpenFor, setPublishModalOpenFor] = useState<string | null>(null);
+  const [publishSelection, setPublishSelection] = useState<Set<string>>(new Set());
+  const [sectionSearch, setSectionSearch] = useState("");
+
+  const normalizePublishTo = (pub: TopicRow['publish_to']): string[] => {
+    if (!pub) return [];
+    if (Array.isArray(pub)) return pub.map(String);
+    if (typeof pub === 'string') {
+      try {
+        const parsed = JSON.parse(pub);
+        if (Array.isArray(parsed)) return parsed.map(String);
+      } catch {}
+      return pub.split(',').map(x => x.trim()).filter(Boolean);
+    }
+    return [];
+  };
+
+  const openPublishModal = async (topic: TopicRow) => {
+    try {
+      const { data, error } = await supabase
+        .from('topics')
+        .select('publish_to')
+        .eq('id', topic.id)
+        .single();
+      if (error) throw error;
+      const initial = new Set(normalizePublishTo((data as any)?.publish_to ?? topic.publish_to));
+      setPublishSelection(initial);
+    } catch (e) {
+      console.error('Failed to fetch latest publish_to for topic', topic.id, e);
+      const initial = new Set(normalizePublishTo(topic.publish_to));
+      setPublishSelection(initial);
+    }
+    setPublishModalOpenFor(topic.id);
+  };
+
+  const closePublishModal = () => {
+    setPublishModalOpenFor(null);
+    setPublishSelection(new Set());
+  };
+
+  const toggleSection = (id: string) => {
+    setPublishSelection((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const savePublish = async (topicId: string) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('topics')
+        .update({ publish_to: Array.from(publishSelection) })
+        .eq('id', topicId);
+      if (error) throw error;
+      setTopics(prev => prev.map(t => 
+        t.id === topicId 
+          ? { ...t, publish_to: Array.from(publishSelection) }
+          : t
+      ));
+    } catch (e) {
+      console.error('Failed to update topic publish settings:', e);
+    } finally {
+      setLoading(false);
+      closePublishModal();
+    }
+  };
 
   // Initial load
   useEffect(() => {
@@ -1019,57 +1091,160 @@ function TopicsBlock({
       ) : (
         <motion.div className="space-y-3" variants={containerVariants}>
           {topics.map((t) => {
-            const fav = favorites.has(t.title);
-            return (
-              <motion.div
-                key={t.id}
-                variants={itemVariants}
-                whileHover={{ scale: 1.01, x: 4 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <div
-                  className="flex items-center rounded-lg p-3 sm:p-4 transition relative"
-                  style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+              const pubTo = normalizePublishTo(t.publish_to);
+              const publishedSections = sections.filter(s => pubTo.includes(s.id));
+              return (
+                <motion.div
+                  key={t.id}
+                  variants={itemVariants}
+                  whileHover={{ scale: 1.01, x: 4 }}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  {t.file_url ? (
-                    <a
-                      href={t.file_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-grow flex items-center min-w-0"
-                      title={t.title}
-                    >
-                      <BookOpen className="h-5 w-5 mr-3 flex-shrink-0" style={{ color: color.teal }} />
-                      <span className="font-medium truncate" style={{ color: color.deep }}>
-                        {t.title}
-                      </span>
-                    </a>
-                  ) : (
-                    <div className="flex-grow flex items-center min-w-0">
-                      <BookOpen className="h-5 w-5 mr-3 flex-shrink-0" style={{ color: color.teal }} />
-                      <span className="font-medium truncate" style={{ color: color.deep }}>
-                        {t.title}
-                      </span>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={() => toggleFavorite(t.title)}
-                    className="ml-2 sm:ml-3 p-2 rounded-full transition"
-                    aria-label={`Toggle favorite for ${t.title}`}
-                    style={{
-                      color: fav ? color.teal : "#9CA3AF",
-                      background: fav ? `${color.teal}15` : "transparent",
-                    }}
-                    title={fav ? "Unfavorite" : "Favorite"}
+                  <div
+                    className="flex justify-between items-center rounded-lg p-3 sm:p-4 transition relative"
+                    style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
                   >
-                    <Heart className="h-5 w-5" fill={fav ? color.teal : "none"} />
-                  </button>
-                </div>
-              </motion.div>
-            );
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium truncate block" style={{ color: color.deep }}>
+                        {t.title}
+                      </span>
+                      {publishedSections.length > 0 && (
+                        <span
+                          className="mt-1 text-xs font-medium"
+                          style={{ color: color.teal }}
+                        >
+                          Published to {publishedSections.map(s => s.name).join(", ")}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center ml-4">
+                      {t.file_url && (
+                        <a
+                          href={t.file_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mr-2 sm:mr-3 p-2 rounded-full transition"
+                          aria-label={`Open ${t.title} resource`}
+                          style={{ color: color.teal }}
+                          title="Open resource"
+                        >
+                          <BookOpen className="h-5 w-5" />
+                        </a>
+                      )}
+                      <button
+                        onClick={() => openPublishModal(t)}
+                        className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full border transition text-sm"
+                        style={{
+                          background: "#fff",
+                          borderColor: color.mist,
+                          color: color.deep,
+                        }}
+                      >
+                        <span>Publish To</span>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
           })}
         </motion.div>
+      )}
+
+      {/* Publish modal */}
+      {publishModalOpenFor && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30" onClick={closePublishModal} />
+          <div 
+            className="relative w-[480px] rounded-2xl shadow-2xl bg-white flex flex-col" 
+              style={{ border: `1px solid ${color.mist}`, height: '500px' }}
+          >
+            {/* Header */}
+            <div className="p-4 border-b" style={{ borderColor: color.mist }}>
+              <h3 className="font-bold" style={{ color: color.deep }}>Who can access this topic?</h3>
+            </div>
+            
+            {/* Search and Select All - Fixed section */}
+            <div className="p-4 border-b" style={{ borderColor: color.mist }}>
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  value={sectionSearch}
+                  onChange={(e) => setSectionSearch(e.target.value)}
+                  placeholder="Search sections..."
+                  className="w-full px-4 py-2 pr-8 rounded-xl border text-sm"
+                  style={{ borderColor: color.mist, color: color.deep }}
+                />
+                <FolderCog className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: color.steel }} />
+              </div>
+              
+              <label className="flex items-center gap-3 py-2 px-2 hover:bg-gray-50 rounded transition-colors">
+                <input
+                  type="checkbox"
+                  checked={sections.length > 0 && sections.every(s => publishSelection.has(s.id))}
+                  onChange={() => {
+                    if (sections.every(s => publishSelection.has(s.id))) {
+                      setPublishSelection(new Set());
+                    } else {
+                      setPublishSelection(new Set(sections.map(s => s.id)));
+                    }
+                  }}
+                  className="w-4 h-4 accent-teal-600"
+                />
+                <span className="font-medium" style={{ color: color.deep }}>Select All Sections</span>
+              </label>
+            </div>
+
+            {/* Scrollable section list */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {sections.length === 0 ? (
+                <div className="text-sm" style={{ color: color.steel }}>No sections available.</div>
+              ) : (
+                sections
+                  .filter(s => !sectionSearch || s.name.toLowerCase().includes(sectionSearch.toLowerCase()))
+                  .map((s) => {
+                  const checked = publishSelection.has(s.id);
+                  return (
+                    <label key={s.id} className="flex items-center gap-3 py-2 hover:bg-gray-50 px-2 rounded transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSection(s.id)}
+                        className="w-4 h-4 accent-teal-600"
+                      />
+                      <span style={{ color: color.deep }}>{s.name}</span>
+                      {checked && (
+                        <span className="ml-auto text-xs font-medium px-2 py-1 rounded-full" style={{ background: `${color.teal}22`, color: color.teal }}>
+                          Published
+                        </span>
+                      )}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Fixed footer */}
+            <div className="border-t p-4" style={{ borderColor: color.mist }}>
+              <div className="flex justify-end gap-2">
+                <button 
+                  onClick={closePublishModal} 
+                  className="rounded-xl px-4 py-2 border" 
+                  style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => publishModalOpenFor && savePublish(publishModalOpenFor)}
+                  className="rounded-xl px-4 py-2" 
+                  style={{ background: color.teal, color: "#fff" }}
+                >
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </motion.div>
   );
