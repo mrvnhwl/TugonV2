@@ -6,6 +6,7 @@ import { useAuth } from "../hooks/useAuth";
 import { motion } from "framer-motion";
 import MathSymbolPad from "../components/MathSymbolPad";
 import { MathJax } from "better-react-mathjax";
+import { BlockMath } from "react-katex"
 
 /* ----------------------------- Types & helpers ---------------------------- */
 
@@ -13,8 +14,10 @@ interface Answer {
   answer: string;
   is_correct: boolean;
 }
+
 interface Question {
   question: string;
+  question_type: "multiple_choice" | "true_false" | "paragraph";
   time_limit: number;
   points: number;
   answers: Answer[];
@@ -106,7 +109,13 @@ function CreateQuiz() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<Question[]>([
-    { question: "", time_limit: 30, points: 1000, answers: freshAnswers() },
+    {
+      question: "",
+      question_type: "multiple_choice", // default to multiple choice
+      time_limit: 30,
+      points: 1000,
+      answers: freshAnswers(),
+    },
   ]);
 
   const [saving, setSaving] = useState(false);
@@ -123,6 +132,9 @@ function CreateQuiz() {
   const questionRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const answerRefs = useRef<(HTMLInputElement | null)[][]>([]);
 
+  // guard to prevent double-add of answers per question (debounce-like)
+  const answerAddGuard = useRef<Record<number, boolean>>({});
+
   // Sync refs when questions change
   useEffect(() => {
     questionRefs.current = questions.map(() => null);
@@ -131,12 +143,23 @@ function CreateQuiz() {
 
   /* ----------------------------- Mutators (UI) ---------------------------- */
 
-  const addQuestion = useCallback(() => {
+  const addQuestion = () => {
     setQuestions((prev) => [
       ...prev,
-      { question: "", time_limit: 30, points: 1000, answers: freshAnswers() },
+      {
+        question_type: "multiple_choice", // ✅ default type
+        question: "",
+        time_limit: 30,
+        points: 1000,
+        answers: [
+          { answer: "", is_correct: false },
+          { answer: "", is_correct: false },
+          { answer: "", is_correct: false },
+          { answer: "", is_correct: false },
+        ],
+      },
     ]);
-  }, []);
+  };
 
   const removeQuestion = (index: number) => {
     setQuestions((prev) => prev.filter((_, i) => i !== index));
@@ -170,6 +193,42 @@ function CreateQuiz() {
       q.answers = q.answers.map((ans, i) => ({ ...ans, is_correct: i === aIndex }));
       next[qIndex] = q;
       return next;
+    });
+  };
+
+  // safe add answer that prevents double insertion from rapid clicks/events
+  const addAnswerChoice = (qIndex: number) => {
+    if (answerAddGuard.current[qIndex]) return;
+    answerAddGuard.current[qIndex] = true;
+
+    setQuestions((prev) => {
+      const next = [...prev];
+      const q = { ...next[qIndex] };
+      q.answers = [...q.answers, { answer: "", is_correct: false }];
+      next[qIndex] = q;
+      return next;
+    });
+
+    // release guard shortly after to allow subsequent legitimate adds
+    setTimeout(() => {
+      answerAddGuard.current[qIndex] = false;
+    }, 300);
+  };
+
+  // safe removeAnswer helper (immutable, updates padTarget)
+  const removeAnswer = (qIndex: number, aIndex: number) => {
+    setQuestions((prev) =>
+      prev.map((q, i) =>
+        i === qIndex ? { ...q, answers: q.answers.filter((_, j) => j !== aIndex) } : q
+      )
+    );
+
+    // adjust or clear padTarget if it referenced the removed answer
+    setPadTarget((pt) => {
+      if (!pt || pt.type !== "answer" || pt.qIndex !== qIndex) return pt;
+      if (pt.aIndex === aIndex) return null;
+      if (pt.aIndex > aIndex) return { type: "answer", qIndex, aIndex: pt.aIndex - 1 };
+      return pt;
     });
   };
 
@@ -286,78 +345,116 @@ function CreateQuiz() {
 
   /* ------------------------------- Validation ----------------------------- */
 
-  const validate = () => {
-    if (!title.trim()) return "Please add a quiz title.";
-    if (!questions.length) return "Add at least one question.";
+const validate = () => {
+  if (!title.trim()) return "Please add a quiz title.";
+  if (!questions.length) return "Add at least one question.";
 
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-      if (!q.question.trim()) return `Question ${i + 1} is empty.`;
-      if (!Number.isFinite(q.time_limit) || q.time_limit < 5 || q.time_limit > 600)
-        return `Question ${i + 1}: time limit should be between 5 and 600 seconds.`;
-      if (!Number.isFinite(q.points) || q.points < 50 || q.points > 10000)
-        return `Question ${i + 1}: points should be between 50 and 10000.`;
-      if (q.answers.length !== 4) return `Question ${i + 1} must have 4 answers.`;
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+
+    if (!q.question.trim()) return `Question ${i + 1} is empty.`;
+
+    if (!Number.isFinite(q.time_limit) || q.time_limit < 5 || q.time_limit > 600)
+      return `Question ${i + 1}: time limit should be between 5 and 600 seconds.`;
+
+    if (!Number.isFinite(q.points) || q.points < 50 || q.points > 10000)
+      return `Question ${i + 1}: points should be between 50 and 10000.`;
+
+    // ✅ Validation by question type
+    if (q.question_type === "multiple_choice") {
+      // ❗ Allow any number of answers (at least 2)
+      if (!q.answers || q.answers.length < 2)
+        return `Question ${i + 1} must have at least 2 answer choices.`;
+
       const correctCount = q.answers.filter((a) => a.is_correct).length;
-      if (correctCount !== 1) return `Question ${i + 1} must have exactly one correct answer.`;
+      if (correctCount !== 1)
+        return `Question ${i + 1} must have exactly one correct answer.`;
+
+    } else if (q.question_type === "true_false") {
+      // ✅ True/False still exactly 2 choices
+      if (q.answers.length !== 2)
+        return `Question ${i + 1} must have 2 answers (True and False).`;
+
+      const correctCount = q.answers.filter((a) => a.is_correct).length;
+      if (correctCount !== 1)
+        return `Question ${i + 1} must have exactly one correct answer.`;
+
+    } else if (q.question_type === "paragraph") {
+      // ✅ Paragraph shouldn't have predefined choices
+      if (q.answers && q.answers.length > 0) {
+        console.warn(`Question ${i + 1} is paragraph type and should not have answer choices.`);
+      }
     }
-    return null;
-  };
+  }
+
+  return null;
+};
+
+
 
   /* ------------------------------- Submit --------------------------------- */
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const reason = validate();
-    if (reason) return alert(reason);
-    if (!user?.id) return alert("You must be signed in to create a quiz.");
+  e.preventDefault();
+  const reason = validate();
+  if (reason) return alert(reason);
+  if (!user?.id) return alert("You must be signed in to create a quiz.");
 
-    setSaving(true);
-    let quizId: string | null = null;
+  setSaving(true);
+  let quizId: string | null = null;
 
-    try {
-      const { data: quiz, error: quizErr } = await supabase
-        .from("quizzes")
-        .insert({ title, description, created_by: user.id })
+  try {
+    // 1️⃣ Insert quiz record
+    const { data: quiz, error: quizErr } = await supabase
+      .from("quizzes")
+      .insert({ title, description, created_by: user.id })
+      .select("*")
+      .single();
+
+    if (quizErr || !quiz) throw quizErr || new Error("Failed to insert quiz.");
+    quizId = quiz.id;
+
+    // 2️⃣ Insert all questions
+    for (const q of questions) {
+      const { data: qRow, error: qErr } = await supabase
+        .from("questions")
+        .insert({
+          quiz_id: quizId,
+          question: q.question,
+          time_limit: q.time_limit,
+          points: q.points,
+          question_type: q.question_type, // ✅ Save question type
+        })
         .select("*")
         .single();
 
-      if (quizErr || !quiz) throw quizErr || new Error("Failed to insert quiz.");
-      quizId = quiz.id;
+      if (qErr || !qRow) throw qErr || new Error("Failed to insert question.");
 
-      for (const q of questions) {
-        const { data: qRow, error: qErr } = await supabase
-          .from("questions")
-          .insert({
-            quiz_id: quizId,
-            question: q.question,
-            time_limit: q.time_limit,
-            points: q.points,
-          })
-          .select("*")
-          .single();
-
-        if (qErr || !qRow) throw qErr || new Error("Failed to insert question.");
-
+      // 3️⃣ Insert answers (skip if paragraph type)
+      if (q.question_type !== "paragraph" && q.answers.length > 0) {
         const answersRows = q.answers.map((a) => ({
           question_id: qRow.id,
           answer: a.answer,
           is_correct: a.is_correct,
         }));
+
         const { error: aErr } = await supabase.from("answers").insert(answersRows);
         if (aErr) throw aErr;
       }
-
-      setCreatedQuizId(quizId);
-      setShowSuccessModal(true);
-    } catch (err: any) {
-      console.error("Error creating quiz:", err);
-      if (quizId) await supabase.from("quizzes").delete().eq("id", quizId);
-      alert(err?.message ?? "Something went wrong creating the quiz.");
-    } finally {
-      setSaving(false);
     }
-  };
+
+    // ✅ Success
+    setCreatedQuizId(quizId);
+    setShowSuccessModal(true);
+  } catch (err: any) {
+    console.error("Error creating quiz:", err);
+    if (quizId) await supabase.from("quizzes").delete().eq("id", quizId);
+    alert(err?.message ?? "Something went wrong creating the quiz.");
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   // Live preview text for the focused field
   const previewText = (() => {
@@ -406,7 +503,7 @@ function CreateQuiz() {
               key={qIndex}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }} // ❌ removed delay per item
+              transition={{ duration: 0.2 }}
               className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4"
             >
               <div className="flex items-center justify-between gap-2">
@@ -421,159 +518,254 @@ function CreateQuiz() {
                 </button>
               </div>
 
-           {/* ===== TEACHER / EDITOR VIEW ===== */}
-<div className="mb-6">
-  <label className="block text-sm font-medium text-gray-700 mb-1">
-    Question {qIndex + 1}
-  </label>
+              {/* Question type selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Question Type
+                </label>
+                <select
+                  value={(q as any).question_type || "multiple_choice"}
+                  onChange={(e) =>
+                    updateQuestion(qIndex, "question_type" as any, e.target.value)
+                  }
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                >
+                  <option value="multiple_choice">Multiple Choice</option>
+                  <option value="true_false">True or False</option>
+                  <option value="paragraph">Paragraph</option>
+                </select>
+              </div>
 
-  {/* Editable Textarea */}
-  <textarea
-    ref={(el) => (questionRefs.current[qIndex] = el)}
-    onFocus={() => setPadTarget({ type: "question", qIndex })}
-    onBlur={() => onBlurFormatQuestion(qIndex)}
-    required
-    value={q.question}
-    onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
-    className="w-full rounded-md border-gray-300 shadow-sm 
-               focus:border-indigo-500 focus:ring-indigo-500
-               caret-black resize-none font-mono px-3 py-2"
-    rows={2}
-    placeholder="Type your question here:"
-  />
+              {/* Question textarea */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Question {qIndex + 1}
+                </label>
+                <textarea
+                  ref={(el) => (questionRefs.current[qIndex] = el)}
+                  onFocus={() => setPadTarget({ type: "question", qIndex })}
+                  onBlur={() => onBlurFormatQuestion(qIndex)}
+                  required
+                  value={q.question}
+                  onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
+                  className="w-full rounded-md border-gray-300 shadow-sm 
+                             focus:border-indigo-500 focus:ring-indigo-500
+                             caret-black resize-none font-mono px-3 py-2"
+                  rows={2}
+                  placeholder="Type your question here:"
+                />
+                {q.question.trim() && (
+                  <div className="mt-2 p-2 bg-gray-50 border rounded-md">
+                    <MathJax dynamic>{q.question}</MathJax>
+                  </div>
+                )}
+              </div>
 
-  {/* Live MathJax Preview */}
-  {q.question.trim() && (
-    <div className="mt-2 p-2 bg-gray-50 border rounded-md">
-      <MathJax dynamic>{q.question}</MathJax>
-    </div>
-  )}
-  {/* Removed Preview component to fix error */}
-</div>
+              {/* Time & Points */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Time Limit (sec)
+                  </label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={600}
+                    required
+                    value={q.time_limit}
+                    onChange={(e) =>
+                      updateQuestion(qIndex, "time_limit", parseInt(e.target.value || "0", 10))
+                    }
+                    className="w-full rounded-md border-gray-300 shadow-sm 
+                               focus:border-indigo-500 focus:ring-indigo-500 font-mono px-3 py-2"
+                    placeholder="Time Limit"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Points
+                  </label>
+                  <input
+                    type="number"
+                    min={50}
+                    max={10000}
+                    step={50}
+                    required
+                    value={q.points}
+                    onChange={(e) =>
+                      updateQuestion(qIndex, "points", parseInt(e.target.value || "0", 10))
+                    }
+                    className="w-full rounded-md border-gray-300 shadow-sm 
+                               focus:border-indigo-500 focus:ring-indigo-500 font-mono px-3 py-2"
+                    placeholder="Points"
+                  />
+                </div>
+              </div>
 
-{/* Time & Points */}
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">
-      Time Limit (sec)
-    </label>
-    <input
-      type="number"
-      min={5}
-      max={600}
-      required
-      value={q.time_limit}
-      onChange={(e) =>
-        updateQuestion(qIndex, "time_limit", parseInt(e.target.value || "0", 10))
-      }
-      className="w-full rounded-md border-gray-300 shadow-sm 
-                 focus:border-indigo-500 focus:ring-indigo-500 font-mono px-3 py-2"
-      placeholder="Time Limit"
-    />
-  </div>
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">
-      Points
-    </label>
-    <input
-      type="number"
-      min={50}
-      max={10000}
-      step={50}
-      required
-      value={q.points}
-      onChange={(e) =>
-        updateQuestion(qIndex, "points", parseInt(e.target.value || "0", 10))
-      }
-      className="w-full rounded-md border-gray-300 shadow-sm 
-                 focus:border-indigo-500 focus:ring-indigo-500 font-mono px-3 py-2"
-      placeholder="Points"
-    />
-  </div>
-</div>
+              {/* ANSWERS SECTION (depends on type) */}
+              {(q as any).question_type === "multiple_choice" && (
+                <div className="space-y-4">
+                  {q.answers.map((a, aIndex) => (
+                    <div key={aIndex} className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Answer {aIndex + 1}
+                        </label>
+                        <input
+                          ref={(el) => {
+                            if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
+                            answerRefs.current[qIndex][aIndex] = el;
+                          }}
+                          onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex })}
+                          onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
+                          type="text"
+                          required
+                          value={a.answer}
+                          onChange={(e) =>
+                            updateAnswer(qIndex, aIndex, "answer", e.target.value)
+                          }
+                          className="w-full rounded-md border-gray-300 shadow-sm 
+                                     focus:border-indigo-500 focus:ring-indigo-500 
+                                     caret-black font-mono px-3 py-2"
+                          placeholder="Type your answer here"
+                        />
+                        {a.answer.trim() && (
+                          <div className="mt-1 p-2 bg-gray-50 border rounded-md">
+                            <MathJax dynamic>{a.answer}</MathJax>
+                          </div>
+                        )}
+                      </div>
 
-{/* ANSWERS with live render */}
-<div className="space-y-4">
-  {q.answers.map((a, aIndex) => (
-    <div key={aIndex} className="flex items-start gap-3">
-      <div className="flex-1">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Answer {aIndex + 1}
-        </label>
+                      <label className="flex items-center gap-2 text-sm mt-7">
+                        <input
+                          type="radio"
+                          name={`correct-${qIndex}`}
+                          checked={a.is_correct}
+                          onChange={() => setCorrectAnswer(qIndex, aIndex)}
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>Correct</span>
+                      </label>
 
-        {/* Editable Input */}
-        <input
-          ref={(el) => {
-            if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
-            answerRefs.current[qIndex][aIndex] = el;
-          }}
-          onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex })}
-          onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
-          type="text"
-          required
-          value={a.answer}
-          onChange={(e) =>
-            updateAnswer(qIndex, aIndex, "answer", e.target.value)
-          }
-          className="w-full rounded-md border-gray-300 shadow-sm 
-                     focus:border-indigo-500 focus:ring-indigo-500 
-                     caret-black font-mono px-3 py-2"
-          placeholder="Type your answer here: "
-        />
+                      {/* Delete answer */}
+                      <button
+                        type="button"
+                        onClick={() => removeAnswer(qIndex, aIndex)}
+                        className="mt-7 text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
 
-        {/* Live MathJax Preview */}
-        {a.answer.trim() && (
-          <div className="mt-1 p-2 bg-gray-50 border rounded-md">
-            <MathJax dynamic>{a.answer}</MathJax>
-          </div>
-        )}
-      </div>
+                  {/* Add answer button */}
+                  <button
+                    type="button"
+                    onClick={() => addAnswerChoice(qIndex)}
+                    className="mt-2 flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add another choice</span>
+                  </button>
+                </div>
+              )}
 
-      {/* Correct Answer Selector */}
-      <label className="flex items-center gap-2 text-sm mt-7">
-        <input
-          type="radio"
-          name={`correct-${qIndex}`}
-          checked={a.is_correct}
-          onChange={() => setCorrectAnswer(qIndex, aIndex)}
-          className="text-indigo-600 focus:ring-indigo-500"
-        />
-        <span>Correct</span>
-      </label>
-    </div>
-  ))}
-</div>
-{/* Separator before Student Preview */}
-<div className="my-6 border-t border-gray-300 relative">
-  <span className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-white px-2 text-gray-500 text-sm">
-    Student Preview
-  </span>
-</div>
+              {(q as any).question_type === "true_false" && (
+                <div className="space-y-3">
+                  {["True", "False"].map((val, i) => (
+                    <label key={i} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name={`tf-${qIndex}`}
+                        checked={
+                          q.answers[i]?.is_correct ||
+                          (!q.answers.length && val === "True")
+                        }
+                        onChange={() =>
+                          updateQuestion(qIndex, "answers", [
+                            { answer: "True", is_correct: val === "True" },
+                            { answer: "False", is_correct: val === "False" },
+                          ])
+                        }
+                        className="text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>{val}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
 
-{/* ===== STUDENT VIEW ===== */}
-<div className="mb-4 text-lg font-mono">
-  <MathJax dynamic>{q.question}</MathJax>
-</div>
-
-{/* Rendered answers */}
-<ul className="space-y-2">
-  {q.answers.map((a, idx) => (
-    <li
-  key={idx}
-  className="p-2 border rounded-md"
->
-  <MathJax dynamic>{a.answer}</MathJax>
-</li>
-
-  ))}
-</ul>
-
-
-
-
-
+              {(q as any).question_type === "paragraph" && (
+                <div className="text-gray-500 italic">
+                  (Students will answer this question in paragraph form.)
+                </div>
+              )}
             </motion.div>
           ))}
+
+          {/* Student preview */}
+<div className="student-preview bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4">
+  <h2 className="text-lg font-semibold mb-2 text-center text-gray-700">Student Preview</h2>
+
+  {questions.map((q, qIndex) => (
+    <div key={qIndex} className="mb-6 p-4 border rounded-lg">
+      {/* Question */}
+      <div className="font-semibold mb-2 text-lg font-mono">
+        Question {qIndex + 1}:{" "}
+        <MathJax dynamic>{q.question || ""}</MathJax>
+      </div>
+
+      {/* Render based on question type */}
+      {q.question_type === "multiple_choice" && (
+        <div className="flex flex-col gap-2">
+          {q.answers.map((a, aIndex) => (
+            <label
+              key={aIndex}
+              className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
+            >
+              <input type="radio" name={`q-${qIndex}`} disabled />
+              <span className="font-mono">
+                <MathJax dynamic>{a.answer || `Choice ${aIndex + 1}`}</MathJax>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {q.question_type === "true_false" && (
+        <div className="flex flex-col gap-2">
+          {(q.answers.length > 0 ? q.answers : [
+            { answer: "True" },
+            { answer: "False" },
+          ]).map((a, aIndex) => (
+            <label
+              key={aIndex}
+              className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
+            >
+              <input type="radio" name={`q-${qIndex}`} disabled />
+              <span className="font-mono">
+                <MathJax dynamic>{a.answer}</MathJax>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {q.question_type === "paragraph" && (
+        <textarea
+          disabled
+          className="w-full border rounded p-2 mt-2 font-mono"
+          placeholder="Student answer will appear here..."
+        ></textarea>
+      )}
+
+      <div className="text-sm text-gray-500 mt-2">
+        ⏱️ {q.time_limit}s | {q.points} points
+      </div>
+    </div>
+  ))}
+</div>
+
 
           {/* Footer buttons */}
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-between">
@@ -647,7 +839,13 @@ function CreateQuiz() {
                   setTitle("");
                   setDescription("");
                   setQuestions([
-                    { question: "", time_limit: 30, points: 1000, answers: freshAnswers() },
+                    {
+                      question_type: "multiple_choice",
+                      question: "",
+                      time_limit: 30,
+                      points: 1000,
+                      answers: freshAnswers(),
+                    },
                   ]);
                   setCreatedQuizId(null);
                 }}

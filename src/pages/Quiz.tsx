@@ -23,6 +23,7 @@ interface Question {
   question: string;
   time_limit: number;
   points: number;
+  question_type: "multiplechoice" | "trueorfalse" | "paragraph";
 }
 
 interface Answer {
@@ -151,6 +152,9 @@ function Quiz() {
   /** Stores the SINGLE, locked-in result per question (prevents double counting) */
   const [answerLog, setAnswerLog] = useState<Record<string, AnswerRecord>>({});
 
+  // store paragraph answer locally before submitting
+  const [paragraphAnswer, setParagraphAnswer] = useState<string>("");
+
   const [showResult, setShowResult] = useState(false);
 
   const returnTo = (location.state as any)?.returnTo || "/challenge";
@@ -198,9 +202,9 @@ function Quiz() {
   // Initialize Audio Elements and STRICT autoplay for BGM
   useEffect(() => {
     const bgm = new Audio(bgmSrc);
-    bgm.loop = true;         // file is ~42s; loop forever
+    bgm.loop = true; // file is ~42s; loop forever
     bgm.preload = "auto";
-    bgm.volume = 0.25;       // subtle background
+    bgm.volume = 0.25; // subtle background
     bgmRef.current = bgm;
 
     const sfxCorrect = new Audio(sfxCorrectSrc);
@@ -225,7 +229,9 @@ function Quiz() {
     });
 
     return () => {
-      try { bgm.pause(); } catch {}
+      try {
+        bgm.pause();
+      } catch {}
       bgmRef.current = null;
       sfxCorrectRef.current = null;
       sfxWrongRef.current = null;
@@ -236,27 +242,40 @@ function Quiz() {
   const playCorrectSfx = () => {
     const s = sfxCorrectRef.current;
     if (!s) return;
-    try { s.currentTime = 0; s.play(); } catch {}
+    try {
+      s.currentTime = 0;
+      s.play();
+    } catch {}
   };
 
   const playWrongSfx = () => {
     const s = sfxWrongRef.current;
     if (!s) return;
-    try { s.currentTime = 0; s.play(); } catch {}
+    try {
+      s.currentTime = 0;
+      s.play();
+    } catch {}
   };
 
   const playFinishSfx = () => {
     const s = sfxFinishRef.current;
     if (!s) return;
-    try { s.currentTime = 0; s.play(); } catch {}
+    try {
+      s.currentTime = 0;
+      s.play();
+    } catch {}
   };
 
   const stopBgm = () => {
-    try { bgmRef.current?.pause(); } catch {}
+    try {
+      bgmRef.current?.pause();
+    } catch {}
   };
 
   const stopSpeaking = () => {
-    try { window.speechSynthesis.cancel(); } catch {}
+    try {
+      window.speechSynthesis.cancel();
+    } catch {}
     setIsSpeaking(false);
   };
 
@@ -341,12 +360,7 @@ function Quiz() {
         return;
       }
       try {
-        const { data: quizData, error: quizError } = await supabase
-          .from("quizzes")
-          .select("*"
-          )
-          .eq("id", id)
-          .single();
+        const { data: quizData, error: quizError } = await supabase.from("quizzes").select("*").eq("id", id).single();
 
         if (quizError) throw quizError;
         setQuiz(quizData as QuizType);
@@ -381,10 +395,7 @@ function Quiz() {
   useEffect(() => {
     const loadAnswers = async (questionId: string) => {
       try {
-        const { data: answersData, error } = await supabase
-          .from("answers")
-          .select("*")
-          .eq("question_id", questionId);
+        const { data: answersData, error } = await supabase.from("answers").select("*").eq("question_id", questionId);
 
         if (error) throw error;
         setAnswers((answersData as Answer[]) || []);
@@ -400,6 +411,9 @@ function Quiz() {
       setIsAnswered(!!answerLog[currentQuestion.id]);
       stopSpeaking();
       loadAnswers(currentQuestion.id);
+
+      // reset paragraph input for new question
+      setParagraphAnswer("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQuestion, answerLog]);
@@ -473,6 +487,54 @@ function Quiz() {
           awarded: 0,
         },
       }));
+    }
+  };
+
+  const submitParagraphAnswer = async () => {
+    if (!currentQuestion || !user) return;
+    if (isAnswered) return;
+
+    const text = paragraphAnswer.trim();
+    if (!text) {
+      toast.error("Please enter your answer.");
+      return;
+    }
+
+    setIsAnswered(true);
+
+    try {
+      // Insert paragraph response — ensure table `paragraph_responses` exists
+      const { data: inserted, error } = await supabase
+        .from("paragraph_responses")
+        .insert({
+          user_id: user.id,
+          quiz_id: id,
+          question_id: currentQuestion.id,
+          answer_text: text,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Use the inserted.id if available as selectedAnswerId; awarded is 0 (ungraded)
+      const selectedId = inserted?.id ? String(inserted.id) : "paragraph_response";
+
+      setAnswerLog((prev) => ({
+        ...prev,
+        [currentQuestion.id]: {
+          selectedAnswerId: selectedId,
+          isCorrect: false,
+          awarded: 0, // per your choice "A" — paragraph auto-score 0
+        },
+      }));
+
+      toast.success("Answer submitted.");
+    } catch (e) {
+      console.error("Failed to save paragraph response:", e);
+      toast.error("Failed to submit answer. Please try again.");
+      // If saving fails, allow reattempt
+      setIsAnswered(false);
     }
   };
 
@@ -642,40 +704,68 @@ function Quiz() {
           </div>
 
           {/* Answers */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-            {answers.map((answer) => {
-              const recorded = answerLog[currentQuestion.id];
-              const wasAnswered = !!recorded;
-              const isCorrectChoice = answer.is_correct;
+          {currentQuestion.question_type === "paragraph" ? (
+            <div className="mt-4">
+              <textarea
+                value={paragraphAnswer}
+                onChange={(e) => setParagraphAnswer(e.target.value)}
+                placeholder="Type your answer here..."
+                disabled={isAnswered}
+                className="w-full p-4 rounded-xl border-2 border-gray-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-300 outline-none text-gray-800 resize-none min-h-[120px]"
+              />
+              {!isAnswered && (
+                <div className="flex items-center gap-3 mt-4">
+                  <button
+                    onClick={submitParagraphAnswer}
+                    className="px-6 py-2 rounded-lg text-white font-semibold"
+                    style={{
+                      background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                      boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+                    }}
+                  >
+                    Submit Answer
+                  </button>
+                  <div className="text-sm text-gray-500">This answer will be saved and marked later.</div>
+                </div>
+              )}
+              {isAnswered && (
+                <div className="mt-3 text-sm text-green-600">Answer submitted — waiting for grading.</div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+              {answers.map((answer) => {
+                const recorded = answerLog[currentQuestion.id];
+                const wasAnswered = !!recorded;
+                const isCorrectChoice = answer.is_correct;
 
-              const base =
-                "p-4 rounded-xl text-left transition-all border-2 focus:outline-none focus-visible:ring-2";
-              const neutral =
-                "bg-gray-50 hover:bg-gray-100 border-transparent focus-visible:ring-[rgba(0,0,0,.06)]";
-              const whenAnswered = isCorrectChoice ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500";
+                const base = "p-4 rounded-xl text-left transition-all border-2 focus:outline-none focus-visible:ring-2";
+                const neutral = "bg-gray-50 hover:bg-gray-100 border-transparent focus-visible:ring-[rgba(0,0,0,.06)]";
+                const whenAnswered = isCorrectChoice ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500";
 
-              return (
-                <button
-                  key={answer.id}
-                  onClick={() => handleAnswer(answer)}
-                  disabled={isAnswered || wasAnswered}
-                  className={`${base} ${(isAnswered || wasAnswered) ? whenAnswered : neutral}`}
-                >
-                  <div className="flex items-center">
-                    <span className="flex-grow" style={{ color: color.deep }}>
-                      <MathJax dynamic inline>{wrapMath(answer.answer)}</MathJax>
-                    </span>
-                    {(isAnswered || wasAnswered) &&
-                      (isCorrectChoice ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-red-600" />
-                      ))}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button
+                    key={answer.id}
+                    onClick={() => handleAnswer(answer)}
+                    disabled={isAnswered || wasAnswered}
+                    className={`${base} ${(isAnswered || wasAnswered) ? whenAnswered : neutral}`}
+                  >
+                    <div className="flex items-center">
+                      <span className="flex-grow" style={{ color: color.deep }}>
+                        <MathJax dynamic inline>{wrapMath(answer.answer)}</MathJax>
+                      </span>
+                      {(isAnswered || wasAnswered) &&
+                        (isCorrectChoice ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-600" />
+                        ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Footer controls */}
           <div className="flex justify-between items-center mt-6">
@@ -708,14 +798,8 @@ function Quiz() {
 
       {/* Final Score Modal */}
       {showResult && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,.32)" }}
-        >
-          <div
-            className="w-[92%] max-w-md rounded-2xl shadow-2xl ring-1 p-6"
-            style={{ background: "#fff", borderColor: cardBorder }}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,.32)" }}>
+          <div className="w-[92%] max-w-md rounded-2xl shadow-2xl ring-1 p-6" style={{ background: "#fff", borderColor: cardBorder }}>
             <div className="text-center">
               <div
                 className="inline-flex items-center justify-center h-14 w-14 rounded-full mb-3"
