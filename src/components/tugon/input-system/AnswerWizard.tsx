@@ -1,9 +1,8 @@
 //AnswerWizard
 
 import { useEffect, useState } from "react";
-import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers/index";
 import type { PredefinedAnswer, Step as AnswerStep } from "@/components/data/answers/types";
-import { getAnswerForQuestion } from "@/components/data/answers/index";
+import { fetchAnswerSteps } from "@/lib/supabaseAnswers"; // ✨ Supabase-only integration
 import { cn } from "../../cn";
 import UserInput from './UserInput';
 import InputValidator from './UserInputValidator';
@@ -100,33 +99,86 @@ export default function AnswerWizard({
    title,
   fallbackText
 }: AnswerWizardProps) {
-  // Source answers
-  const getExpectedStepsForQuestion = () => {
- 
-    if (expectedAnswers && expectedAnswers.length > 0) {
-   
-      return expectedAnswers;
-    }
-    
-    // Use the helper function to get the correct answer
-    if (topicId && categoryId && questionId) {
-     
-      const steps = getAnswerForQuestion(topicId, categoryId, questionId);
-       
-      if (steps) {
-        return [{
-          questionId,
-        questionText: `Question ${questionId}`,
-        type: "multiLine" as const,
-        steps
-        }];
-        
+  // ✨ NEW: State for Supabase answer steps
+  const [answersSource, setAnswersSource] = useState<PredefinedAnswer[]>([]);
+  const [answersLoading, setAnswersLoading] = useState<boolean>(true);
+  const [answersError, setAnswersError] = useState<string | null>(null);
+
+  // ✨ Fetch answer steps from Supabase (NO FALLBACK)
+  useEffect(() => {
+    let isMounted = true;
+
+    console.log('🔍 ANSWERWIZARD USEEFFECT TRIGGERED:', {
+      topicId,
+      categoryId, 
+      questionId,
+      hasExpectedAnswers: expectedAnswers && expectedAnswers.length > 0,
+      expectedAnswersLength: expectedAnswers?.length || 0
+    });
+
+    const loadAnswerSteps = async () => {
+      // Priority 1: Use provided expectedAnswers prop
+      if (expectedAnswers && expectedAnswers.length > 0) {
+        console.log('📝 Using provided expectedAnswers prop');
+        console.log('📝 expectedAnswers content:', expectedAnswers);
+        setAnswersSource(expectedAnswers);
+        setAnswersLoading(false);
+        return;
       }
-    }
-    
-    return [];
-  };
-  const answersSource: PredefinedAnswer[] = getExpectedStepsForQuestion();
+
+      // Priority 2: Fetch ONLY from Supabase (no fallback)
+      if (topicId && categoryId && questionId) {
+        setAnswersLoading(true);
+        setAnswersError(null);
+
+        try {
+          console.log(`🔄 Fetching answer steps from Supabase ONLY: Topic ${topicId}, Category ${categoryId}, Question ${questionId}`);
+          
+          // Fetch directly from Supabase (no hybrid, no fallback)
+          const steps = await fetchAnswerSteps(topicId, categoryId, questionId);
+
+          if (!isMounted) return;
+
+          if (steps && steps.length > 0) {
+            const predefinedAnswer: PredefinedAnswer = {
+              questionId: questionId,
+              questionText: `Question ${questionId}`,
+              type: 'multiLine',
+              steps: steps,
+            };
+            setAnswersSource([predefinedAnswer]);
+            console.log('✅ Loaded answer steps from Supabase:', predefinedAnswer);
+          } else {
+            console.warn('⚠️ No answer steps found in Supabase database');
+            setAnswersError('No answer steps found in database. Please add answer data for this question.');
+            setAnswersSource([]);
+          }
+        } catch (err) {
+          console.error('❌ Error loading answer steps from Supabase:', err);
+          if (isMounted) {
+            setAnswersError('Failed to load answer steps from database. Check console for details.');
+            setAnswersSource([]);
+          }
+        } finally {
+          if (isMounted) {
+            setAnswersLoading(false);
+          }
+        }
+      } else {
+        // No IDs provided
+        console.warn('⚠️ No topicId, categoryId, or questionId provided to AnswerWizard');
+        setAnswersError('Missing question identifiers (topicId, categoryId, or questionId)');
+        setAnswersSource([]);
+        setAnswersLoading(false);
+      }
+    };
+
+    loadAnswerSteps();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [topicId, categoryId, questionId, expectedAnswers]);
  
  
   // Fixed steps derived from answers source
@@ -467,6 +519,36 @@ export default function AnswerWizard({
   const getAllUserInputs = (): string[][] => {
     return userInputs;
   };
+
+  // ✨ SHOW LOADING STATE
+  if (answersLoading) {
+    return (
+      <div className={cn("rounded-2xl p-4 space-y-4", className)}>
+        <div className="flex items-center justify-center py-8">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-gray-600 font-medium">Loading answer steps...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ✨ SHOW ERROR STATE
+  if (answersError || answersSource.length === 0) {
+    return (
+      <div className={cn("rounded-2xl p-4 space-y-4 border-2 border-red-200 bg-red-50", className)}>
+        <div className="text-center py-4">
+          <p className="text-red-700 font-semibold">
+            {answersError || 'No answer steps found for this question'}
+          </p>
+          <p className="text-sm text-red-600 mt-2">
+            Please check if the question has been configured in the database.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("rounded-2xl  p-4 space-y-4", className)}>

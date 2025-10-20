@@ -64,7 +64,10 @@ import StudentProgress from "./pages/StudentProgress";
 // Daily Challenge page
 import DailyChallengeGame from "./pages/DailyChallengeGame";
 
-// MathJax config
+// New: TugonsenseProblems
+import TopicSelector  from "./pages/tugonsenseproblem/TopicSelector";
+
+// MathJax config (inline: \( ... \), block: \[ ... \])
 const mathJaxConfig = {
   tex: {
     inlineMath: [["\\(", "\\)"]],
@@ -125,6 +128,7 @@ function AppContent() {
     "/student-progress",
     "/manage-topics",       // NEW
     "/topic/",              // NEW (covers /topic/:slug and /topic/:slug/edit)
+    "/topicselector", // 👈 show Teacher navbar on TopicSelector page
   ];
 
   const studentPrefixes = ["/", "/studentDashboard", "/studentHome"];
@@ -177,6 +181,11 @@ function AppContent() {
             <Route path="/create-quiz" element={<CreateQuiz />} />
             <Route path="/edit-quiz/:id" element={<EditQuiz />} />
             <Route path="/quiz/:id/edit" element={<EditQuiz />} />
+         
+
+            {/* ✨ New: TugonSense Problems */}
+            <Route path="/topicselector" element={<TopicSelector />} />
+            {/* ✨ New: Student Progress */}
             <Route path="/student-progress" element={<StudentProgress />} />
             <Route path="/manage-topics" element={<ManageTopics />} />
             <Route path="/topic/:slug" element={<TopicView />} />

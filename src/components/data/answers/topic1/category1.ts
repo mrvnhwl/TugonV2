@@ -9,9 +9,9 @@ export const Topic1_Category1_Answers: PredefinedAnswer[] = [
       { 
         label: "substitution", 
         answer: [
-          "f(8) = 2(8) - 7",        // Standard implicit multiplication
-          "f(x) = 2(8) - 7",
-          "2(8)-7",       // Shorter
+          "1",        // Standard implicit multiplication
+          "2",
+          "3",       // Shorter
         ],
         placeholder: "\\text{Substitute the value of x}" 
       }, 

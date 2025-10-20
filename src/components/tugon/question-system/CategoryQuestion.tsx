@@ -1,10 +1,11 @@
 import React from 'react';
-import { defaultTopics } from '../../data/questions/index';
+
 import { cn } from '../../cn';
 import { Text } from '../../Typography';
 import { Card, CardContent } from "@/components/ui/card";
 import { answersByTopicAndCategory } from '../../data/answers/index';
 import { convertToLatex } from './mathConverter';
+import { fetchCategoryQuestionData } from '@/lib/supabaseCategories';
 
 interface CategoryQuestionProps {
   topicId: number;
@@ -22,25 +23,80 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
   const [mathKey, setMathKey] = React.useState(0);
   const [isMathLiveReady, setIsMathLiveReady] = React.useState(false);
   const mathFieldRef = React.useRef<any>(null);
+  
+  // ✨ NEW: State for Supabase data
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [categoryQuestion, setCategoryQuestion] = React.useState<string | null>(null);
+  const [categoryText, setCategoryText] = React.useState<string | null>(null);
+  const [questionText, setQuestionText] = React.useState<string>('');
+  const [answerType, setAnswerType] = React.useState<'multiLine' | 'singleLine' | null>(null);
 
-  // Find the specific category
-  const categoryData = React.useMemo(() => {
-    const topic = defaultTopics.find(t => t.id === topicId);
-    if (topic) {
-      return topic.level.find(q => q.category_id === categoryId);
-    }
-    return null;
-  }, [topicId, categoryId]);
-   
-  // Find the specific question to get category_text
-  const questionData = React.useMemo(() => {
-    if (!categoryData) return null;
-    return categoryData.given_question.find(q => q.question_id === questionId);
-  }, [categoryData, questionId]);
+  // ✨ NEW: Fetch data from Supabase on mount or when IDs change
+  React.useEffect(() => {
+    let isMounted = true;
+    
+    const loadQuestionData = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        console.log(`🔄 Loading question data from Supabase: Topic ${topicId}, Category ${categoryId}, Question ${questionId}`);
+        
+        const data = await fetchCategoryQuestionData(topicId, categoryId, questionId);
+        
+        if (!isMounted) return; // Component unmounted, don't update state
+        
+        if (data) {
+          setCategoryQuestion(data.categoryQuestion);
+          setCategoryText(data.categoryText);
+          setQuestionText(data.questionText);
+          setAnswerType(data.answerType);
+          console.log('✅ Loaded question data from Supabase:', {
+            categoryQuestion: data.categoryQuestion,
+            categoryText: data.categoryText,
+            questionText: data.questionText,
+            answerType: data.answerType
+          });
+        } else {
+          console.warn('⚠️ No data found, falling back to hardcoded data');
+          // Fallback to hardcoded data
+          //loadFallbackData();
+        }
+      } catch (err) {
+        console.error('❌ Error loading from Supabase, using fallback:', err);
+        if (isMounted) {
+          setError('Failed to load question from database');
+          // Fallback to hardcoded data
+          //loadFallbackData();
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
 
-  // Extract values
-  const categoryQuestion = categoryData?.category_question || null;
-  const categoryText = questionData?.category_text || null;
+    /*const loadFallbackData = () => {
+      // Fallback to hardcoded data if Supabase fails
+      const topic = defaultTopics.find(t => t.id === topicId);
+      if (topic) {
+        const category = topic.level.find(q => q.category_id === categoryId);
+        if (category) {
+          const question = category.given_question.find(q => q.question_id === questionId);
+          setCategoryQuestion(category.category_question || null);
+          setCategoryText(question?.category_text || null);
+          setQuestionText(question?.question_text || '');
+        }
+      }
+    }; */
+
+    loadQuestionData();
+    
+    return () => {
+      isMounted = false; // Cleanup flag
+    };
+  }, [topicId, categoryId, questionId]);
 
   // Get the label from answers for conditional rendering
   const answerLabel = React.useMemo(() => {
@@ -110,12 +166,30 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
     return () => window.removeEventListener('load', handleLoad);
   }, []);
 
-  if (!categoryQuestion) {
+  // ✨ SHOW LOADING STATE
+  if (loading) {
+    return (
+      <Card className={cn(
+        "w-auto max-w-full mx-auto rounded-2xl border-2 border-[white] bg-[#5da295] shadow-lg",
+        className
+      )}>
+        <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative text-center">
+          <div className="flex items-center justify-center gap-3 text-white">
+            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span className="font-medium">Loading question...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ✨ SHOW ERROR STATE
+  if (error || !categoryQuestion) {
     return (
       <Card className={cn("w-full max-w-fit mx-auto rounded-2xl border-2 border-red-200 bg-red-50 shadow-lg", className)}>
         <CardContent className="p-4 sm:p-5">
           <Text className="text-red-700 text-left font-semibold">
-            Category question not found for Topic {topicId}, Category {categoryId}.
+            {error || `Category question not found for Topic ${topicId}, Category ${categoryId}.`}
           </Text>
         </CardContent>
       </Card>
@@ -129,9 +203,9 @@ const CategoryQuestion: React.FC<CategoryQuestionProps> = ({
     )}>
       <CardContent className="p-5 sm:p-6 px-8 sm:px-10 relative text-center">
         {/* Show category_text above the question if available */}
-        {categoryText && questionData?.question_text && (
+        {categoryText && questionText && (
           <div className="mb-3 text-white text-opacity-80 text-base font-medium leading-snug text-left">
-            {categoryQuestion} <span className="font-bold text-white">{questionData.question_text}</span>
+            {categoryQuestion} <span className="font-bold text-white">{questionText}</span>
           </div>
         )}
 

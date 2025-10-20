@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Course } from "../components/data/questions/index";
 import { defaultTopics } from "../components/data/questions/index";
-import { progressService, TopicProgress } from "./tugon/services/progressServices";
+import { hybridProgressService } from "../lib/hybridProgressService";
+import { progressService } from "./tugon/services/progressServices";
+import type { TopicProgress, UserProgress } from "./tugon/services/progressServices";
+import { 
+  fetchTopicsWithCategoriesAndQuestions, 
+  convertToLegacyTopicFormat,
+  type SupabaseTopic 
+} from "../lib/supabaseCategories";
 import color from "@/styles/color";
 import { Check, ChevronLeft, ChevronRight, ChevronDown, FileText, CheckCircle, Zap, Play } from "lucide-react";
 
@@ -66,11 +73,65 @@ export default function ProgressMap({
   progress,
   overallStats,
 }: Props) {
-  const [userProgress, setUserProgress] = useState(progressService.getUserProgress());
+  const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [activeTopic, setActiveTopic] = useState(0);
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set()); // Track which categories are expanded
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // ✨ NEW: State for Supabase topics
+  const [supabaseTopics, setSupabaseTopics] = useState<any[]>([]);
+  const [topicsLoading, setTopicsLoading] = useState(true);
+  const [topicsError, setTopicsError] = useState<string | null>(null);
+
+  // ✨ NEW: Load topics from Supabase
+  useEffect(() => {
+    const loadTopics = async () => {
+      setTopicsLoading(true);
+      setTopicsError(null);
+      try {
+        console.log('🔄 Loading topics from Supabase...');
+        const topics = await fetchTopicsWithCategoriesAndQuestions();
+        
+        if (topics && topics.length > 0) {
+          // Convert to legacy format for compatibility with existing code
+          const legacyTopics = topics.map(convertToLegacyTopicFormat);
+          setSupabaseTopics(legacyTopics);
+          console.log('✅ Loaded topics from Supabase:', legacyTopics);
+        } else {
+          console.warn('⚠️ No topics found in Supabase, using hardcoded fallback');
+          setSupabaseTopics(defaultTopics);
+        }
+      } catch (error) {
+        console.error('❌ Error loading topics from Supabase:', error);
+        setTopicsError('Failed to load topics from database');
+        // Fallback to hardcoded topics
+        setSupabaseTopics(defaultTopics);
+      } finally {
+        setTopicsLoading(false);
+      }
+    };
+
+    loadTopics();
+  }, []);
+
+  // Load user progress (works with both localStorage and Supabase)
+  useEffect(() => {
+    const loadProgress = async () => {
+      setIsLoading(true);
+      try {
+        const progress = await Promise.resolve(hybridProgressService.getUserProgress());
+        setUserProgress(progress);
+      } catch (error) {
+        console.error('Failed to load user progress:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProgress();
+  }, []);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -119,6 +180,12 @@ export default function ProgressMap({
   };
 
   const levels: Level[] = useMemo(() => {
+    // ✨ UPDATED: Use supabaseTopics instead of hardcoded defaultTopics
+    const topicsToUse = supabaseTopics.length > 0 ? supabaseTopics : defaultTopics;
+    
+    // 🔍 DEBUG: Log topics structure
+    console.log('📊 Topics to use:', topicsToUse);
+    
     const topicDescriptions = [
       "Learn to wield important tools in number sense and computation.",
       "Master advanced algebraic concepts and problem-solving techniques.",
@@ -127,51 +194,93 @@ export default function ProgressMap({
       "Understand calculus fundamentals and mathematical analysis.",
     ];
 
-    return defaultTopics.map((topic, index) => ({
-      id: topic.id,
-      name: `Level ${topic.id}`,
-      topic: topic.name,
-      description:
-        topicDescriptions[index] ||
-        "Enhance your mathematical thinking and problem-solving abilities.",
-      categories: topic.level.map((category) => {
-        const questions = category.given_question.map((question) => {
-          const progressData = userProgress?.topicProgress
-            ?.find((tp: { topicId: number; categoryProgress: any[] }) => tp.topicId === topic.id)
-            ?.categoryProgress?.find((cp: { categoryId: number }) => cp.categoryId === category.category_id)
-            ?.questionProgress?.find((qp: { questionId: number }) => qp.questionId === question.question_id);
+    return topicsToUse.map((topic, index) => {
+      // ✅ Add null/undefined checks
+      if (!topic || !topic.level || !Array.isArray(topic.level)) {
+        console.warn(`⚠️ Invalid topic structure at index ${index}:`, topic);
+        return {
+          id: topic?.id || index + 1,
+          name: `Level ${topic?.id || index + 1}`,
+          topic: topic?.name || 'Unknown Topic',
+          description: "Topic data unavailable",
+          categories: [],
+        };
+      }
+
+      return {
+        id: topic.id,
+        name: `Level ${topic.id}`,
+        topic: topic.name,
+        description:
+          topic.description || topicDescriptions[index] ||
+          "Enhance your mathematical thinking and problem-solving abilities.",
+        categories: topic.level.map((category: any) => {
+          // ✅ Add null/undefined checks for category
+          if (!category || !category.given_question || !Array.isArray(category.given_question)) {
+            console.warn(`⚠️ Invalid category structure in topic ${topic.id}:`, category);
+            return {
+              categoryId: category?.category_id || 0,
+              categoryName: category?.category_question || 'Unknown Category',
+              categoryTitle: category?.title || '',
+              questions: [],
+              totalQuestions: 0,
+              currentQuestionIndex: 0,
+            };
+          }
+
+          const questions = category.given_question.map((question: any) => {
+            // ✅ Add null/undefined checks for question
+            if (!question) {
+              console.warn(`⚠️ Invalid question in category ${category.category_id}`);
+              return {
+                questionId: 0,
+                questionText: 'Invalid question',
+                isCompleted: false,
+                attempts: 0,
+              };
+            }
+
+            const progressData = userProgress?.topicProgress
+              ?.find((tp: { topicId: number; categoryProgress: any[] }) => tp.topicId === topic.id)
+              ?.categoryProgress?.find((cp: { categoryId: number }) => cp.categoryId === category.category_id)
+              ?.questionProgress?.find((qp: { questionId: number }) => qp.questionId === question.question_id);
+
+            return {
+              questionId: question.question_id,
+              questionText: question.question_text || `Question ${question.question_id}`,
+              isCompleted: progressData?.isCompleted || false,
+              // ✨ FIX: Use latestAttempt.attempts (session-based) instead of cumulative attempts
+              attempts: progressData?.latestAttempt?.attempts || progressData?.currentSessionAttempts || 0,
+            };
+          });
+
+          const currentQuestionIndex = getRandomQuestionIndex(
+            questions,
+            topic.id,
+            category.category_id
+          );
 
           return {
-            questionId: question.question_id,
-            questionText: question.question_text || `Question ${question.question_id}`,
-            isCompleted: progressData?.isCompleted || false,
-            // ✨ FIX: Use latestAttempt.attempts (session-based) instead of cumulative attempts
-            attempts: progressData?.latestAttempt?.attempts || progressData?.currentSessionAttempts || 0,
+            categoryId: category.category_id,
+            categoryName: category.category_question || '',
+            categoryTitle: category.title || '',
+            questions,
+            totalQuestions: questions.length,
+            currentQuestionIndex,
           };
-        });
-
-        const currentQuestionIndex = getRandomQuestionIndex(
-          questions,
-          topic.id,
-          category.category_id
-        );
-
-        return {
-          categoryId: category.category_id,
-          categoryName: category.category_question,
-          categoryTitle: category.title,
-          questions,
-          totalQuestions: questions.length,
-          currentQuestionIndex,
-        };
-      }),
-    }));
-  }, [userProgress]);
+        }),
+      };
+    });
+  }, [userProgress, supabaseTopics]); // ✨ UPDATED: Added supabaseTopics dependency
 
   useEffect(() => {
-    const refreshProgress = () => {
-      const p = progressService.getUserProgress();
-      if (p) setUserProgress(p);
+    const refreshProgress = async () => {
+      try {
+        const p = await Promise.resolve(hybridProgressService.getUserProgress());
+        if (p) setUserProgress(p);
+      } catch (error) {
+        console.error('Failed to refresh progress:', error);
+      }
     };
     refreshProgress();
     window.addEventListener("focus", refreshProgress);
@@ -206,7 +315,7 @@ export default function ProgressMap({
   };
 
   const getCategoryProgress = (topicId: number, categoryId: number) =>
-    progressService.getCategoryStats(topicId, categoryId);
+    hybridProgressService.getCategoryStats(topicId, categoryId);
 
   const getTopicProgress = (topicId: number) =>
     userProgress?.topicProgress?.find((tp: { topicId: number }) => tp.topicId === topicId);
@@ -214,8 +323,8 @@ export default function ProgressMap({
   const getCurrentQuestion = (category: CategoryInfo): QuestionInfo =>
     category.questions[category.currentQuestionIndex] || category.questions[0];
 
-  const getNextQuestionId = (topicId: number, categoryId: number): number => {
-    const categoryStats = progressService.getCategoryStats(topicId, categoryId);
+  const getNextQuestionId = async (topicId: number, categoryId: number): Promise<number> => {
+    const categoryStats = await Promise.resolve(hybridProgressService.getCategoryStats(topicId, categoryId));
     const category = levels
       .find((l) => l.id === topicId)
       ?.categories.find((c) => c.categoryId === categoryId);
@@ -224,7 +333,7 @@ export default function ProgressMap({
     
     // ✨ NEW: If category has been completed before (everCompleted) but isCompleted is false,
     // it means we're starting a fresh replay - start from question 1
-    const categoryProgress = progressService.getCategoryProgress(topicId, categoryId);
+    const categoryProgress = await Promise.resolve(hybridProgressService.getCategoryProgress(topicId, categoryId));
     if (categoryProgress?.everCompleted && !categoryProgress?.isCompleted) {
       console.log(`🔄 Starting fresh replay of Category ${categoryId} from Question 1`);
       return category.questions[0]?.questionId || 1;
@@ -238,6 +347,39 @@ export default function ProgressMap({
     }
     return category.questions[0]?.questionId || 1;
   };
+
+  // ✨ UPDATED: Show loading when either topics or progress is loading
+  if (isLoading || topicsLoading) {
+    return (
+      <div
+        className="w-full max-w-lg mx-auto rounded-3xl p-6 md:p-8"
+        style={{
+          background: "white",
+          border: "1px solid #E6EDF3",
+          boxShadow: `0 12px 28px ${color.mist}22`,
+        }}
+      >
+        <div className="text-center py-16">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center animate-spin">
+            <div className="w-16 h-16 border-4 border-t-transparent rounded-full" 
+                 style={{ borderColor: `${color.teal} ${color.teal} transparent ${color.teal}` }} />
+          </div>
+          <h3 className="text-xl font-semibold mb-2" style={{ color: color.deep }}>
+            {topicsLoading ? 'Loading Topics...' : 'Loading Progress...'}
+          </h3>
+          <p className="text-sm" style={{ color: color.steel }}>
+            Please wait while we fetch your learning data
+          </p>
+          {topicsError && (
+            <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200">
+              <p className="text-sm text-red-600">{topicsError}</p>
+              <p className="text-xs text-red-500 mt-1">Using fallback data...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (levels.length === 0) {
     return (
@@ -268,7 +410,6 @@ export default function ProgressMap({
   if (isMobile) {
     const currentLevel = levels[activeTopic];
     const currentTopicProgress = getTopicProgress(currentLevel?.id);
-    const stats = overallStats || progressService.getStatistics();
 
     return (
       <div
@@ -423,8 +564,8 @@ export default function ProgressMap({
                         </div>
 
                         <button
-                          onClick={() => {
-                            const nextQuestionId = getNextQuestionId(currentLevel.id, category.categoryId);
+                          onClick={async () => {
+                            const nextQuestionId = await getNextQuestionId(currentLevel.id, category.categoryId);
                             onStartStage?.(currentLevel.id, category.categoryId, nextQuestionId);
                           }}
                           className="py-2 px-4 rounded-xl font-bold text-sm transition-all duration-300 transform hover:scale-105 active:scale-95 shadow hover:shadow-md text-white"
@@ -474,8 +615,8 @@ export default function ProgressMap({
 
                   {/* CTA */}
                     <button
-                      onClick={() => {
-                        const nextQuestionId = getNextQuestionId(currentLevel.id, category.categoryId);
+                      onClick={async () => {
+                        const nextQuestionId = await getNextQuestionId(currentLevel.id, category.categoryId);
                         onStartStage?.(currentLevel.id, category.categoryId, nextQuestionId);
                       }}
                       className="w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-transform active:scale-95"
@@ -722,7 +863,6 @@ export default function ProgressMap({
                     <div className="p-5 space-y-5">
                       {level.categories.map((category) => {
                         const categoryProgress = getCategoryProgress(level.id, category.categoryId);
-                        const currentQuestion = getCurrentQuestion(category);
                         const hasProgress = !!categoryProgress && categoryProgress.attempts > 0;
                         const completionPercentage = categoryProgress
                           ? (categoryProgress.correctAnswers / category.totalQuestions) * 100
@@ -795,8 +935,8 @@ export default function ProgressMap({
 
                             {/* CTA */}
                             <button
-                              onClick={() => {
-                                const nextQuestionId = getNextQuestionId(level.id, category.categoryId);
+                              onClick={async () => {
+                                const nextQuestionId = await getNextQuestionId(level.id, category.categoryId);
                                 onStartStage?.(level.id, category.categoryId, nextQuestionId);
                               }}
                               className="w-full py-3.5 px-6 rounded-xl font-bold text-sm transition-transform active:scale-95"
