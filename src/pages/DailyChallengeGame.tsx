@@ -2,18 +2,22 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Timer, RefreshCcw, Flame, Heart, Lightbulb,
-  Share2, Home, CheckCircle2, XCircle, ChevronRight
+  Share2, Home, CheckCircle2, XCircle, ChevronRight, X
 } from "lucide-react";
 import Confetti from "react-confetti";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import color from "../styles/color";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 
+/* 🔊 Audio assets (same set used in Quiz) */
+import bgmSrc from "../components/assets/sound/BGM 5.mp3";
+import sfxCorrectSrc from "../components/assets/sound/Correct 4.mp3";
+import sfxWrongSrc from "../components/assets/sound/wrong.mp3";
+import sfxFinishSrc from "../components/assets/sound/Finish.mp3";
+
 /* ============================
    Math formatting helpers
-   - ^ and ^{...} → superscripts (unicode)
-   - log_{...}    → subscript
 ============================= */
 const SUPERSCRIPT_MAP: Record<string, string> = {
   "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
@@ -91,36 +95,36 @@ type Question = {
 };
 
 const BANK: Question[] = [
-  { question: "Evaluate f(x)=2x+3 at x=5.", options: ["10","11","13","15"], answer:"13", hint:"Multiply then add.", explanation:"f(5) = 2·5 + 3 = 13." },
+  { question: "Evaluate the function f(x)=2x+3 when x=5.", options: ["10","11","13","15"], answer:"13", hint:"Multiply then add.", explanation:"f(5) = 2·5 + 3 = 13." },
   { question: "Solve: log_{2}(8) = ?", options:["2","3","4","8"], answer:"3", hint:"2^? = 8", explanation:"2^3 = 8 → log_{2}(8)=3." },
-  { question: "Domain of 1/(x−2):", options:["x≠2","x≥2","All real","x<2"], answer:"x≠2", hint:"Denominator ≠ 0.", explanation:"x−2≠0 ⇒ x≠2." },
-  { question: "If f(x)=x^2, compute f(−3).", options:["−9","9","−6","3"], answer:"9", hint:"Square removes sign.", explanation:"(−3)^2 = 9." },
-  { question: "g(x)=3x−4. Solve g(x)=11.", options:["x=5","x=3","x=7","x=−5"], answer:"x=5", hint:"3x−4=11.", explanation:"3x=15 ⇒ x=5." },
-  { question: "Domain of √(x−1):", options:["x≥1","x>1","x≤1","All real"], answer:"x≥1", hint:"Inside root ≥ 0.", explanation:"x−1≥0 ⇒ x≥1." },
-  { question: "|x−2| at x=−1:", options:["1","2","3","4"], answer:"3", hint:"Distance from 2.", explanation:"|−1−2|=3." },
-  { question: "h(x)=x^3. h(−2)=", options:["8","−8","4","−4"], answer:"−8", hint:"Odd powers keep sign.", explanation:"(−2)^3=−8." },
-  { question: "log_{10}(1000) =", options:["1","2","3","10"], answer:"3", hint:"10^?=1000", explanation:"10^3=1000." },
-  { question: "e^0 =", options:["0","1","e","undefined"], answer:"1", hint:"Any a^0=1.", explanation:"e^0=1." },
-  { question: "Inverse of f(x)=x+5", options:["x−5","x/5","5x","x+5"], answer:"x−5", hint:"Undo +5.", explanation:"Inverse subtracts 5." },
-  { question: "Inverse of f(x)=2x", options:["x/2","x−2","2x+1","x+2"], answer:"x/2", hint:"Undo ×2.", explanation:"Divide by 2." },
-  { question: "f(x)=x+1, g(x)=2x. (f∘g)(3) =", options:["5","6","7","8"], answer:"7", hint:"g(3)=6; f(6)=7.", explanation:"(f∘g)(3)=f(2·3)=7." },
-  { question: "(g∘f)(3), f(x)=x+1, g(x)=2x", options:["6","7","8","10"], answer:"8", hint:"f(3)=4; g(4)=8.", explanation:"2·(3+1)=8." },
-  { question: "Piecewise f(x)=x^2 (x≤0); f(x)=x (x>0). f(−2)=", options:["−2","2","4","0"], answer:"4", hint:"Use branch.", explanation:"x≤0 ⇒ (−2)^2=4." },
-  { question: "Same f. f(2)=", options:["−2","2","4","0"], answer:"2", hint:"Use x>0 branch.", explanation:"f(2)=2." },
-  { question: "HA of (2x^2+3)/(x^2−1):", options:["y=0","y=1","y=2","none"], answer:"y=2", hint:"Same degree ⇒ ratio of leads.", explanation:"(2x^2)/(x^2)⇒2." },
-  { question: "VA of (x+1)/(x^2−1):", options:["x=−1","x=1","x=±1","none"], answer:"x=±1", hint:"Denominator zero.", explanation:"x=±1." },
-  { question: "Solve 2^x=16", options:["2","3","4","5"], answer:"4", hint:"2^4=16.", explanation:"x=4." },
+  { question: "Find the domain of the function f(x) = 1/(x−2).", options:["x≠2","x≥2","All real","x<2"], answer:"x≠2", hint:"Denominator ≠ 0.", explanation:"x−2≠0 ⇒ x≠2." },
+  { question: "Compute the value of f(-3) if f(x)=x^2.", options:["−9","9","−6","3"], answer:"9", hint:"Square removes sign.", explanation:"(−3)^2 = 9." },
+  { question: "Given g(x)=3x−4. Solve for x when g(x)=11.", options:["x=5","x=3","x=7","x=−5"], answer:"x=5", hint:"3x−4=11.", explanation:"3x=15 ⇒ x=5." },
+  { question: "Determine the domain of √(x−1).", options:["x≥1","x>1","x≤1","All real"], answer:"x≥1", hint:"Inside root ≥ 0.", explanation:"x−1≥0 ⇒ x≥1." },
+  { question: "Evaluate |x−2| when x=−1.", options:["1","2","3","4"], answer:"3", hint:"Distance from 2.", explanation:"|−1−2|=3." },
+  { question: "If h(x)=x^3, find h(−2).", options:["8","−8","4","−4"], answer:"−8", hint:"Odd powers keep sign.", explanation:"(−2)^3=−8." },
+  { question: "Evaluate log_{10}(1000) =", options:["1","2","3","10"], answer:"3", hint:"10^?=1000", explanation:"10^3=1000." },
+  { question: "Evaluate e^0 =", options:["0","1","e","undefined"], answer:"1", hint:"Any a^0=1.", explanation:"e^0=1." },
+  { question: "Find the inverse of the function f(x)=x+5.", options:["x−5","x/5","5x","x+5"], answer:"x−5", hint:"Undo +5.", explanation:"Inverse subtracts 5." },
+  { question: "Find the inverse of the function f(x)=2x", options:["x/2","x−2","2x+1","x+2"], answer:"x/2", hint:"Undo ×2.", explanation:"Divide by 2." },
+  { question: "Given f(x)=x+1 and g(x)=2x, find (f∘g)(3).", options:["5","6","7","8"], answer:"7", hint:"g(3)=6; f(6)=7.", explanation:"(f∘g)(3)=f(2·3)=7." },
+  { question: "Given f(x)=x+1 and g(x)=2x, find (g∘f)(3).", options:["6","7","8","10"], answer:"8", hint:"f(3)=4; g(4)=8.", explanation:"2·(3+1)=8." },
+  { question: "Given the piecewise function f(x)=x^2 (x≤0); f(x)=x (x>0). Find f(−2).", options:["−2","2","4","0"], answer:"4", hint:"Use branch.", explanation:"x≤0 ⇒ (−2)^2=4." },
+  { question: "Given the piecewise function f(x)=x^2 (x≤0); f(x)=x (x>0). Find f(2).", options:["−2","2","4","0"], answer:"2", hint:"Use x>0 branch.", explanation:"f(2)=2." },
+  { question: "Determine the horizontal asymptote of (2x^2+3)/(x^2−1)", options:["y=0","y=1","y=2","none"], answer:"y=2", hint:"Same degree ⇒ ratio of leads.", explanation:"(2x^2)/(x^2)⇒2." },
+  { question: "Fine the vertical asymptote of the function f(x)=(x+1)/(x^2−1).", options:["x=−1","x=1","x=±1","none"], answer:"x=±1", hint:"Denominator zero.", explanation:"x=±1." },
+  { question: "Solve for x in the equation 2^x=16.", options:["2","3","4","5"], answer:"4", hint:"2^4=16.", explanation:"x=4." },
   { question: "log_{3}(27)=", options:["2","3","4","9"], answer:"3", hint:"3^3=27.", explanation:"=3." },
-  { question: "Range of f(x)=x^2:", options:["x≥0","y≥0","y≤0","all y"], answer:"y≥0", hint:"Square ≥0.", explanation:"Outputs ≥0." },
-  { question: "Domain of ln(x−1):", options:["x>1","x≥1","x≠1","x<1"], answer:"x>1", hint:"ln needs positive input.", explanation:"x−1>0." },
-  { question: "Zero of f(x)=x−7:", options:["x=0","x=1","x=7","x=−7"], answer:"x=7", hint:"Solve x−7=0.", explanation:"x=7." },
-  { question: "Domain of 1/x^2:", options:["x≠0","x>0","all x","x≥0"], answer:"x≠0", hint:"Denominator ≠0.", explanation:"x≠0." },
-  { question: "HA of (3x+1)/(x−4):", options:["y=0","y=1","y=3","none"], answer:"y=3", hint:"Same degree.", explanation:"3/1 ⇒ y=3." },
-  { question: "Slant asymptote of (x^2+1)/(x−1):", options:["y=x","y=x+1","y=x−1","y=1"], answer:"y=x+1", hint:"Divide poly.", explanation:"Quotient x+1." },
-  { question: "Solve x^2=25", options:["x=5","x=±5","x=−5","x=25"], answer:"x=±5", hint:"Square roots ±.", explanation:"±5." },
-  { question: "Solve |x|=7", options:["x=7","x=−7","x=±7","x=0"], answer:"x=±7", hint:"Distance 7.", explanation:"x=7 or x=−7." },
-  { question: "Derivative of x^2:", options:["1","x","2x","x^3"], answer:"2x", hint:"Power rule.", explanation:"d/dx x^n = nx^{n−1}." },
-  { question: "∫ 2x dx =", options:["x^2","x^2+C","2x^2","x+C"], answer:"x^2+C", hint:"Reverse power rule.", explanation:"(2/2)x^2 + C." },
+  { question: "Find the range of the function f(x)=x^2.", options:["x≥0","y≥0","y≤0","all y"], answer:"y≥0", hint:"Square ≥0.", explanation:"Outputs ≥0." },
+  { question: "Find the domain of the function f(x)=ln(x−1).", options:["x>1","x≥1","x≠1","x<1"], answer:"x>1", hint:"ln needs positive input.", explanation:"x−1>0." },
+  { question: "Find the zero of the function f(x)=x−7.", options:["x=0","x=1","x=7","x=−7"], answer:"x=7", hint:"Solve x−7=0.", explanation:"x=7." },
+  { question: "Find the domain of the function f(x)=1/x^2.", options:["x≠0","x>0","all x","x≥0"], answer:"x≠0", hint:"Denominator ≠0.", explanation:"x≠0." },
+  { question: "Find the horizontal asymptote of the function f(x)=(3x+1)/(x−4).", options:["y=0","y=1","y=3","none"], answer:"y=3", hint:"Same degree.", explanation:"3/1 ⇒ y=3." },
+  { question: "Find the slant asymptote of the function f(x)=(x^2+1)/(x−1).", options:["y=x","y=x+1","y=x−1","y=1"], answer:"y=x+1", hint:"Divide poly.", explanation:"Quotient x+1." },
+  { question: "Solve for x in the equation x^2=25.", options:["x=5","x=±5","x=−5","x=25"], answer:"x=±5", hint:"Square roots ±.", explanation:"±5." },
+  { question: "Solve for x in the equation |x|=7.", options:["x=7","x=−7","x=±7","x=0"], answer:"x=±7", hint:"Distance 7.", explanation:"x=7 or x=−7." },
+  { question: "Find the derivative of the function f(x)=x^2.", options:["1","x","2x","x^3"], answer:"2x", hint:"Power rule.", explanation:"d/dx x^n = nx^{n−1}." },
+  { question: "find the ∫ 2x dx =", options:["x^2","x^2+C","2x^2","x+C"], answer:"x^2+C", hint:"Reverse power rule.", explanation:"(2/2)x^2 + C." },
 ];
 
 /* ============================
@@ -134,10 +138,87 @@ function shuffle<T>(arr: T[]) { return [...arr].sort(() => Math.random() - 0.5);
 const today = () => new Date().toISOString().slice(0, 10);
 
 /* ============================
+   Small components
+============================= */
+function Pill({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+      style={{ background: "#ffffff22", border: "1px solid #ffffff44" }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function ConfirmLeaveModal({
+  open,
+  onCancel,
+  onConfirm
+}: { open: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          aria-modal
+          role="dialog"
+        >
+          <div className="absolute inset-0 backdrop-blur bg-black/30" />
+          <motion.div
+            className="relative w-full max-w-md rounded-2xl shadow-2xl"
+            initial={{ scale: 0.95, y: 8, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.95, y: 8, opacity: 0 }}
+            style={{ background: "#fff", border: `1px solid ${color.mist}` }}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: color.mist }}>
+              <h3 className="font-bold text-lg" style={{ color: color.deep }}>Leave this page?</h3>
+              <button onClick={onCancel} className="p-1 rounded hover:bg-black/5">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-5 py-4 text-sm" style={{ color: color.steel }}>
+              Your current daily challenge progress is saved, but you’ll lose your timer and flow. Are you sure you want to leave?
+            </div>
+            <div className="px-5 pb-5 flex gap-3 justify-end">
+              <button
+                onClick={onCancel}
+                className="rounded-xl px-4 py-2 font-semibold border"
+                style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+              >
+                Stay
+              </button>
+              <button
+                onClick={onConfirm}
+                className="rounded-xl px-4 py-2 font-semibold"
+                style={{ background: color.teal, color: "#fff" }}
+              >
+                Leave page
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* ============================
    Component
 ============================= */
 export default function DailyChallengeGame() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // 🔊 Audio refs
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const sfxCorrectRef = useRef<HTMLAudioElement | null>(null);
+  const sfxWrongRef = useRef<HTMLAudioElement | null>(null);
+  const sfxFinishRef = useRef<HTMLAudioElement | null>(null);
 
   // Confetti sizing
   const [vw, setVw] = useState(0);
@@ -161,7 +242,54 @@ export default function DailyChallengeGame() {
   const [showHint, setShowHint] = useState(false);
   const [confetti, setConfetti] = useState(false);
 
+  // Leave guards
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const pendingPathRef = useRef<string | null>(null);
+
   const currentQ = deck[index];
+
+  /* ------------ AUDIO: init & strict autoplay like Quiz ------------ */
+  useEffect(() => {
+    const bgm = new Audio(bgmSrc);
+    bgm.loop = true;
+    bgm.preload = "auto";
+    bgm.volume = 0.25;
+    bgmRef.current = bgm;
+
+    const sfxCorrect = new Audio(sfxCorrectSrc);
+    sfxCorrect.preload = "auto";
+    sfxCorrect.volume = 0.85;
+    sfxCorrectRef.current = sfxCorrect;
+
+    const sfxWrong = new Audio(sfxWrongSrc);
+    sfxWrong.preload = "auto";
+    sfxWrong.volume = 0.85;
+    sfxWrongRef.current = sfxWrong;
+
+    const sfxFinish = new Audio(sfxFinishSrc);
+    sfxFinish.preload = "auto";
+    sfxFinish.volume = 0.95;
+    sfxFinishRef.current = sfxFinish;
+
+    // STRICT autoplay attempt (no gesture fallback)
+    bgm.play().catch((err) => {
+      console.warn("BGM autoplay was blocked:", err);
+    });
+
+    return () => {
+      try { bgm.pause(); } catch {}
+      bgmRef.current = null;
+      sfxCorrectRef.current = null;
+      sfxWrongRef.current = null;
+      sfxFinishRef.current = null;
+    };
+  }, []);
+
+  const playCorrectSfx = () => { try { if (sfxCorrectRef.current){ sfxCorrectRef.current.currentTime = 0; sfxCorrectRef.current.play(); } } catch {} };
+  const playWrongSfx   = () => { try { if (sfxWrongRef.current)  { sfxWrongRef.current.currentTime   = 0; sfxWrongRef.current.play();   } } catch {} };
+  const playFinishSfx  = () => { try { if (sfxFinishRef.current) { sfxFinishRef.current.currentTime  = 0; sfxFinishRef.current.play();  } } catch {} };
+  const stopBgm        = () => { try { bgmRef.current?.pause(); } catch {} };
+  const startBgm       = () => { try { bgmRef.current?.play(); } catch {} };
 
   // Timer
   useEffect(() => {
@@ -174,7 +302,7 @@ export default function DailyChallengeGame() {
   // Keyboard shortcuts 1..4
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!currentQ || result) return;
+      if (!currentQ || result || lives <= 0) return;
       const num = Number(e.key);
       if (num >= 1 && num <= currentQ.options.length) {
         handleAnswer(currentQ.options[num - 1]);
@@ -182,7 +310,7 @@ export default function DailyChallengeGame() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [currentQ, result]);
+  }, [currentQ, result, lives]);
 
   // ---------- Supabase persistence ----------
   const saveRun = async (s: number, st: number, h: number) => {
@@ -195,7 +323,6 @@ export default function DailyChallengeGame() {
           { onConflict: "user_id,run_date" }
         );
     } catch (e) {
-      // silent fail is fine; we try again later
       console.warn("Save failed (will retry later)", e);
     }
   };
@@ -217,6 +344,17 @@ export default function DailyChallengeGame() {
     };
   }, [score, streak, lives]);
 
+  // Browser-level leave confirm (refresh/close/back)
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
   // ---------- Core interactions ----------
   const handleAnswer = (opt: string | null) => {
     if (!currentQ || result) return;
@@ -225,18 +363,27 @@ export default function DailyChallengeGame() {
     const correct = opt === currentQ.answer;
 
     if (correct) {
+      playCorrectSfx();
       setScore((s) => s + XP_CORRECT + Math.max(0, streak * 2));
       setStreak((s) => s + 1);
       setResult("correct");
       setConfetti(true);
       setTimeout(() => setConfetti(false), 1000);
     } else {
+      playWrongSfx();
       setResult("wrong");
       setStreak(0);
-      setLives((h) => Math.max(0, h - 1));
+      // compute upcoming hearts to know if we finished
+      const newLives = Math.max(0, lives - 1);
+      setLives(newLives);
+      if (newLives === 0) {
+        // finish moment: play finish sound and stop bgm
+        playFinishSfx();
+        stopBgm();
+      }
     }
 
-    // Save right after each answer as well
+    // Save immediately
     const nextScore = correct ? (score + XP_CORRECT + Math.max(0, streak * 2)) : score;
     const nextStreak = correct ? (streak + 1) : 0;
     const nextHearts = correct ? lives : Math.max(0, lives - 1);
@@ -244,9 +391,7 @@ export default function DailyChallengeGame() {
   };
 
   const nextQuestion = () => {
-    // If out of hearts, let the student choose to continue (refill) or leave.
     if (lives <= 0) return;
-
     setIndex((i) => (i + 1) % deck.length); // endless loop
     setSelected(null);
     setResult(null);
@@ -260,8 +405,9 @@ export default function DailyChallengeGame() {
     setResult(null);
     setShowHint(false);
     setTimeLeft(TIME_PER_Q);
-    // advance to keep sense of progress
     setIndex((i) => (i + 1) % deck.length);
+    // resume bgm when continuing after finish
+    startBgm();
   };
 
   const restart = () => {
@@ -275,55 +421,135 @@ export default function DailyChallengeGame() {
     setResult(null);
     setShowHint(false);
     setConfetti(false);
+    startBgm(); // ensure bgm running after full restart
   };
+
+  // Intercept internal navigation to show modal
+  const tryNavigate = (path: string) => {
+    pendingPathRef.current = path;
+    setConfirmOpen(true);
+  };
+  const confirmLeave = () => {
+    setConfirmOpen(false);
+    const target = pendingPathRef.current;
+    pendingPathRef.current = null;
+    try { stopBgm(); } catch {}
+    if (target) navigate(target);
+  };
+
+  const timerPct = Math.max(0, Math.min(100, (timeLeft / TIME_PER_Q) * 100));
+
+  /* -------------------
+     Polished styling
+  --------------------*/
+  const cardBg =
+    "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(253,253,255,1) 40%, rgba(248,250,252,1) 100%)";
+  const cardBorder = `${color.mist}55`;
+  const glassBg =
+    `radial-gradient(80% 60% at 50% 0%, ${color.aqua}12 0%, transparent 60%), linear-gradient(to bottom, ${color.mist}10, ${color.ocean}08)`;
 
   return (
     <div
       className="min-h-screen flex flex-col items-center px-4 py-8"
-      style={{ background: `radial-gradient(80% 60% at 50% 0%, ${color.aqua}14 0%, transparent 60%), linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)` }}
+      style={{ background: glassBg }}
     >
       <AnimatePresence>
         {confetti && (
-          <Confetti width={vw} height={vh} recycle={false} numberOfPieces={220} />
+          <Confetti width={vw} height={vh} recycle={false} numberOfPieces={260} />
         )}
       </AnimatePresence>
 
       {/* Sticky HUD */}
       <div
-        className="sticky top-0 z-10 w-full max-w-3xl rounded-2xl shadow-lg backdrop-blur mb-6"
-        style={{ background: `linear-gradient(120deg, ${color.teal}, ${color.aqua})`, color: "#fff" }}
+        className="sticky top-0 z-10 w-full max-w-3xl rounded-2xl shadow-xl backdrop-blur mb-6 ring-1"
+        style={{
+          background: `linear-gradient(120deg, ${color.teal}, ${color.aqua})`,
+          color: "#fff",
+          borderColor: "#ffffff26",
+          boxShadow: "0 18px 36px rgba(0,0,0,.12)"
+        }}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 text-sm md:text-base">
-          <div className="flex items-center gap-2"><Trophy className="h-5 w-5" /> <span className="font-semibold">{score}</span></div>
-          <div className="flex items-center gap-2"><Flame className="h-5 w-5" /> <span className="font-semibold">{streak}</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-4 pb-3 text-sm md:text-base">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-5 w-5" />
+            <span className="font-semibold">{score}</span>
+            <Pill>Score</Pill>
+          </div>
+          <div className="flex items-center gap-2">
+            <Flame className="h-5 w-5" />
+            <span className="font-semibold">{streak}</span>
+            <Pill>Streak</Pill>
+          </div>
           <div className="flex items-center gap-2">
             {[...Array(MAX_LIVES)].map((_, i) => (
-              <Heart key={i} className="h-5 w-5" style={{ color: i < lives ? "#ff6b6b" : "#ffffff88" }} fill={i < lives ? "#ff6b6b" : "none"} />
+              <Heart
+                key={i}
+                className="h-5 w-5"
+                style={{ color: i < lives ? "#ff6b6b" : "#ffffff88" }}
+                fill={i < lives ? "#ff6b6b" : "none"}
+              />
             ))}
+            <Pill>Lives</Pill>
           </div>
-          <div className="flex items-center gap-2"><Timer className="h-5 w-5" /> <span className="font-semibold">{timeLeft}s</span></div>
+          <div className="flex items-center gap-2">
+            <Timer className="h-5 w-5" />
+            <span className="font-semibold">{timeLeft}s</span>
+            <Pill>Timer</Pill>
+          </div>
+        </div>
+
+        {/* Timer progress bar */}
+        <div className="h-2 w-full rounded-b-2xl overflow-hidden bg-white/22">
+          <motion.div
+            className="h-full"
+            style={{ background: "#fff" }}
+            initial={{ width: "0%" }}
+            animate={{ width: `${timerPct}%` }}
+            transition={{ ease: "linear", duration: 0.2 }}
+          />
         </div>
       </div>
 
       {/* Question Card */}
       <motion.div
-        className="w-full max-w-3xl rounded-3xl shadow-xl ring-1 overflow-hidden"
-        style={{ background: "#fff", borderColor: `${color.mist}55` }}
+        className="w-full max-w-3xl rounded-3xl overflow-hidden ring-1 shadow-2xl"
+        style={{
+          background: cardBg,
+          borderColor: cardBorder,
+          boxShadow:
+            "0 24px 50px rgba(2,12,27,0.10), inset 0 0 0 1px rgba(255,255,255,0.5)"
+        }}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
       >
+        {/* Decorative top bar */}
+        <div
+          className="h-1 w-full"
+          style={{ background: `linear-gradient(90deg, ${color.teal}, ${color.aqua})` }}
+        />
+
         {/* Header */}
         <div className="px-6 pt-6">
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-xl md:text-2xl font-bold leading-snug" style={{ color: color.deep }}>
+            <h2
+              className="text-xl md:text-2xl font-extrabold leading-snug"
+              style={{
+                color: color.deep,
+                textWrap: "balance"
+              }}
+            >
               {currentQ ? renderMath(currentQ.question) : "Loading…"}
             </h2>
 
             {currentQ?.hint && (
               <button
                 onClick={() => setShowHint((v) => !v)}
-                className="inline-flex items-center gap-2 text-xs md:text-sm px-3 py-1.5 rounded-full"
-                style={{ background: `${color.mist}22`, color: color.steel, border: `1px solid ${color.mist}55` }}
+                className="inline-flex items-center gap-2 text-xs md:text-sm px-3 py-1.5 rounded-full shadow-sm transition"
+                style={{
+                  background: "#fff",
+                  color: color.steel,
+                  border: `1px solid ${color.mist}`
+                }}
               >
                 <Lightbulb className="h-4 w-4" />
                 {showHint ? "Hide hint" : "Hint"}
@@ -339,7 +565,10 @@ export default function DailyChallengeGame() {
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 className="mt-3 overflow-hidden rounded-xl"
-                style={{ background: `${color.mist}15`, border: `1px dashed ${color.mist}` }}
+                style={{
+                  background: `${color.mist}15`,
+                  border: `1px dashed ${color.mist}`
+                }}
               >
                 <div className="px-4 py-3 text-sm" style={{ color: color.steel }}>
                   {renderMath(currentQ.hint)}
@@ -357,6 +586,7 @@ export default function DailyChallengeGame() {
                 const isChosen = selected === opt;
                 const isCorrect = result && opt === currentQ.answer;
                 const isWrong = result && isChosen && opt !== currentQ.answer;
+                const letter = String.fromCharCode(65 + idx);
 
                 return (
                   <motion.button
@@ -364,15 +594,32 @@ export default function DailyChallengeGame() {
                     whileTap={{ scale: 0.98 }}
                     onClick={() => lives > 0 && handleAnswer(opt)}
                     disabled={!!result || lives <= 0}
-                    className="w-full text-left rounded-xl px-4 py-3 font-medium shadow-sm border transition"
+                    className="w-full text-left rounded-xl px-4 py-3 font-medium border transition group focus:outline-none focus:ring-2"
                     style={{
                       background: isCorrect ? "#e8f9f0" : isWrong ? "#fdecec" : "#fff",
                       color: isCorrect ? "#117a53" : isWrong ? "#8f1a1a" : color.deep,
                       borderColor: isCorrect ? "#2ecc71" : isWrong ? "#e74c3c" : `${color.mist}`,
+                      boxShadow: isCorrect
+                        ? "0 8px 20px rgba(46, 204, 113,.15)"
+                        : isWrong
+                        ? "0 8px 20px rgba(231, 76, 60,.15)"
+                        : "0 1px 10px rgba(16,24,40,0.06)"
                     }}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span>{renderMath(opt)}</span>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold border"
+                          style={{
+                            borderColor: isCorrect ? "#2ecc71" : isWrong ? "#e74c3c" : color.mist,
+                            background: isCorrect ? "#2ecc71" : isWrong ? "#e74c3c" : "#f8fafc",
+                            color: isCorrect || isWrong ? "#fff" : "#0f172a"
+                          }}
+                        >
+                          {letter}
+                        </span>
+                        <span>{renderMath(opt)}</span>
+                      </div>
                       {isCorrect && <CheckCircle2 className="h-5 w-5" style={{ color: "#2ecc71" }} />}
                       {isWrong && <XCircle className="h-5 w-5" style={{ color: "#e74c3c" }} />}
                     </div>
@@ -408,7 +655,10 @@ export default function DailyChallengeGame() {
                   whileTap={{ scale: 0.98 }}
                   onClick={nextQuestion}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm"
-                  style={{ background: color.teal, color: "#fff" }}
+                  style={{
+                    background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                    color: "#fff"
+                  }}
                 >
                   Continue
                   <ChevronRight className="h-4 w-4" />
@@ -419,7 +669,14 @@ export default function DailyChallengeGame() {
 
           {/* Out of hearts panel */}
           {lives <= 0 && (
-            <div className="mt-6 rounded-2xl border p-5 text-center" style={{ borderColor: `${color.mist}` }}>
+            <div
+              className="mt-6 rounded-2xl border p-5 text-center ring-1"
+              style={{
+                borderColor: `${color.mist}`,
+                background: "#fff",
+                boxShadow: "0 18px 40px rgba(0,0,0,.08)"
+              }}
+            >
               <div className="text-lg font-semibold mb-1" style={{ color: color.deep }}>
                 You’re out of hearts 💔
               </div>
@@ -430,18 +687,27 @@ export default function DailyChallengeGame() {
                 <button
                   onClick={refillHeartsAndContinue}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm"
-                  style={{ background: color.teal, color: "#fff" }}
+                  style={{
+                    background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                    color: "#fff",
+                    boxShadow: "0 10px 20px rgba(0,0,0,.12)"
+                  }}
                 >
                   Keep going (refill)
                 </button>
-                <Link
-                  to="/studentDashboard"
+                {/* Intercept link with confirm modal */}
+                <button
+                  onClick={() => tryNavigate("/studentDashboard")}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm border"
-                  style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+                  style={{
+                    background: "#fff",
+                    color: color.deep,
+                    borderColor: color.mist
+                  }}
                 >
                   <Home className="h-4 w-4" />
                   Back to Dashboard
-                </Link>
+                </button>
               </div>
             </div>
           )}
@@ -457,18 +723,27 @@ export default function DailyChallengeGame() {
 
       {/* Bottom actions */}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        <Link
-          to="/studentDashboard"
+        {/* Intercept navigation instead of plain Link */}
+        <button
+          onClick={() => tryNavigate("/studentDashboard")}
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm border"
-          style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+          style={{
+            background: "#fff",
+            color: color.deep,
+            borderColor: color.mist
+          }}
         >
           <Home className="h-4 w-4" />
           Dashboard
-        </Link>
+        </button>
         <button
           onClick={restart}
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm"
-          style={{ background: color.teal, color: "#fff" }}
+          style={{
+            background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+            color: "#fff",
+            boxShadow: "0 10px 20px rgba(0,0,0,.12)"
+          }}
         >
           <RefreshCcw className="h-4 w-4" />
           Restart
@@ -476,19 +751,32 @@ export default function DailyChallengeGame() {
         <button
           onClick={() => {
             if (navigator.share) {
-              navigator.share({ title: "Tugon Daily Challenge", text: `I scored ${score}`, url: window.location.href }).catch(() => {});
+              navigator
+                .share({ title: "Tugon Daily Challenge", text: `I scored ${score}`, url: window.location.href })
+                .catch(() => {});
             } else {
               navigator.clipboard.writeText(`I scored ${score} on Tugon!`).catch(() => {});
               alert("Copied text — share with your friends!");
             }
           }}
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-sm border"
-          style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+          style={{
+            background: "#fff",
+            color: color.deep,
+            borderColor: color.mist
+          }}
         >
           <Share2 className="h-4 w-4" />
           Share
         </button>
       </div>
+
+      {/* Confirm-leave modal */}
+      <ConfirmLeaveModal
+        open={confirmOpen}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={confirmLeave}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Trophy, Sword } from "lucide-react";
+import { Trophy, Sword, FileText } from "lucide-react"; // ← added FileText
 import { useAuth } from "../hooks/useAuth";
 import color from "../styles/color";
 
@@ -93,7 +93,6 @@ function NavItem({
   );
 }
 
-
 function StudentNavbar({ className = "" }: { className?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -127,7 +126,6 @@ function StudentNavbar({ className = "" }: { className?: string }) {
               <span className="text-2xl font-bold tracking-tight truncate" style={{ color: color.deep }}>
                 Tugon
               </span>
-
             </Link>
           </div>
 
@@ -138,6 +136,12 @@ function StudentNavbar({ className = "" }: { className?: string }) {
                 <NavItem to="/studentDashboard" onNavigate={closeMenuOnNavigate}>
                   Dashboard
                 </NavItem>
+
+                {/* NEW: Topics link */}
+                <NavItem to="/student/topics" onNavigate={closeMenuOnNavigate} icon={<FileText className="h-4 w-4" />}>
+                  Topics
+                </NavItem>
+
                 <NavItem to="/tugonSense" onNavigate={closeMenuOnNavigate}>
                   TugonSense
                 </NavItem>
@@ -234,6 +238,12 @@ function StudentNavbar({ className = "" }: { className?: string }) {
                 <NavItem to="/studentDashboard" onNavigate={closeMenuOnNavigate}>
                   Dashboard
                 </NavItem>
+
+                {/* NEW: Topics link (mobile) */}
+                <NavItem to="/student/topics" onNavigate={closeMenuOnNavigate} icon={<FileText className="h-4 w-4" />}>
+                  Topics
+                </NavItem>
+
                 <NavItem to="/tugonSense" onNavigate={closeMenuOnNavigate}>
                   TugonSense
                 </NavItem>

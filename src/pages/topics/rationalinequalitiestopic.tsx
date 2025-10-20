@@ -71,7 +71,7 @@ function RationalEquationsInequalities() {
       <main className="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-12">
         {/* Rational Equations */}
         <section className="space-y-6">
-          <div className="rounded-2xl border bg-white p-6 md:p-7 -mt-8" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+          <div className="relative -mt-8 z-10 rounded-2xl border bg-white p-6 md:p-7" style={{ ...cardBorder, boxShadow: subtleShadow }}>
             <h2 className="text-2xl font-bold mb-2" style={{ color: color.deep }}>Rational Equations</h2>
             <p style={{ color: color.steel }}>
               A <strong>rational equation</strong> contains one or more rational expressions. Multiply by the LCD to eliminate fractions,

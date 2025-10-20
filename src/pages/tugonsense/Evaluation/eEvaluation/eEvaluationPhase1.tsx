@@ -6,9 +6,6 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { questions } from "../questions";
 import useSound from "use-sound";
-import correctSound from "@/components/assets/sound/correct.mp3";
-import wrongSound from "@/components/assets/sound/wrong.mp3";
-import dragSound from "@/components/assets/sound/drag.mp3";
 import Lottie from "react-lottie";
 import robotAnimation from "@/components/assets/animations/robot1.json";
 

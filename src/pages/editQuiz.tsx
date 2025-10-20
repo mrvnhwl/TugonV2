@@ -14,6 +14,8 @@ interface EditableAnswer {
   id?: UUID;
   answer: string;
   is_correct: boolean;
+  side?: "left" | "right";
+  match_index?: number | null;
 }
 
 interface EditableQuestion {
@@ -21,65 +23,41 @@ interface EditableQuestion {
   question: string;
   time_limit: number;
   points: number;
+  question_type:
+    | "multiple_choice"
+    | "true_false"
+    | "paragraph"
+    | "matching"
+    | "checkboxes"
+    | string;
   answers: EditableAnswer[];
+  matches?: string[];
 }
 
 type PadTarget =
   | { type: "question"; qIndex: number }
-  | { type: "answer"; qIndex: number; aIndex: number };
+  | { type: "answer"; qIndex: number; aIndex: number }
+  | { type: "match"; qIndex: number; mIndex: number };
 
-// 🔧 Helper functions for LaTeX formatting
 function cleanLatex(text: string) {
-  return text.replace(/\\\(|\\\)/g, ""); // remove \( and \)
+  return (text || "").replace(/\\\(|\\\)/g, "");
 }
 
-/**
- * Automatically wraps non-math text in \text{} for proper spacing.
- * Also converts spaces into LaTeX spacing so preview looks correct.
- * @param {string} text - The input string from the user.
- * @returns {string} The formatted string ready for MathJax.
- */
-/**
- * Formats input so words keep proper spacing in MathJax.
- */
-function formatWithText(text: string): string {
-  if (!text.trim()) return "";
-
+function formatWithText(text: string) {
+  if (!text?.trim()) return "";
   const parts = text
     .split(/(\\[a-zA-Z]+|[0-9]+(?:\.[0-9]+)?|[+\-*/=<>!~^_{}()])/)
     .filter(Boolean);
-
-  let result: string[] = [];
-
+  const result: string[] = [];
   parts.forEach((part, i) => {
-    if (/^\\[a-zA-Z]+$/.test(part)) {
-      // LaTeX commands (\infty, \sqrt, etc.)
-      result.push(part);
-    } else if (/^[a-zA-Z\s]+$/.test(part)) {
-      // Wrap plain words in \text{}
-      const clean = part.replace(/\s+/g, " "); // normalize spaces
-      result.push(`\\text{${clean.trim()}}`);
-    } else {
-      result.push(part); // numbers/operators
-    }
-
-    // Add spacing between parts if next part is not an operator
-    if (i < parts.length - 1 && !/[+\-*/=<>!~^_{}()]/.test(parts[i + 1] || "")) {
+    if (/^\\[a-zA-Z]+$/.test(part)) result.push(part);
+    else if (/^[a-zA-Z\s]+$/.test(part))
+      result.push(`\\text{${part.replace(/\s+/g, " ").trim()}}`);
+    else result.push(part);
+    if (i < parts.length - 1 && !/[+\-*/=<>!~^_{}()]/.test(parts[i + 1] || ""))
       result.push("\\;");
-    }
   });
-
   return `\\(${result.join("")}\\)`;
-}
-
-
-
-
-
-
-function renderMath(text: string) {
-  if (!text.trim()) return "";
-  return `\\(${text}\\)`;
 }
 
 export default function EditQuiz() {
@@ -90,67 +68,84 @@ export default function EditQuiz() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState<string | null>("");
-
   const [questions, setQuestions] = useState<EditableQuestion[]>([]);
   const [originalQuestions, setOriginalQuestions] = useState<EditableQuestion[]>([]);
 
-  // Floating keyboard states
   const [showMathPad, setShowMathPad] = useState(false);
   const [padTarget, setPadTarget] = useState<PadTarget | null>(null);
-
-  // Ref to hold the current input element
   const currentInputRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
 
   // ---------- Load quiz ----------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      if (!quizId) {
-        if (mounted) setLoading(false);
-        return;
-      }
-      setLoading(true);
-      setErrorMsg(null);
+      if (!quizId) return setLoading(false);
       try {
-        const { data: quizRow, error: qErr } = await supabase
+        const { data: quizRow, error: quizError } = await supabase
           .from("quizzes")
           .select("id, title, description")
           .eq("id", quizId)
           .single();
-        if (qErr) throw qErr;
-        if (!quizRow) throw new Error("Quiz not found");
+        if (quizError) throw quizError;
 
-        const { data: qRows, error: qsErr } = await supabase
+        const { data: qRows, error: qErr } = await supabase
           .from("questions")
           .select(`
             id,
             question,
             time_limit,
             points,
-            answers ( id, answer, is_correct )
+            question_type,
+            answers ( id, answer, is_correct, side, match_index )
           `)
           .eq("quiz_id", quizId)
           .order("created_at", { ascending: true });
-        if (qsErr) throw qsErr;
 
-        const mapped: EditableQuestion[] = (qRows ?? []).map((r: any) => ({
-          id: r.id,
-          question: cleanLatex(r.question ?? ""),
-          time_limit: Number(r.time_limit ?? 30),
-          points: Number(r.points ?? 1000),
-          answers:
-            (r.answers ?? []).map((a: any) => ({
+        if (qErr) throw qErr;
+
+        const mapped: EditableQuestion[] = (qRows ?? []).map((r: any) => {
+          const rawAnswers = r.answers ?? [];
+          if (r.question_type === "matching") {
+            const lefts = rawAnswers
+              .filter((a: any) => a.side === "left")
+              .map((a: any) => ({
+                id: a.id,
+                answer: a.answer ?? "",
+                is_correct: false,
+                side: "left" as const,
+                match_index: a.match_index ?? null,
+              }));
+            const rights = rawAnswers
+              .filter((a: any) => a.side === "right")
+              .map((a: any) => a.answer ?? "");
+            return {
+              id: r.id,
+              question: cleanLatex(r.question ?? ""),
+              time_limit: r.time_limit ?? 30,
+              points: r.points ?? 1000,
+              question_type: r.question_type,
+              answers: lefts,
+              matches: rights,
+            };
+          }
+          return {
+            id: r.id,
+            question: cleanLatex(r.question ?? ""),
+            time_limit: r.time_limit ?? 30,
+            points: r.points ?? 1000,
+            question_type: r.question_type,
+            answers: (rawAnswers ?? []).map((a: any) => ({
               id: a.id,
-              answer: cleanLatex(a.answer ?? ""),
-              is_correct: Boolean(a.is_correct),
-            })) || [],
-        }));
+              answer: a.answer ?? "",
+              is_correct: !!a.is_correct,
+            })),
+          };
+        });
 
         if (mounted) {
           setTitle(quizRow.title ?? "");
@@ -158,11 +153,11 @@ export default function EditQuiz() {
           setQuestions(mapped);
           setOriginalQuestions(JSON.parse(JSON.stringify(mapped)));
         }
-      } catch (e: any) {
-        if (mounted) setErrorMsg(e.message ?? "Failed to load quiz.");
-        console.error(e);
+      } catch (err: any) {
+        console.error(err);
+        setErrorMsg(err.message);
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     };
     load();
@@ -171,481 +166,479 @@ export default function EditQuiz() {
     };
   }, [quizId]);
 
-  // ---------- UI State Helpers ----------
+  // ---------- State Helpers ----------
   const addQuestion = useCallback(() => {
-    setQuestions((prev) => [
+    setQuestions(prev => [
       ...prev,
       {
         question: "",
         time_limit: 30,
         points: 1000,
+        question_type: "multiple_choice",
         answers: [
           { answer: "", is_correct: false },
           { answer: "", is_correct: false },
-          { answer: "", is_correct: false },
-          { answer: "", is_correct: false },
         ],
+        matches: [],
       },
     ]);
-    setTimeout(() => lastQuestionRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }, []);
 
-  const removeQuestion = useCallback((qIndex: number) =>
-    setQuestions((prev) => prev.filter((_, i) => i !== qIndex)),
+  const removeQuestion = useCallback(
+    (qIndex: number) => setQuestions(prev => prev.filter((_, i) => i !== qIndex)),
     []
   );
 
-  const updateQuestionField = useCallback((
+  const updateQuestionField = useCallback(
+  (
     qIndex: number,
     field: keyof Omit<EditableQuestion, "answers" | "id">,
     value: any
   ) =>
     setQuestions((prev) => {
       const next = [...prev];
-      next[qIndex] = { ...next[qIndex], [field]: value };
+      const q = { ...next[qIndex] };
+
+      // ✅ Explicitly assert we're assigning to a known key
+      (q as any)[field] = value;
+
+      // 🧩 Handle automatic setups when switching types
+      if (field === "question_type") {
+        if (value === "true_false") {
+          q.answers = [
+            { answer: "True", is_correct: true },
+            { answer: "False", is_correct: false },
+          ] as EditableAnswer[];
+        } else if (value === "multiple_choice" && q.answers.length < 2) {
+          q.answers = [
+            { answer: "", is_correct: false },
+            { answer: "", is_correct: false },
+          ] as EditableAnswer[];
+        } else if (value === "checkboxes" && q.answers.length < 2) {
+          q.answers = [
+            { answer: "", is_correct: false },
+            { answer: "", is_correct: false },
+          ] as EditableAnswer[];
+        } else if (value === "matching") {
+          if (!q.matches) q.matches = [];
+        }
+      }
+
+      next[qIndex] = q;
       return next;
     }),
-    []
-  );
+  []
+);
+
+
 
   const addAnswer = useCallback((qIndex: number) =>
-    setQuestions((prev) => {
+    setQuestions(prev => {
       const next = [...prev];
-      next[qIndex].answers = [...next[qIndex].answers, { answer: "", is_correct: false }];
+      const q = { ...next[qIndex] };
+      q.answers = [...q.answers, { answer: "", is_correct: false }];
+      next[qIndex] = q;
       return next;
     }),
     []
   );
 
   const removeAnswer = useCallback((qIndex: number, aIndex: number) =>
-    setQuestions((prev) => {
+    setQuestions(prev => {
       const next = [...prev];
-      next[qIndex].answers = next[qIndex].answers.filter((_, i) => i !== aIndex);
+      const q = { ...next[qIndex] };
+      q.answers = q.answers.filter((_, i) => i !== aIndex);
+      next[qIndex] = q;
       return next;
     }),
     []
   );
 
-  const updateAnswerField = useCallback((
-    qIndex: number,
-    aIndex: number,
-    field: keyof EditableAnswer,
-    value: any
-  ) =>
-    setQuestions((prev) => {
+  const updateAnswerField = useCallback(
+    (qIndex: number, aIndex: number, field: keyof EditableAnswer, value: any) =>
+      setQuestions(prev => {
+        const next = [...prev];
+        const q = { ...next[qIndex] };
+        const updated = [...q.answers];
+        (updated[aIndex] as any)[field] = value;
+        q.answers = updated;
+        next[qIndex] = q;
+        return next;
+      }),
+    []
+  );
+
+  const toggleCheckboxCorrect = useCallback((qIndex: number, aIndex: number) =>
+    setQuestions(prev => {
       const next = [...prev];
-      next[qIndex].answers[aIndex] = { ...next[qIndex].answers[aIndex], [field]: value };
+      const q = { ...next[qIndex] };
+      const updated = [...q.answers];
+      updated[aIndex] = { ...updated[aIndex], is_correct: !updated[aIndex].is_correct };
+      q.answers = updated;
+      next[qIndex] = q;
       return next;
     }),
     []
   );
 
-  const setCorrectAnswer = useCallback((qIndex: number, aIndex: number) =>
-    setQuestions((prev) => {
+  const addMatchOption = useCallback((qIndex: number) =>
+    setQuestions(prev => {
       const next = [...prev];
-      next[qIndex].answers = next[qIndex].answers.map((a, i) => ({
-        ...a,
-        is_correct: i === aIndex,
-      }));
+      const q = { ...next[qIndex] };
+      q.matches = [...(q.matches || []), ""];
+      next[qIndex] = q;
       return next;
     }),
     []
   );
 
-  // ---------- Insert from Pad ----------
-  const insertFromPad = useCallback((symbol: string) => {
-    if (!padTarget || !currentInputRef.current) {
-      return;
-    }
-
-    const input = currentInputRef.current;
-    const start = input.selectionStart || 0;
-    const end = input.selectionEnd || 0;
-    const value = input.value;
-
-    const newValue = value.substring(0, start) + symbol + value.substring(end);
-    
-    input.value = newValue;
-
-    if (padTarget.type === "question") {
-      updateQuestionField(padTarget.qIndex, "question", newValue);
-    } else if (padTarget.type === "answer") {
-      updateAnswerField(padTarget.qIndex, padTarget.aIndex, "answer", newValue);
-    }
-
-    const newCursorPos = start + symbol.length;
-    setTimeout(() => {
-      input.focus();
-      input.setSelectionRange(newCursorPos, newCursorPos);
-    }, 0);
-  }, [padTarget, updateQuestionField, updateAnswerField]);
+  const removeMatchOption = useCallback((qIndex: number, mIndex: number) =>
+    setQuestions(prev => {
+      const next = [...prev];
+      const q = { ...next[qIndex] };
+      q.matches = (q.matches || []).filter((_, i) => i !== mIndex);
+      next[qIndex] = q;
+      return next;
+    }),
+    []
+  );
 
   // ---------- Save ----------
-  // 🔧 SaveAll now saves RAW text
-const saveAll = async () => {
-  if (!quizId) return;
-  setSaving(true);
-  setErrorMsg(null);
-  setSuccessMsg(null);
+  const saveAll = async () => {
+    if (!quizId) return;
+    setSaving(true);
+    try {
+      for (const q of questions) {
+        const payload = {
+          question: q.question,
+          time_limit: q.time_limit,
+          points: Math.round(q.points), // ✅ ensure integer points always
+          question_type: q.question_type,
+        };
 
-  try {
-    const updates = questions.map(async (q) => {
-      const questionPayload = {
-        question: q.question, // ✅ RAW, no formatWithText
-        time_limit: q.time_limit,
-        points: q.points,
-      };
-
-      if (q.id) {
-        await supabase.from("questions").update(questionPayload).eq("id", q.id);
-
-        const answerUpdates = q.answers.map(async (a) => {
-          const answerPayload = {
-            answer: a.answer, // ✅ RAW, no formatWithText
-            is_correct: a.is_correct,
-            question_id: q.id,
-          };
-          if (a.id) {
-            return supabase.from("answers").update(answerPayload).eq("id", a.id);
-          } else {
-            return supabase.from("answers").insert(answerPayload);
+        if (q.id) {
+          await supabase.from("questions").update(payload).eq("id", q.id);
+          await supabase.from("answers").delete().eq("question_id", q.id);
+          if (q.question_type === "matching") {
+            const lefts = (q.answers || []).map((a, i) => ({
+              question_id: q.id,
+              answer: a.answer,
+              side: "left",
+              match_index: i,
+              is_correct: false,
+            }));
+            const rights = (q.matches || []).map(m => ({
+              question_id: q.id,
+              answer: m,
+              side: "right",
+              is_correct: false,
+            }));
+            await supabase.from("answers").insert([...lefts, ...rights]);
+          } else if (q.question_type !== "paragraph") {
+            await supabase
+              .from("answers")
+              .insert(q.answers.map(a => ({ question_id: q.id, ...a })));
           }
-        });
-        await Promise.all(answerUpdates);
-
-      } else {
-        const { data: newQuestion, error: qInsertError } = await supabase
-          .from("questions")
-          .insert({ ...questionPayload, quiz_id: quizId })
-          .select()
-          .single();
-
-        if (qInsertError) throw qInsertError;
-
-        const newAnswersPayload = q.answers.map((a) => ({
-          answer: a.answer, // ✅ RAW
-          is_correct: a.is_correct,
-          question_id: newQuestion.id,
-        }));
-        await supabase.from("answers").insert(newAnswersPayload);
+        } else {
+          const { data: newQ } = await supabase
+            .from("questions")
+            .insert({ ...payload, quiz_id: quizId })
+            .select()
+            .single();
+          if (q.question_type === "matching") {
+            const lefts = (q.answers || []).map((a, i) => ({
+              question_id: newQ.id,
+              answer: a.answer,
+              side: "left",
+              match_index: i,
+              is_correct: false,
+            }));
+            const rights = (q.matches || []).map(m => ({
+              question_id: newQ.id,
+              answer: m,
+              side: "right",
+              is_correct: false,
+            }));
+            await supabase.from("answers").insert([...lefts, ...rights]);
+          } else if (q.question_type !== "paragraph") {
+            await supabase
+              .from("answers")
+              .insert(q.answers.map(a => ({ question_id: newQ.id, ...a })));
+          }
+        }
       }
-    });
-
-    // Handle deleted questions
-    const deletedQuestionIds = originalQuestions
-      .filter(oq => !questions.find(q => q.id === oq.id))
-      .map(oq => oq.id);
-
-    if (deletedQuestionIds.length > 0) {
-      await supabase.from("questions").delete().in("id", deletedQuestionIds);
+      setSuccessMsg("Saved successfully!");
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message);
+    } finally {
+      setSaving(false);
     }
+  };
 
-    await Promise.all(updates);
-
-    const { error: quizError } = await supabase
-      .from("quizzes")
-      .update({ title, description })
-      .eq("id", quizId);
-    if (quizError) throw quizError;
-
-    setSuccessMsg("Saved successfully!");
-    setOriginalQuestions(JSON.parse(JSON.stringify(questions)));
-
-  } catch (e: any) {
-    console.error("Save failed:", e);
-    setErrorMsg(e.message ?? "Failed to save changes.");
-  } finally {
-    setSaving(false);
-    setTimeout(() => setSuccessMsg(null), 2000);
-  }
-};
-
-
-  // ---------- Delete Quiz ----------
+  // ---------- Delete ----------
   const deleteQuiz = async () => {
     if (!quizId) return;
-    const confirmed = window.confirm("Are you sure you want to delete this quiz permanently?");
-    if (!confirmed) return;
+    if (!window.confirm("Delete this quiz?")) return;
     setDeleting(true);
-
     try {
-      const { error } = await supabase.from("quizzes").delete().eq("id", quizId);
-      if (error) throw error;
+      const qIds = questions.map(q => q.id).filter(Boolean);
+      if (qIds.length) await supabase.from("answers").delete().in("question_id", qIds);
+      await supabase.from("quizzes").delete().eq("id", quizId);
       navigate("/teacherDashboard");
-    } catch (e: any) {
-      console.error("Delete failed:", e);
-      setErrorMsg(e?.message ?? "Failed to delete quiz.");
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Failed to delete quiz.");
     } finally {
       setDeleting(false);
     }
   };
 
   // ---------- UI ----------
-  if (loading) {
+  if (loading)
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: `linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)` }}
-      >
-        <motion.div
-          className="rounded-full h-12 w-12 border-4 border-t-4"
-          style={{ borderColor: `${color.teal}40` }}
-          animate={{
-            rotate: 360,
-            scale: [1, 1.2, 1],
-            borderColor: [`${color.teal}40`, color.teal, `${color.teal}40`],
-          }}
-          transition={{ duration: 1.5, ease: "easeInOut", repeat: Infinity, repeatDelay: 0.5 }}
-        />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
       </div>
     );
-  }
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ background: `linear-gradient(to bottom, ${color.mist}11, ${color.ocean}08)` }}
-    >
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div className="min-h-screen bg-gray-50 py-6">
+      <main className="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 sm:mb-8">
+        <div className="flex items-center justify-between mb-6">
           <Link
             to="/teacherDashboard"
-            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 font-semibold transition"
-            style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-800"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back
+            <ArrowLeft className="h-4 w-4" /> Back
           </Link>
-
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2">
             <button
               onClick={deleteQuiz}
               disabled={saving || deleting}
-              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-md transition disabled:opacity-70"
-              style={{ background: "#ef4444", color: "#fff" }}
+              className="bg-red-500 text-white px-4 py-2 rounded-lg flex items-center gap-2"
             >
-              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              {deleting ? "Deleting..." : "Delete quiz"}
+              {deleting ? <Loader2 className="animate-spin h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+              Delete
             </button>
-
             <button
               onClick={saveAll}
-              disabled={saving || deleting}
-              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-md transition disabled:opacity-70"
-              style={{ background: color.teal, color: "#fff" }}
+              disabled={saving}
+              className="bg-teal-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving..." : "Save changes"}
+              {saving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />}
+              {saving ? "Saving..." : "Save"}
             </button>
           </div>
         </div>
 
-        {/* Quiz Meta */}
-        <motion.div
-          className="rounded-2xl p-6 shadow-xl ring-1 mb-6"
-          style={{ background: "#fff", borderColor: `${color.mist}55` }}
-        >
-          <h1 className="text-xl sm:text-2xl font-bold mb-4" style={{ color: color.deep }}>
-            Edit Quiz
-          </h1>
-          <div className="grid grid-cols-1 gap-4">
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="Quiz title"
-            />
-            <textarea
-              value={description ?? ""}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="Description (optional)"
-              rows={3}
-            />
-          </div>
-        </motion.div>
+        {/* Quiz Info */}
+        <div className="mb-6">
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="Quiz title"
+            className="w-full border rounded-md p-2 mb-3"
+          />
+          <textarea
+            value={description ?? ""}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Description"
+            rows={3}
+            className="w-full border rounded-md p-2"
+          />
+        </div>
 
         {/* Questions */}
-        {questions.map((q, qIndex) => (
-          <motion.div
-            key={q.id ?? `new-${qIndex}`}
-            ref={qIndex === questions.length - 1 ? lastQuestionRef : null}
-            className="rounded-2xl p-6 shadow-xl ring-1 mb-6"
-            style={{ background: "#fff", borderColor: `${color.mist}55` }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold" style={{ color: color.deep }}>
-                Question {qIndex + 1}
-              </h2>
-              <button
-                type="button"
-                onClick={() => removeQuestion(qIndex)}
-                className="text-red-600 hover:text-red-700"
-              >
+        {questions.map((q, qi) => (
+          <div key={q.id ?? qi} className="border rounded-xl p-4 mb-6 bg-gray-50 shadow-sm">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="font-semibold text-lg">Question {qi + 1}</h2>
+              <button onClick={() => removeQuestion(qi)} className="text-red-500 hover:text-red-700">
                 <Trash2 className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Question Preview */}
-        
-<div className="mb-2 text-gray-900 whitespace-pre-wrap">
-  <MathJax dynamic>{formatWithText(q.question)}</MathJax>
-</div>
-
+            <select
+              value={q.question_type}
+              onChange={e => updateQuestionField(qi, "question_type", e.target.value)}
+              className="w-full border rounded-md p-2 mb-3"
+            >
+              <option value="multiple_choice">Multiple Choice</option>
+              <option value="true_false">True/False</option>
+              <option value="paragraph">Paragraph</option>
+              <option value="matching">Matching</option>
+              <option value="checkboxes">Checkboxes</option>
+            </select>
 
             <textarea
               value={q.question}
-              onChange={(e) => updateQuestionField(qIndex, "question", e.target.value)}
+              onChange={e => updateQuestionField(qi, "question", e.target.value)}
+              className="w-full border rounded-md p-2 mb-2"
               rows={3}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="Type the question here..."
-              onFocus={(e) => {
-                setPadTarget({ type: "question", qIndex });
-                currentInputRef.current = e.target;
-              }}
+              placeholder="Question..."
             />
 
-            {/* Time + Points */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
-              <div>
-                <label className="block text-sm mb-1" style={{ color: color.steel }}>
-                  Time Limit (seconds)
-                </label>
-                <input
-                  type="number"
-                  min={5}
-                  max={120}
-                  value={q.time_limit}
-                  onChange={(e) =>
-                    updateQuestionField(qIndex, "time_limit", parseInt(e.target.value || "0", 10))
-                  }
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm mb-1" style={{ color: color.steel }}>
-                  Points
-                </label>
-                <input
-                  type="number"
-                  min={100}
-                  max={2000}
-                  step={100}
-                  value={q.points}
-                  onChange={(e) =>
-                    updateQuestionField(qIndex, "points", parseInt(e.target.value || "0", 10))
-                  }
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                />
-              </div>
+            {/* Preview */}
+            <div className="flex items-center my-4">
+              <div className="flex-grow border-t border-gray-300"></div>
+              <span className="mx-3 text-gray-500 text-sm font-semibold">Preview</span>
+              <div className="flex-grow border-t border-gray-300"></div>
             </div>
 
-            {/* Answers */}
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold" style={{ color: color.deep }}>
-                  Answers
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => addAnswer(qIndex)}
-                  className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm"
-                  style={{ background: `${color.teal}15`, color: color.teal }}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add answer
-                </button>
-              </div>
+            {/* 🪶 Preview Box */}
+            <div className="bg-gray-100 border border-gray-300 rounded-xl p-4 shadow-sm mb-6">
+              <MathJax dynamic>{formatWithText(q.question)}</MathJax>
+            </div>
 
-              <div className="space-y-2">
-                {q.answers.map((a, aIndex) => (
-                  <div key={a.id ?? `new-a-${aIndex}`} className="flex flex-col gap-1">
-                    <div className="text-gray-900">
-  <MathJax dynamic>{formatWithText(a.answer)}</MathJax>
-</div>
+            {/* 🧠 Answer Section Separator */}
+            <div className="flex items-center my-4">
+              <div className="flex-grow border-t border-gray-300"></div>
+              <span className="mx-3 text-gray-500 text-sm font-semibold">Answers</span>
+              <div className="flex-grow border-t border-gray-300"></div>
+            </div>
 
-                    <div className="flex items-center gap-3">
+
+
+            {/* Matching UI */}
+            {q.question_type === "matching" ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 className="font-medium mb-1">Left items</h3>
+                  {q.answers.map((a, ai) => (
+                    <div key={ai} className="flex items-center gap-2 mb-2">
                       <input
                         type="text"
                         value={a.answer}
-                        onChange={(e) => updateAnswerField(qIndex, aIndex, "answer", e.target.value)}
-                        onFocus={(e) => {
-                          setPadTarget({ type: "answer", qIndex, aIndex });
-                          currentInputRef.current = e.target;
-                        }}
-                        className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        placeholder={`Answer ${aIndex + 1}`}
+                        onChange={e => updateAnswerField(qi, ai, "answer", e.target.value)}
+                        className="flex-1 border rounded-md p-1"
                       />
-                      <label className="inline-flex items-center gap-2 text-sm" style={{ color: color.steel }}>
-                        <input
-                          type="radio"
-                          name={`correct-${qIndex}`}
-                          checked={a.is_correct}
-                          onChange={() => setCorrectAnswer(qIndex, aIndex)}
-                          className="text-indigo-600 focus:ring-indigo-500"
-                        />
-                        Correct
-                      </label>
                       <button
-                        type="button"
-                        onClick={() => removeAnswer(qIndex, aIndex)}
-                        className="text-red-600 hover:text-red-700"
+                        onClick={() => removeAnswer(qi, ai)}
+                        className="text-red-500 hover:text-red-700"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                  <button
+                    onClick={() => addAnswer(qi)}
+                    className="text-teal-600 text-sm flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" /> Add left item
+                  </button>
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-1">Right options</h3>
+                  {(q.matches || []).map((m, mi) => (
+                    <div key={mi} className="flex items-center gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={m}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setQuestions(prev => {
+                            const next = [...prev];
+                            const qx = { ...next[qi] };
+                            const matches = [...(qx.matches || [])];
+                            matches[mi] = val;
+                            qx.matches = matches;
+                            next[qi] = qx;
+                            return next;
+                          });
+                        }}
+                        className="flex-1 border rounded-md p-1"
+                      />
+                      <button
+                        onClick={() => removeMatchOption(qi, mi)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => addMatchOption(qi)}
+                    className="text-teal-600 text-sm flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" /> Add right option
+                  </button>
+                </div>
               </div>
-            </div>
-          </motion.div>
+            ) : (
+              q.question_type !== "paragraph" && (
+                <div>
+                  {q.answers.map((a, ai) => (
+                    <div key={ai} className="flex items-center gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={a.answer}
+                        onChange={e => updateAnswerField(qi, ai, "answer", e.target.value)}
+                        className="flex-1 border rounded-md p-1"
+                      />
+                      {q.question_type === "checkboxes" ? (
+                        <input
+                          type="checkbox"
+                          checked={a.is_correct}
+                          onChange={() => toggleCheckboxCorrect(qi, ai)}
+                        />
+                      ) : (
+                        <input
+                          type="radio"
+                          name={`q-${qi}`}
+                          checked={a.is_correct}
+                          onChange={() =>
+                            setQuestions(prev => {
+                              const next = [...prev];
+                              const qx = { ...next[qi] };
+                              qx.answers = qx.answers.map((ans, idx) => ({
+                                ...ans,
+                                is_correct: idx === ai,
+                              }));
+                              next[qi] = qx;
+                              return next;
+                            })
+                          }
+                        />
+                      )}
+                      <button
+                        onClick={() => removeAnswer(qi, ai)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => addAnswer(qi)}
+                    className="text-teal-600 text-sm flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" /> Add answer
+                  </button>
+                </div>
+              )
+            )}
+
+            {q.question_type === "paragraph" && (
+              <div className="text-gray-500 italic mt-2">
+                (Students will write a paragraph answer.)
+              </div>
+            )}
+          </div>
         ))}
 
-        {/* Add Question + Save */}
-        <div className="flex items-center justify-between mb-14">
-          <button
-            type="button"
-            onClick={addQuestion}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-md transition"
-            style={{ background: `${color.teal}15`, color: color.teal }}
-          >
-            <Plus className="h-4 w-4" />
-            Add Question
-          </button>
+        <button
+          onClick={addQuestion}
+          className="bg-teal-100 text-teal-700 px-4 py-2 rounded-lg flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" /> Add Question
+        </button>
 
-          <button
-            onClick={saveAll}
-            disabled={saving || deleting}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold shadow-md transition disabled:opacity-70"
-            style={{ background: color.teal, color: "#fff" }}
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Saving..." : "Save changes"}
-          </button>
-        </div>
+        {errorMsg && <p className="text-red-600 mt-3">{errorMsg}</p>}
+        {successMsg && <p className="text-green-600 mt-3">{successMsg}</p>}
       </main>
-
-      {/* Floating keyboard button */}
-      <motion.button
-        onClick={() => setShowMathPad(true)}
-        className="fixed bottom-6 left-6 rounded-full shadow-lg p-4"
-        style={{ background: color.teal, color: "#fff" }}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-      >
-        <Keyboard className="h-6 w-6" />
-      </motion.button>
-
-      {/* Math Symbol Pad */}
-      {showMathPad && (
-        <MathSymbolPad
-          onInsert={insertFromPad}
-          onClose={() => setShowMathPad(false)}
-          onPreventFocusLoss={() => currentInputRef.current?.focus()}
-        />
-      )}
     </div>
   );
 }

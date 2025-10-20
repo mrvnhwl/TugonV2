@@ -119,7 +119,7 @@ function Inversetopic() {
 
       <main className="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Overview */}
-        <section className="rounded-2xl border bg-white p-6 md:p-7 -mt-8" style={{ ...cardBorder, boxShadow: subtleShadow }}>
+        <section className="relative -mt-8 z-10 rounded-2xl border bg-white p-6 md:p-7" style={{ ...cardBorder, boxShadow: subtleShadow }}>
           <p className="leading-relaxed" style={{ color: color.steel }}>
             An <strong>inverse function</strong> reverses the mapping of the original function. If <code>f(x)=y</code>, then{" "}
             <code>f⁻¹(y)=x</code>. Graphs of a function and its inverse are symmetric about the line <code>y = x</code>.

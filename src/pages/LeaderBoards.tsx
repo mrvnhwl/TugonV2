@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Trophy, Loader2, ArrowLeft, Users } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Trophy, Loader2, ArrowLeft, Users, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -9,6 +9,9 @@ import Lottie from "lottie-react";
 import trophyAnim from "../components/assets/animations/Trophy.json";
 import winnerAnim from "../components/assets/animations/Winner.json";
 import winner1Anim from "../components/assets/animations/Winner (1).json";
+
+// 🔊 Achievement SFX when user is in Overall Top 10
+import achievementSfxSrc from "../components/assets/sound/Achievement.mp3";
 
 interface Quiz {
   id: string;
@@ -29,12 +32,52 @@ interface LeaderboardEntry {
 
 type PerQuizBoards = Record<string, LeaderboardEntry[]>;
 
-const maskName = (input: string): string => {
+type SchoolKey = "ALL" | "UE" | "BNHS" | "OTHERS";
+
+/** Show only the part before '@' (no domain). */
+const baseName = (input: string): string => {
   if (!input) return "";
-  const base = input.includes("@") ? input.split("@")[0] : input;
-  const visible = Math.min(4, Math.floor(Math.random() * 3) + 2);
-  const maskedPart = "*".repeat(Math.max(1, base.length - visible));
-  return base.slice(0, visible) + maskedPart;
+  if (input.includes("@")) return input.split("@")[0];
+  return input;
+};
+
+/** Partially mask a string with asterisks, keeping a few edge characters visible. */
+const maskPrivate = (s: string): string => {
+  const str = s ?? "";
+  const n = str.length;
+  if (n === 0) return "";
+  if (n === 1) return "*";
+  if (n === 2) return str[0] + "*";
+  if (n === 3) return str[0] + "*" + str[2];
+
+  // n >= 4
+  if (n <= 6) {
+    // keep first 2, last 1
+    const keepStart = 2;
+    const keepEnd = 1;
+    const stars = Math.max(1, n - keepStart - keepEnd);
+    return str.slice(0, keepStart) + "*".repeat(stars) + str.slice(n - keepEnd);
+  }
+  // n > 6, keep first 2 and last 2
+  const keepStart = 2;
+  const keepEnd = 2;
+  const stars = Math.max(1, n - keepStart - keepEnd);
+  return str.slice(0, keepStart) + "*".repeat(stars) + str.slice(n - keepEnd);
+};
+
+/** Convenient helper: take email or id, derive base label, then mask. */
+const maskedLabel = (emailOrId?: string | null): string => {
+  if (!emailOrId) return "";
+  return maskPrivate(baseName(emailOrId));
+};
+
+/** Map email → school bucket */
+const schoolFromEmail = (email?: string | null): SchoolKey => {
+  if (!email) return "OTHERS";
+  const low = email.toLowerCase();
+  if (low.endsWith("@ue.edu.ph")) return "UE";
+  if (low.endsWith("@bnhs.com")) return "BNHS";
+  return "OTHERS";
 };
 
 function PodiumLottie({
@@ -57,21 +100,93 @@ function PodiumLottie({
   );
 }
 
+/** Simple popup modal */
+function CongratsModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative w-full max-w-sm rounded-2xl shadow-2xl ring-1 p-5"
+        style={{ background: "#fff", borderColor: `${color.mist}` }}
+        role="dialog"
+        aria-modal="true"
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1 rounded hover:bg-black/5"
+          aria-label="Close"
+          title="Close"
+        >
+          <X className="h-5 w-5" />
+        </button>
+        <div className="text-center">
+          <div
+            className="mx-auto mb-3 h-14 w-14 rounded-full flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`, color: "#fff" }}
+          >
+            🏆
+          </div>
+          <h3 className="text-lg font-extrabold" style={{ color: color.deep }}>
+            Congratulations!
+          </h3>
+          <p className="mt-1 text-sm" style={{ color: color.steel }}>
+            You are in the <strong>overall top 10</strong>.
+          </p>
+          <button
+            onClick={onClose}
+            className="mt-4 inline-flex items-center justify-center px-4 py-2 rounded-lg text-white font-semibold"
+            style={{
+              background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+              boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+            }}
+          >
+            Nice!
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Leaderboards() {
   const navigate = useNavigate();
-  useAuth(); // keep session hydrated if you need it later
+  const { user } = useAuth();
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
-  const [overallBoard, setOverallBoard] = useState<LeaderboardEntry[]>([]);
-  const [perQuizBoards, setPerQuizBoards] = useState<PerQuizBoards>({});
+
+  // Store the raw per-quiz boards (unsliced) so we can filter by school and slice after.
+  const [perQuizBoardsRaw, setPerQuizBoardsRaw] = useState<PerQuizBoards>({});
+  const [selectedSchool, setSelectedSchool] = useState<SchoolKey>("ALL");
+
+  // 🔊 Achievement SFX (plays once if user appears in Overall Top 10)
+  const achievementRef = useRef<HTMLAudioElement | null>(null);
+  const [playedAchievement, setPlayedAchievement] = useState(false);
+  const [showCongrats, setShowCongrats] = useState(false);
+
+  // Init achievement audio
+  useEffect(() => {
+    const a = new Audio(achievementSfxSrc);
+    a.preload = "auto";
+    a.volume = 0.9;
+    achievementRef.current = a;
+    return () => {
+      achievementRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
 
-        // Fetch quizzes
         const { data: qz, error: qErr } = await supabase
           .from("quizzes")
           .select("id, title")
@@ -82,13 +197,11 @@ export default function Leaderboards() {
         setQuizzes(quizzesList);
 
         if (quizzesList.length === 0) {
-          setPerQuizBoards({});
-          setOverallBoard([]);
+          setPerQuizBoardsRaw({});
           setLoading(false);
           return;
         }
 
-        // Fetch per-quiz highest scores per user via RPC (your function)
         const results = await Promise.all(
           quizzesList.map(async (quiz) => {
             const { data, error } = await supabase.rpc("get_highest_scores_for_quiz", {
@@ -107,56 +220,167 @@ export default function Leaderboards() {
           })
         );
 
-        // Per-quiz top10
-        const perQuiz: PerQuizBoards = {};
-        for (const r of results) perQuiz[r.quizId] = r.rows.slice(0, 10) as LeaderboardEntry[];
-        setPerQuizBoards(perQuiz);
-
-        // Overall = sum of best-per-quiz for each user
-        const byUser: Record<string, LeaderboardEntry> = {};
-        for (const r of results) {
-          for (const row of r.rows) {
-            const uid = row.user_id;
-            if (!uid) continue;
-            const s = row.score ?? 0;
-            if (!byUser[uid]) {
-              byUser[uid] = { user_id: uid, user_email: row.user_email, score: s };
-            } else {
-              byUser[uid].score += s;
-            }
-          }
-        }
-        const overall = Object.values(byUser)
-          .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-          .slice(0, 10);
-        setOverallBoard(overall);
+        const perQuizRaw: PerQuizBoards = {};
+        for (const r of results) perQuizRaw[r.quizId] = r.rows as LeaderboardEntry[];
+        setPerQuizBoardsRaw(perQuizRaw);
       } catch (err) {
         console.error("Failed to load leaderboards:", err);
-        setOverallBoard([]);
-        setPerQuizBoards({});
+        setPerQuizBoardsRaw({});
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
+  // ========= Helpers =========
+  const isMe = (entry: { user_id?: string | null; user_email?: string | null }) => {
+    if (!user) return false;
+    const byId = entry.user_id && user.id && entry.user_id === user.id;
+    const byEmail =
+      entry.user_email &&
+      user.email &&
+      entry.user_email.toLowerCase() === user.email.toLowerCase();
+    return Boolean(byId || byEmail);
+  };
+
+  // Filter helpers
+  const matchesSchool = (entry: LeaderboardEntry) => {
+    if (selectedSchool === "ALL") return true;
+    return schoolFromEmail(entry.user_email) === selectedSchool;
+  };
+
+  // Per-quiz boards after applying school filter (then slice to Top 10)
+  const perQuizBoards: PerQuizBoards = useMemo(() => {
+    const out: PerQuizBoards = {};
+    for (const [quizId, rows] of Object.entries(perQuizBoardsRaw)) {
+      out[quizId] = rows.filter(matchesSchool).slice(0, 10);
+    }
+    return out;
+  }, [perQuizBoardsRaw, selectedSchool]);
+
+  // Overall leaderboard: sum each user's best-for-quiz across ALL quizzes (using filtered rows).
+  const overallBoard = useMemo<LeaderboardEntry[]>(() => {
+    const byUser: Record<string, LeaderboardEntry> = {};
+    for (const rows of Object.values(perQuizBoardsRaw)) {
+      for (const row of rows) {
+        if (!matchesSchool(row)) continue;
+        const uid = row.user_id;
+        if (!uid) continue;
+        const s = row.score ?? 0;
+        if (!byUser[uid]) {
+          byUser[uid] = { user_id: uid, user_email: row.user_email, score: s };
+        } else {
+          byUser[uid].score += s;
+        }
+      }
+    }
+    return Object.values(byUser)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .slice(0, 10);
+  }, [perQuizBoardsRaw, selectedSchool]);
+
+  // 🔊 Only trigger if I'm in the OVERALL Top 10 (NOT per-topic).
+  useEffect(() => {
+    if (playedAchievement || !user || loading) return;
+    const inOverall = overallBoard.some(isMe);
+    if (inOverall) {
+      try {
+        achievementRef.current?.play();
+      } catch (e) {
+        console.warn("Achievement sound play failed:", e);
+      }
+      setPlayedAchievement(true);
+      setShowCongrats(true);
+    }
+  }, [overallBoard, user, loading, playedAchievement]);
+
   const gradient = `linear-gradient(135deg, ${color.ocean} 0%, ${color.teal} 55%, ${color.aqua} 100%)`;
   const cardBorder = `${color.mist}66`;
   const ink = color.deep;
   const sub = color.steel;
 
+  // Badge component for "ME"
+  const MeBadge = () => (
+    <span
+      className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider"
+      style={{ background: `${color.teal}`, color: "#fff", letterSpacing: 0.6 }}
+    >
+      ME
+    </span>
+  );
+
+  // Name renderer with highlight if me
+  const NameCell = ({ entry }: { entry: LeaderboardEntry }) => {
+    const mine = isMe(entry);
+    return (
+      <span
+        className="font-medium"
+        style={{
+          color: mine ? color.teal : ink,
+        }}
+      >
+        {maskedLabel(entry.user_email ?? entry.user_id)}
+        {mine && <MeBadge />}
+      </span>
+    );
+  };
+
+  // Card ring highlight if includes me (for podium only)
+  const includesMe = (entry?: LeaderboardEntry) => (entry ? isMe(entry) : false);
+
   return (
     <>
-      {/* Hero */}
+      {/* Ensure dropdown options (popup) are readable even with a translucent trigger */}
+      <style>{`
+        select.school-filter option {
+          color: #111;
+          background: #fff;
+        }
+      `}</style>
+
+      {/* Congrats popup */}
+      <CongratsModal open={showCongrats} onClose={() => setShowCongrats(false)} />
+
       <header className="relative" style={{ background: gradient }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-white">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-white/90 hover:text-white transition focus:outline-none"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            <span className="text-sm font-medium">Back</span>
-          </button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <button
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-white/90 hover:text-white transition focus:outline-none"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span className="text-sm font-medium">Back</span>
+            </button>
+
+            {/* School Filter Dropdown — translucent/glassy like before, but readable */}
+            <div
+              className="inline-flex items-center gap-2 rounded-xl px-3 py-2 border bg-white/10 backdrop-blur"
+              style={{
+                borderColor: "#ffffff44",
+                zIndex: 50, // keep the menu above the header
+              }}
+            >
+              <span className="text-sm text-white/90">Filter by school:</span>
+              <select
+                value={selectedSchool}
+                onChange={(e) => setSelectedSchool(e.target.value as SchoolKey)}
+                className="school-filter text-sm outline-none text-white bg-transparent cursor-pointer"
+                style={{
+                  WebkitAppearance: "menulist" as any,
+                  MozAppearance: "menulist",
+                  appearance: "menulist",
+                  border: "none",
+                  padding: "4px 6px",
+                  borderRadius: 8,
+                }}
+              >
+                <option className="text-gray-900" value="ALL">All Schools</option>
+                <option className="text-gray-900" value="UE">University of the East</option>
+                <option className="text-gray-900" value="BNHS">BNHS</option>
+                <option className="text-gray-900" value="OTHERS">Others</option>
+              </select>
+            </div>
+          </div>
 
           <div className="mt-4 flex items-center gap-3">
             <Trophy className="h-8 w-8" />
@@ -164,7 +388,7 @@ export default function Leaderboards() {
           </div>
 
           <p className="mt-2 text-white/90 max-w-2xl">
-            Overall ranking adds your best score from each challenge. Push your personal bests to climb the board!
+            Overall ranking adds your best score from each challenge. Use the school filter to view rankings by organization.
           </p>
         </div>
 
@@ -200,7 +424,15 @@ export default function Leaderboards() {
                   </h2>
                 </div>
                 <span className="text-sm" style={{ color: sub }}>
-                  Overall · Top 10
+                  {selectedSchool === "ALL"
+                    ? "Overall · Top 10"
+                    : `${
+                        selectedSchool === "UE"
+                          ? "University of the East"
+                          : selectedSchool === "BNHS"
+                          ? "BNHS"
+                          : "Others"
+                      } · Top 10`}
                 </span>
               </div>
 
@@ -210,25 +442,26 @@ export default function Leaderboards() {
                 </p>
               ) : (
                 <>
-                  {/* Podium with mobile-first 1-2-3 order; on ≥sm: 2-1-3 heights */}
+                  {/* Podium */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8 items-end">
-                    {/* 1st — order first on mobile, middle on sm+ */}
                     {overallBoard[0] && (
                       <div
-                        className="order-1 sm:order-2 rounded-2xl px-8 pt-8 pb-9 text-center ring-1 flex flex-col items-center -translate-y-0 sm:-translate-y-4"
+                        className="order-1 sm:order-2 rounded-2xl px-8 pt-8 pb-9 text-center ring-2 flex flex-col items-center -translate-y-0 sm:-translate-y-4"
                         style={{
                           background: `linear-gradient(135deg, ${color.teal}12, #ffffff)`,
-                          borderColor: color.teal,
+                          borderColor: includesMe(overallBoard[0]) ? color.teal : color.teal,
                           boxShadow: `0 18px 44px ${color.teal}33`,
                           minHeight: 290,
+                          outline: includesMe(overallBoard[0]) ? `3px solid ${color.teal}` : undefined,
                         }}
                       >
                         <PodiumLottie place={1} size={170} />
                         <div className="mt-2 text-xs font-semibold uppercase tracking-wide" style={{ color: sub }}>
                           1st Place
                         </div>
-                        <div className="text-2xl font-extrabold leading-tight" style={{ color: ink }}>
-                          {maskName(overallBoard[0].user_email ?? overallBoard[0].user_id)}
+                        <div className="text-2xl font-extrabold leading-tight" style={{ color: includesMe(overallBoard[0]) ? color.teal : ink }}>
+                          {maskedLabel(overallBoard[0].user_email ?? overallBoard[0].user_id)}
+                          {isMe(overallBoard[0]) && <MeBadge />}
                         </div>
                         <div className="mt-2 text-xl font-extrabold" style={{ color: color.teal }}>
                           {overallBoard[0].score} pts
@@ -236,22 +469,23 @@ export default function Leaderboards() {
                       </div>
                     )}
 
-                    {/* 2nd — left on sm+ */}
                     {overallBoard[1] && (
                       <div
                         className="order-2 sm:order-1 rounded-2xl px-5 pt-5 pb-6 text-center ring-1 flex flex-col items-center sm:translate-y-6"
                         style={{
                           background: `linear-gradient(135deg, #ffffff, ${color.mist}11)`,
-                          borderColor: cardBorder,
+                          borderColor: includesMe(overallBoard[1]) ? color.teal : cardBorder,
                           minHeight: 220,
+                          outline: includesMe(overallBoard[1]) ? `2px solid ${color.teal}` : undefined,
                         }}
                       >
                         <PodiumLottie place={2} size={96} />
                         <div className="mt-2 text-xs font-semibold uppercase tracking-wide" style={{ color: sub }}>
                           2nd Place
                         </div>
-                        <div className="text-lg font-bold leading-tight" style={{ color: ink }}>
-                          {maskName(overallBoard[1].user_email ?? overallBoard[1].user_id)}
+                        <div className="text-lg font-bold leading-tight" style={{ color: includesMe(overallBoard[1]) ? color.teal : ink }}>
+                          {maskedLabel(overallBoard[1].user_email ?? overallBoard[1].user_id)}
+                          {isMe(overallBoard[1]) && <MeBadge />}
                         </div>
                         <div className="mt-1 font-semibold" style={{ color: color.teal }}>
                           {overallBoard[1].score} pts
@@ -259,22 +493,23 @@ export default function Leaderboards() {
                       </div>
                     )}
 
-                    {/* 3rd — right on sm+ */}
                     {overallBoard[2] && (
                       <div
                         className="order-3 sm:order-3 rounded-2xl px-5 pt-5 pb-6 text-center ring-1 flex flex-col items-center sm:translate-y-6"
                         style={{
                           background: `linear-gradient(135deg, #ffffff, ${color.mist}11)`,
-                          borderColor: cardBorder,
+                          borderColor: includesMe(overallBoard[2]) ? color.teal : cardBorder,
                           minHeight: 220,
+                          outline: includesMe(overallBoard[2]) ? `2px solid ${color.teal}` : undefined,
                         }}
                       >
                         <PodiumLottie place={3} size={92} />
                         <div className="mt-2 text-xs font-semibold uppercase tracking-wide" style={{ color: sub }}>
                           3rd Place
                         </div>
-                        <div className="text-lg font-bold leading-tight" style={{ color: ink }}>
-                          {maskName(overallBoard[2].user_email ?? overallBoard[2].user_id)}
+                        <div className="text-lg font-bold leading-tight" style={{ color: includesMe(overallBoard[2]) ? color.teal : ink }}>
+                          {maskedLabel(overallBoard[2].user_email ?? overallBoard[2].user_id)}
+                          {isMe(overallBoard[2]) && <MeBadge />}
                         </div>
                         <div className="mt-1 font-semibold" style={{ color: color.teal }}>
                           {overallBoard[2].score} pts
@@ -286,22 +521,25 @@ export default function Leaderboards() {
                   {/* 4–10 list */}
                   {overallBoard.slice(3).map((entry, idx) => {
                     const rank = idx + 4;
+                    const mine = isMe(entry);
                     return (
                       <div
                         key={`${entry.user_id}-${rank}`}
                         className="flex items-center justify-between px-4 py-3 rounded-xl ring-1 bg-white mb-2"
-                        style={{ borderColor: cardBorder }}
+                        style={{
+                          borderColor: mine ? color.teal : cardBorder,
+                          outline: mine ? `2px solid ${color.teal}` : undefined,
+                          boxShadow: mine ? `0 8px 22px ${color.teal}22` : undefined,
+                        }}
                       >
                         <div className="flex items-center gap-3">
                           <span
                             className="inline-flex items-center justify-center h-7 w-7 text-xs font-bold rounded-full"
-                            style={{ background: `${color.mist}55`, color: ink }}
+                            style={{ background: mine ? color.teal : `${color.mist}55`, color: mine ? "#fff" : "#111" }}
                           >
                             {rank}
                           </span>
-                          <span className="font-medium" style={{ color: ink }}>
-                            {maskName(entry.user_email ?? entry.user_id)}
-                          </span>
+                          <NameCell entry={entry} />
                         </div>
                         <span className="font-semibold" style={{ color: color.teal }}>
                           {entry.score} pts
@@ -333,6 +571,14 @@ export default function Leaderboards() {
                       </h3>
                       <p className="text-sm mt-1" style={{ color: sub }}>
                         Highest score · Top 10
+                        {selectedSchool !== "ALL" &&
+                          ` · ${
+                            selectedSchool === "UE"
+                              ? "University of the East"
+                              : selectedSchool === "BNHS"
+                              ? "BNHS"
+                              : "Others"
+                          }`}
                       </p>
                     </div>
 
@@ -342,28 +588,33 @@ export default function Leaderboards() {
                       </p>
                     ) : (
                       <ul className="space-y-2">
-                        {rows.map((entry, index) => (
-                          <li
-                            key={`${q.id}-${entry.user_id}-${index}`}
-                            className="flex items-center justify-between px-3 py-2 rounded-lg ring-1 bg-white"
-                            style={{ borderColor: cardBorder }}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="inline-flex items-center justify-center h-6 w-6 text-xs font-bold rounded-full"
-                                style={{ background: `${color.mist}55`, color: ink }}
-                              >
-                                {index + 1}
+                        {rows.map((entry, index) => {
+                          const mine = isMe(entry);
+                          return (
+                            <li
+                              key={`${q.id}-${entry.user_id}-${index}`}
+                              className="flex items-center justify-between px-3 py-2 rounded-lg ring-1 bg-white"
+                              style={{
+                                borderColor: mine ? color.teal : cardBorder,
+                                outline: mine ? `2px solid ${color.teal}` : undefined,
+                                boxShadow: mine ? `0 6px 16px ${color.teal}22` : undefined,
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-flex items-center justify-center h-6 w-6 text-xs font-bold rounded-full"
+                                  style={{ background: mine ? color.teal : `${color.mist}55`, color: mine ? "#fff" : "#111" }}
+                                >
+                                  {index + 1}
+                                </span>
+                                <NameCell entry={entry} />
+                              </div>
+                              <span className="font-semibold" style={{ color: color.teal }}>
+                                {entry.score} pts
                               </span>
-                              <span className="font-medium" style={{ color: ink }}>
-                                {maskName(entry.user_email ?? entry.user_id)}
-                              </span>
-                            </div>
-                            <span className="font-semibold" style={{ color: color.teal }}>
-                              {entry.score} pts
-                            </span>
-                          </li>
-                        ))}
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </div>

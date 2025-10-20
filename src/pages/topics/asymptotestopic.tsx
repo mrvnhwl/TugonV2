@@ -133,7 +133,7 @@ function Asymptotestopic() {
       <main className="flex-grow max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Overview */}
         <section
-          className="rounded-2xl border bg-white p-6 md:p-7 -mt-8"
+          className="relative -mt-8 z-10 rounded-2xl border bg-white p-6 md:p-7"
           style={{ ...cardBorder, boxShadow: subtleShadow }}
         >
           <p className="leading-relaxed" style={{ color: color.steel }}>
