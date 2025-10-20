@@ -24,13 +24,18 @@ interface Question {
   time_limit: number;
   points: number;
   question_type: "multiplechoice" | "trueorfalse" | "paragraph";
+  // optional: if you saved matching right-side options in the questions row as JSON
+  matches?: string[];
 }
 
 interface Answer {
   id: string;
   answer: string;
   is_correct: boolean;
+  side?: "left" | "right";        // used for matching questions
+  match_index?: number | null;    // correct pairing index for matching
 }
+
 
 /** Per-question recorded outcome (idempotent) */
 type AnswerRecord = {
@@ -145,6 +150,14 @@ function Quiz() {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [questionIndex, setQuestionIndex] = useState<number>(0);
+
+  // store right-side match options loaded per question id (if not embedded in questions table)
+  const [matchesByQuestion, setMatchesByQuestion] = useState<Record<string, string[]>>({});
+
+  // student-side selections for checkbox questions (questionId -> Set<answerId>)
+  const [checkboxSelections, setCheckboxSelections] = useState<Record<string, Set<string>>>({});
+  // student-side matching selections (questionId -> array of selected right-index per left item, -1 = none)
+  const [matchingSelections, setMatchingSelections] = useState<Record<string, number[]>>({});
 
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
@@ -374,11 +387,22 @@ function Quiz() {
         if (qErr) throw qErr;
 
         if (questionsData && questionsData.length > 0) {
-          const qs = questionsData as Question[];
-          setQuestions(qs);
-          setCurrentQuestion(qs[0]);
-          setQuestionIndex(0);
-          setAnswerLog({});
+  // ✅ Normalize all points to integers immediately on load
+  const qs = (questionsData as Question[]).map((q) => ({
+          ...q,
+          points: Math.round(Number(q.points) || 0), // ✅ ensure points are integers
+        }));
+
+        // 🧩 Debug log — shows loaded question IDs and point values
+        console.log("✅ Loaded questions:", qs.map((q) => ({ id: q.id, points: q.points })));
+
+        // ✅ Set quiz state
+        setQuestions(qs);
+        setCurrentQuestion(qs[0]);
+        setQuestionIndex(0);
+        setAnswerLog({});
+
+
         } else {
           setQuestions([]);
           setCurrentQuestion(null);
@@ -393,30 +417,78 @@ function Quiz() {
 
   // Load answers when the current question changes and sync isAnswered from log
   useEffect(() => {
-    const loadAnswers = async (questionId: string) => {
-      try {
-        const { data: answersData, error } = await supabase.from("answers").select("*").eq("question_id", questionId);
+  const loadAnswers = async (questionId: string) => {
+    try {
+      const { data: answersData, error } = await supabase
+        .from("answers")
+        .select("*")
+        .eq("question_id", questionId);
 
-        if (error) throw error;
-        setAnswers((answersData as Answer[]) || []);
-      } catch (e) {
-        console.error("Error loading answers:", e);
-        toast.error("Failed to load answers.");
+      if (error) throw error;
+
+      const allAnswers = (answersData as any[]) || [];
+
+      // 🧠 Separate left/right items using the new 'side' column
+      const leftItems = allAnswers.filter((a) => a.side === "left");
+      const rightItems = allAnswers.filter((a) => a.side === "right");
+
+      // Store lefts (questions/prompts)
+      setAnswers(leftItems);
+
+      // Store rights (options) for this question id
+      setMatchesByQuestion((prev) => ({
+        ...prev,
+        [questionId]: rightItems.map((r) => r.answer),
+      }));
+
+      // initialize student-side selections for checkbox / matching types
+      const q = currentQuestion;
+      if (!q) return;
+      const qId = q.id;
+      const qType = (q.question_type || "").toString().toLowerCase().replace(/[_\s-]/g, "");
+
+      if (qType === "checkboxes") {
+        setCheckboxSelections((prev) => ({
+          ...prev,
+          [qId]: new Set<string>(),
+        }));
+      } else {
+        // clear stale checkbox selections for other types
+        setCheckboxSelections((prev) => {
+          if (prev[qId]) {
+            const copy = { ...prev };
+            delete copy[qId];
+            return copy;
+          }
+          return prev;
+        });
       }
-    };
 
-    if (currentQuestion) {
-      const start = currentQuestion.time_limit || 30;
-      setTimeLeft(start);
-      setIsAnswered(!!answerLog[currentQuestion.id]);
-      stopSpeaking();
-      loadAnswers(currentQuestion.id);
-
-      // reset paragraph input for new question
-      setParagraphAnswer("");
+      if (qType === "matching") {
+        // left items come from answers; ensure an array sized to left items
+        const leftCount = leftItems.length || 0;
+        setMatchingSelections((prev) => ({
+          ...prev,
+          [qId]: Array(leftCount).fill(-1),
+        }));
+      }
+    } catch (e) {
+      console.error("Error loading answers:", e);
+      toast.error("Failed to load answers.");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuestion, answerLog]);
+  };
+
+  if (currentQuestion) {
+    const start = currentQuestion.time_limit || 30;
+    setTimeLeft(start);
+    setIsAnswered(!!answerLog[currentQuestion.id]);
+    stopSpeaking();
+    loadAnswers(currentQuestion.id);
+    setParagraphAnswer("");
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [currentQuestion, answerLog]);
+
 
   // Countdown
   useEffect(() => {
@@ -451,44 +523,189 @@ function Quiz() {
     [answerLog]
   );
 
-  const handleAnswer = (answer: Answer) => {
-    if (!currentQuestion) return;
+  // helpers to normalize question_type strings (support variants like "multiple_choice")
+  const qTypeOf = (q?: Question | null) =>
+    (q?.question_type || "").toString().toLowerCase().replace(/[_\s-]/g, "");
 
-    if (answerLog[currentQuestion.id]) {
-      setIsAnswered(true);
-      return;
-    }
-
-    setIsAnswered(true);
-
-    if (answer.is_correct) {
-      const base = currentQuestion.points || 0;
-      const limit = currentQuestion.time_limit || 30;
-      const timeBonus = Math.floor((timeLeft / Math.max(1, limit)) * base);
-
-      playCorrectSfx();
-
-      setAnswerLog((prev) => ({
-        ...prev,
-        [currentQuestion.id]: {
-          selectedAnswerId: answer.id,
-          isCorrect: true,
-          awarded: timeBonus,
-        },
-      }));
-    } else {
-      playWrongSfx();
-
-      setAnswerLog((prev) => ({
-        ...prev,
-        [currentQuestion.id]: {
-          selectedAnswerId: answer.id,
-          isCorrect: false,
-          awarded: 0,
-        },
-      }));
-    }
+  // checkbox handlers (student)
+  const toggleCheckboxSelection = (qId: string, answerId: string) => {
+    setCheckboxSelections((prev) => {
+      const set = new Set(prev[qId] ? Array.from(prev[qId]) : []);
+      if (set.has(answerId)) set.delete(answerId);
+      else set.add(answerId);
+      return { ...prev, [qId]: set };
+    });
   };
+
+ const submitCheckboxAnswer = () => {
+  if (!currentQuestion) return;
+  if (isAnswered) return;
+
+  const qId = currentQuestion.id;
+  const selected = Array.from(checkboxSelections[qId] || []);
+
+  if (selected.length === 0) {
+    toast.error("Please select at least one option.");
+    return;
+  }
+
+  // 🧩 Normalize both to string to avoid type mismatch (e.g., number vs string)
+  const correctIds = answers.filter((a) => a.is_correct).map((a) => String(a.id));
+  const selectedIds = selected.map(String);
+
+  // 🔒 Convert both to sorted strings for stable comparison
+  const equal =
+    correctIds.length === selectedIds.length &&
+    correctIds.sort().join(",") === selectedIds.sort().join(",");
+
+  const base = currentQuestion.points || 0;
+
+  if (equal) {
+    playCorrectSfx();
+  } else {
+    playWrongSfx();
+  }
+
+  setAnswerLog((prev) => ({
+    ...prev,
+    [qId]: {
+      selectedAnswerId: JSON.stringify(selectedIds),
+      isCorrect: equal,
+      awarded: equal ? base : 0, // ✅ Full base points if correct
+    },
+  }));
+
+  setIsAnswered(true);
+  toast.success("Answer submitted.");
+};
+
+
+  // matching handlers (student)
+  const setMatchingChoice = (qId: string, leftIndex: number, rightIndex: number) => {
+    setMatchingSelections((prev) => {
+      const arr = prev[qId] ? [...prev[qId]] : [];
+      arr[leftIndex] = rightIndex;
+      return { ...prev, [qId]: arr };
+    });
+  };
+
+  const submitMatchingAnswer = async () => {
+  if (!currentQuestion || !user) return;
+  if (isAnswered) return;
+
+  const qId = currentQuestion.id;
+  const mapping = matchingSelections[qId] || [];
+
+  // Must choose all before submitting
+  if (mapping.some((m) => m === -1)) {
+    toast.error("Please match all left items before submitting.");
+    return;
+  }
+
+  // No points if time already ran out
+  if (timeLeft <= 0) {
+    toast.error("Time's up! No points awarded.");
+    setIsAnswered(true);
+    setAnswerLog((prev) => ({
+      ...prev,
+      [qId]: { selectedAnswerId: JSON.stringify(mapping), isCorrect: false, awarded: 0 },
+    }));
+    return;
+  }
+
+  try {
+    await supabase.from("matching_responses").insert({
+      user_id: user.id,
+      quiz_id: id,
+      question_id: qId,
+      mapping, // JSON column
+    });
+  } catch (e) {
+    console.error("Failed to save matching response:", e);
+    toast.error("Failed to submit answer. Please try again.");
+    return;
+  }
+
+  // Compare using match_index (safer)
+  const leftItems = answers.filter((a) => a.side === "left");
+  const correctMapping = leftItems.map((a) => a.match_index ?? -1);
+
+  let correctCount = 0;
+  for (let i = 0; i < correctMapping.length; i++) {
+    if (mapping[i] === correctMapping[i]) correctCount++;
+  }
+
+  const total = leftItems.length;
+  const percentCorrect = total > 0 ? correctCount / total : 0;
+  const base = currentQuestion.points || 0;
+  const awarded =
+  percentCorrect === 1 ? base : Math.round(base * percentCorrect);
+
+
+  if (percentCorrect === 1) playCorrectSfx();
+  else playWrongSfx();
+
+  setAnswerLog((prev) => ({
+    ...prev,
+    [qId]: {
+      selectedAnswerId: JSON.stringify(mapping),
+      isCorrect: percentCorrect === 1,
+      awarded,
+    },
+  }));
+
+  setIsAnswered(true);
+  toast.success(
+    percentCorrect === 1
+      ? `Perfect! Full ${base} points 🎯`
+      : `Partial credit: ${awarded} / ${base} points`
+  );
+};
+
+
+const handleAnswer = (answer: Answer) => {
+  if (!currentQuestion) return;
+
+  // prevent double-answering
+  if (answerLog[currentQuestion.id]) {
+    setIsAnswered(true);
+    return;
+  }
+
+  setIsAnswered(true);
+
+  const base = currentQuestion.points || 0;
+
+  if (answer.is_correct) {
+    // ✅ Always award full base points when correct
+    const awarded = base;
+
+    playCorrectSfx();
+
+    setAnswerLog((prev) => ({
+      ...prev,
+      [currentQuestion.id]: {
+        selectedAnswerId: answer.id,
+        isCorrect: true,
+        awarded,
+      },
+    }));
+  } else {
+    // ❌ Wrong answer = 0 points
+    playWrongSfx();
+
+    setAnswerLog((prev) => ({
+      ...prev,
+      [currentQuestion.id]: {
+        selectedAnswerId: answer.id,
+        isCorrect: false,
+        awarded: 0,
+      },
+    }));
+  }
+};
+
+
 
   const submitParagraphAnswer = async () => {
     if (!currentQuestion || !user) return;
@@ -733,38 +950,161 @@ function Quiz() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-              {answers.map((answer) => {
-                const recorded = answerLog[currentQuestion.id];
-                const wasAnswered = !!recorded;
-                const isCorrectChoice = answer.is_correct;
+            (() => {
+              const qType = qTypeOf(currentQuestion);
 
-                const base = "p-4 rounded-xl text-left transition-all border-2 focus:outline-none focus-visible:ring-2";
-                const neutral = "bg-gray-50 hover:bg-gray-100 border-transparent focus-visible:ring-[rgba(0,0,0,.06)]";
-                const whenAnswered = isCorrectChoice ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500";
-
+              // CHECKBOXES: allow multiple selections then submit
+              if (qType === "checkboxes") {
+                const qId = currentQuestion.id;
+                const sel = checkboxSelections[qId] || new Set<string>();
                 return (
-                  <button
-                    key={answer.id}
-                    onClick={() => handleAnswer(answer)}
-                    disabled={isAnswered || wasAnswered}
-                    className={`${base} ${(isAnswered || wasAnswered) ? whenAnswered : neutral}`}
-                  >
-                    <div className="flex items-center">
-                      <span className="flex-grow" style={{ color: color.deep }}>
-                        <MathJax dynamic inline>{wrapMath(answer.answer)}</MathJax>
-                      </span>
-                      {(isAnswered || wasAnswered) &&
-                        (isCorrectChoice ? (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-600" />
-                        ))}
+                  <div className="col-span-1 md:col-span-2">
+                    <div className="grid gap-3">
+                      {answers.map((ans) => (
+                        <label
+                          key={ans.id}
+                          className="p-3 rounded-xl border flex items-center gap-3 cursor-pointer bg-gray-50 hover:bg-gray-100"
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={isAnswered}
+                            checked={sel.has(ans.id)}
+                            onChange={() => toggleCheckboxSelection(qId, ans.id)}
+                            className="h-4 w-4"
+                          />
+                          <span className="flex-grow">
+                            <MathJax dynamic inline>{wrapMath(ans.answer)}</MathJax>
+                          </span>
+                        </label>
+                      ))}
+                      {!isAnswered && (
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            type="button"
+                            onClick={submitCheckboxAnswer}
+                            className="px-4 py-2 rounded-lg text-white"
+                            style={{
+                              background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                            }}
+                          >
+                            Submit
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </button>
+                  </div>
                 );
-              })}
-            </div>
+              }
+
+              // MATCHING
+              if (qType === "matching") {
+              const qId = currentQuestion.id;
+              const matches =
+                Array.isArray((currentQuestion as any).matches) &&
+                (currentQuestion as any).matches.length > 0
+                  ? (currentQuestion as any).matches
+                  : matchesByQuestion[qId] || [];
+
+              const lefts = answers;
+              const mapping = matchingSelections[qId] || Array(lefts.length).fill(-1);
+
+              return (
+                <div className="col-span-1 md:col-span-2">
+                  <div className="font-semibold mb-3">Match the following</div>
+
+                  <div className="space-y-3">
+                    {lefts.map((l, li) => (
+                      <div
+                        key={l.id}
+                        className="flex flex-col md:flex-row items-stretch border rounded-lg bg-white shadow-sm"
+                        style={{ borderColor: color.mist }}
+                      >
+                        {/* Left item */}
+                        <div className="flex-1 px-3 py-3 text-left break-words md:pr-4">
+                          <MathJax dynamic inline>{wrapMath(l.answer)}</MathJax>
+                        </div>
+
+                        {/* Divider (hidden on small screens) */}
+                        <div className="hidden md:block w-px bg-gray-300 mx-2"></div>
+
+                        {/* Right dropdown */}
+                        <div className="md:w-1/3 w-full px-3 py-3 border-t md:border-t-0 md:border-l border-gray-200">
+                          <select
+                            disabled={isAnswered}
+                            value={mapping[li] ?? -1}
+                            onChange={(e) =>
+                              setMatchingChoice(qId, li, Number(e.target.value))
+                            }
+                            className="w-full rounded border px-2 py-2 text-sm md:text-base focus:ring-2 focus:ring-teal-400"
+                          >
+                            <option value={-1}>Choose...</option>
+                            {matches.map((m: string, mi: number) => (
+                              <option key={mi} value={mi}>
+                                {m || `Option ${mi + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {!isAnswered && (
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={submitMatchingAnswer}
+                        className="px-4 py-2 rounded-lg text-white font-semibold"
+                        style={{
+                          background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                        }}
+                      >
+                        Submit Matching
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+
+
+              // DEFAULT: single-choice buttons (unchanged)
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                  {answers.map((answer) => {
+                    const recorded = answerLog[currentQuestion.id];
+                    const wasAnswered = !!recorded;
+                    const isCorrectChoice = answer.is_correct;
+
+                    const base = "p-4 rounded-xl text-left transition-all border-2 focus:outline-none focus-visible:ring-2";
+                    const neutral = "bg-gray-50 hover:bg-gray-100 border-transparent focus-visible:ring-[rgba(0,0,0,.06)]";
+                    const whenAnswered = isCorrectChoice ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500";
+
+                    return (
+                      <button
+                        key={answer.id}
+                        onClick={() => handleAnswer(answer)}
+                        disabled={isAnswered || wasAnswered}
+                        className={`${base} ${(isAnswered || wasAnswered) ? whenAnswered : neutral}`}
+                      >
+                        <div className="flex items-center">
+                          <span className="flex-grow" style={{ color: color.deep }}>
+                            <MathJax dynamic inline>{wrapMath(answer.answer)}</MathJax>
+                          </span>
+                          {(isAnswered || wasAnswered) &&
+                            (isCorrectChoice ? (
+                              <CheckCircle className="h-5 w-5 text-green-600" />
+                            ) : (
+                              <XCircle className="h-5 w-5 text-red-600" />
+                            ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()
           )}
 
           {/* Footer controls */}
@@ -819,6 +1159,7 @@ function Quiz() {
 
               <div className="mt-4 text-3xl font-extrabold" style={{ color: color.teal }}>
                 {score}{" "}
+                
                 <span className="text-base font-semibold" style={{ color: color.steel }}>
                   / {totalPoints}
                 </span>
