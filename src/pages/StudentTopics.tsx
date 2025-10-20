@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FileText, Download, ChevronLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import StudentNavbar from "../components/StudentNavbar";
+import StudentNavbar from "../components/studentNavbar";
 import color from "../styles/color";
 
 type Topic = {
