@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import StudentNavbar from "../components/StudentNavbar";
+import StudentNavbar from "../components/studentNavbar";
 import Footer from "../components/Footer";
 import color from "../styles/color";
 import { Download, ChevronLeft } from "lucide-react";
