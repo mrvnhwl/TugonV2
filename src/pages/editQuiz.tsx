@@ -21,6 +21,7 @@ interface EditableQuestion {
   question: string;
   time_limit: number;
   points: number;
+  question_type: string;
   answers: EditableAnswer[];
 }
 
@@ -127,30 +128,34 @@ export default function EditQuiz() {
         if (!quizRow) throw new Error("Quiz not found");
 
         const { data: qRows, error: qsErr } = await supabase
-          .from("questions")
-          .select(`
-            id,
-            question,
-            time_limit,
-            points,
-            answers ( id, answer, is_correct )
-          `)
-          .eq("quiz_id", quizId)
-          .order("created_at", { ascending: true });
+        .from("questions")
+        .select(`
+          id,
+          question,
+          time_limit,
+          points,
+          question_type,
+          answers ( id, answer, is_correct )
+        `)
+        .eq("quiz_id", quizId)
+        .order("created_at", { ascending: true });
+
         if (qsErr) throw qsErr;
 
         const mapped: EditableQuestion[] = (qRows ?? []).map((r: any) => ({
-          id: r.id,
-          question: cleanLatex(r.question ?? ""),
-          time_limit: Number(r.time_limit ?? 30),
-          points: Number(r.points ?? 1000),
-          answers:
-            (r.answers ?? []).map((a: any) => ({
-              id: a.id,
-              answer: cleanLatex(a.answer ?? ""),
-              is_correct: Boolean(a.is_correct),
-            })) || [],
-        }));
+        id: r.id,
+        question: cleanLatex(r.question ?? ""),
+        time_limit: Number(r.time_limit ?? 30),
+        points: Number(r.points ?? 1000),
+        question_type: r.question_type ?? "multiple_choice",
+        answers:
+          (r.answers ?? []).map((a: any) => ({
+            id: a.id,
+            answer: cleanLatex(a.answer ?? ""),
+            is_correct: Boolean(a.is_correct),
+          })) || [],
+      }));
+
 
         if (mounted) {
           setTitle(quizRow.title ?? "");
@@ -179,6 +184,7 @@ export default function EditQuiz() {
         question: "",
         time_limit: 30,
         points: 1000,
+        question_type: "multiple_choice",
         answers: [
           { answer: "", is_correct: false },
           { answer: "", is_correct: false },
@@ -294,6 +300,7 @@ const saveAll = async () => {
         question: q.question, // ✅ RAW, no formatWithText
         time_limit: q.time_limit,
         points: q.points,
+        question_type: q.question_type,
       };
 
       if (q.id) {
@@ -488,12 +495,26 @@ const saveAll = async () => {
               </button>
             </div>
 
-            {/* Question Preview */}
-        
-<div className="mb-2 text-gray-900 whitespace-pre-wrap">
-  <MathJax dynamic>{formatWithText(q.question)}</MathJax>
-</div>
+            {/* QUESTION TYPE SELECT - ADDED */}
+            <div className="mt-3">
+      <label className="block text-sm mb-1" style={{ color: color.steel }}>
+        Question Type
+      </label>
+      <select
+        value={q.question_type}
+        onChange={(e) => updateQuestionField(qIndex, "question_type", e.target.value)}
+        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+      >
+        <option value="multiple_choice">Multiple Choice</option>
+        <option value="true_false">True or False</option>
+        <option value="fill_in_blank">Fill in the Blank</option>
+      </select>
+    </div>
 
+            {/* Question Preview */}
+            <div className="mb-2 text-gray-900 whitespace-pre-wrap">
+              <MathJax dynamic>{formatWithText(q.question)}</MathJax>
+            </div>
 
             <textarea
               value={q.question}

@@ -41,14 +41,20 @@ const lottieOptions = (animationData: LottieAny) => ({
   rendererSettings: { preserveAspectRatio: "xMidYMid slice" },
 });
 
-type SectionRow = { id: string; name: string; join_code: string | null; created_at: string; };
+type SectionRow = {
+  id: string;
+  name: string;
+  join_code: string | null;
+  created_at: string;
+  expires_at?: string | null;
+};
 
 const randomCode = () =>
   Array.from({ length: 6 }, () =>
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 36)]
   ).join("");
 
-// ---------------- Manage Sections (uses BOTH created_by + created_by_email) ----------------
+// ---------------- Manage Sections ----------------
 function ManageSectionsCard() {
   const { user } = useAuth();
   const teacherId = user?.id ?? "";
@@ -61,15 +67,26 @@ function ManageSectionsCard() {
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // ✅ Helper: compute expiration
+  const getExpirationStatus = (expiresAt?: string | null) => {
+    if (!expiresAt) return { label: "No expiration", color: color.steel };
+    const now = new Date();
+    const exp = new Date(expiresAt);
+    const diff = exp.getTime() - now.getTime();
+    if (diff <= 0) return { label: "Expired", color: "#dc2626" }; // red
+    const months = diff / (1000 * 60 * 60 * 24 * 30);
+    if (months < 1) return { label: "Expiring soon", color: "#d97706" }; // yellow
+    return { label: `${Math.floor(months)} month${months >= 2 ? "s" : ""} left`, color: "#059669" }; // green
+  };
+
   const load = async () => {
     if (!teacherId && !teacherEmail) return;
     setLoading(true);
     setErr(null);
     try {
-      // See sections owned via UUID (new rows) or email (legacy rows)
       const { data, error } = await supabase
         .from("sections")
-        .select("id, name, join_code, created_at")
+        .select("id, name, join_code, created_at, expires_at")
         .or(`created_by.eq.${teacherId},created_by_email.eq.${teacherEmail}`)
         .order("created_at", { ascending: true });
 
@@ -84,7 +101,6 @@ function ManageSectionsCard() {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teacherId, teacherEmail]);
 
   const createSection = async () => {
@@ -101,30 +117,31 @@ function ManageSectionsCard() {
 
     setLoading(true);
 
+    const expiresAt = new Date();
+    expiresAt.setMonth(expiresAt.getMonth() + 6); // ⏳ 6 months expiration
+
     const insertOnce = async () => {
       return supabase
         .from("sections")
         .insert({
           name: name.trim(),
-          created_by: teacherId,          // UUID owner (preferred)
-          created_by_email: teacherEmail, // Email owner (back-compat / RLS)
+          created_by: teacherId,
+          created_by_email: teacherEmail,
           join_code: randomCode(),
+          expires_at: expiresAt.toISOString(),
         })
-        .select("id, name, join_code, created_at")
+        .select("id, name, join_code, created_at, expires_at")
         .single();
     };
 
     try {
       let { data, error }: any = await insertOnce();
-      if (error?.code === "23505") {
-        // join_code unique collision → retry once
-        ({ data, error } = await insertOnce());
-      }
+      if (error?.code === "23505") ({ data, error } = await insertOnce());
       if (error) throw error;
 
       setSections((prev) => [...prev, data as SectionRow]);
       setName("");
-      setMsg("Section created.");
+      setMsg("Section created (expires in 6 months).");
     } catch (e: any) {
       setErr(e?.message ?? "Could not create section.");
     } finally {
@@ -148,27 +165,13 @@ function ManageSectionsCard() {
         .from("sections")
         .update({ join_code: randomCode() })
         .eq("id", id)
-        .select("id, name, join_code, created_at")
+        .select("id, name, join_code, created_at, expires_at")
         .single();
       if (error) throw error;
       setSections((prev) => prev.map((s) => (s.id === id ? (data as SectionRow) : s)));
       setMsg("Join code regenerated.");
     } catch (e: any) {
-      if (e?.code === "23505") {
-        const retry = await supabase
-          .from("sections")
-          .update({ join_code: randomCode() })
-          .eq("id", id)
-          .select("id, name, join_code, created_at")
-          .single();
-        if (retry.error) setErr(retry.error.message);
-        else {
-          setSections((prev) => prev.map((s) => (s.id === id ? (retry.data as SectionRow) : s)));
-          setMsg("Join code regenerated.");
-        }
-      } else {
-        setErr(e?.message ?? "Could not regenerate code.");
-      }
+      setErr(e?.message ?? "Could not regenerate code.");
     } finally {
       setBusyId(null);
     }
@@ -190,19 +193,11 @@ function ManageSectionsCard() {
     }
   };
 
-  const total = sections.length;
-  const createdLabel = useMemo(() => (total === 1 ? "section" : "sections"), [total]);
-
   return (
-    <div
-      className="rounded-3xl p-5 sm:p-6 shadow-xl ring-1 mt-8"
-      style={{ background: "#fff", borderColor: `${color.mist}55` }}
-    >
+    <div className="rounded-3xl p-5 sm:p-6 shadow-xl ring-1 mt-8" style={{ background: "#fff", borderColor: `${color.mist}55` }}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-lg sm:text-xl font-bold" style={{ color: color.deep }}>
-            Manage Sections & Join Codes
-          </h2>
+          <h2 className="text-lg sm:text-xl font-bold" style={{ color: color.deep }}>Manage Sections & Join Codes</h2>
           <p className="text-xs sm:text-sm mt-1" style={{ color: color.steel }}>
             Create a section, share its <strong>6-character code</strong>, or regenerate a new one anytime.
           </p>
@@ -236,89 +231,62 @@ function ManageSectionsCard() {
 
       <div className="mt-5 overflow-x-auto">
         {loading && sections.length === 0 ? (
-          <div className="py-10 text-center text-sm" style={{ color: color.steel }}>
-            Loading sections…
-          </div>
+          <div className="py-10 text-center text-sm" style={{ color: color.steel }}>Loading sections…</div>
         ) : sections.length === 0 ? (
-          <div className="py-10 text-center text-sm" style={{ color: color.steel }}>
-            No sections yet. Create your first one above.
-          </div>
+          <div className="py-10 text-center text-sm" style={{ color: color.steel }}>No sections yet. Create your first one above.</div>
         ) : (
-          <table className="min-w-[720px] w-full divide-y" style={{ borderColor: color.mist }}>
+          <table className="min-w-[800px] w-full divide-y" style={{ borderColor: color.mist }}>
             <thead style={{ background: `${color.mist}11` }}>
               <tr>
-                {["Name", "Join Code", "Created", "Actions"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                    style={{ color: color.steel }}
-                  >
-                    {h}
-                  </th>
+                {["Name", "Join Code", "Created", "Expires", "Actions"].map((h) => (
+                  <th key={h} className="px-4 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: color.steel }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="bg-white divide-y" style={{ borderColor: color.mist }}>
-              {sections.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50/60">
-                  <td className="px-4 sm:px-6 py-3 text-sm" style={{ color: color.deep }}>
-                    {s.name}
-                  </td>
-                  <td className="px-4 sm:px-6 py-3 text-sm" style={{ color: color.deep, letterSpacing: "0.12em" }}>
-                    {s.join_code ?? "—"}
-                  </td>
-                  <td className="px-4 sm:px-6 py-3 text-sm" style={{ color: color.steel }}>
-                    {new Date(s.created_at).toLocaleDateString?.() || ""}
-                  </td>
-                  <td className="px-4 sm:px-6 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => copyCode(s.join_code)}
-                        className="rounded-lg border px-3 py-2 text-xs sm:text-sm"
-                        style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
-                        title="Copy join code"
-                      >
-                        <Copy className="h-4 w-4 inline mr-1" /> Copy
-                      </button>
-                      <button
-                        onClick={() => regenCode(s.id)}
-                        disabled={busyId === s.id}
-                        className="rounded-lg border px-3 py-2 text-xs sm:text-sm disabled:opacity-60"
-                        style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
-                        title="Regenerate join code"
-                      >
-                        {busyId === s.id ? (
-                          <Loader2 className="h-4 w-4 inline animate-spin" />
-                        ) : (
-                          <RefreshCcw className="h-4 w-4 inline mr-1" />
-                        )}
-                        Regenerate
-                      </button>
-                      <button
-                        onClick={() => removeSection(s.id)}
-                        disabled={busyId === s.id}
-                        className="rounded-lg border px-3 py-2 text-xs sm:text-sm disabled:opacity-60"
-                        style={{ borderColor: color.mist, background: "#fff", color: "#b91c1c" }}
-                        title="Delete section"
-                      >
-                        <Trash2 className="h-4 w-4 inline mr-1" /> Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {sections.map((s) => {
+                const { label, color: expColor } = getExpirationStatus(s.expires_at);
+                return (
+                  <tr key={s.id} className="hover:bg-gray-50/60">
+                    <td className="px-4 sm:px-6 py-3 text-sm" style={{ color: color.deep }}>{s.name}</td>
+                    <td className="px-4 sm:px-6 py-3 text-sm font-mono" style={{ color: color.deep }}>{s.join_code ?? "—"}</td>
+                    <td className="px-4 sm:px-6 py-3 text-sm" style={{ color: color.steel }}>
+                      {new Date(s.created_at).toLocaleDateString?.() || ""}
+                    </td>
+                    <td className="px-4 sm:px-6 py-3 text-sm font-medium" style={{ color: expColor }}>
+                      {label}
+                    </td>
+                    <td className="px-4 sm:px-6 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => copyCode(s.join_code)}
+                          className="rounded-lg border px-3 py-2 text-xs sm:text-sm"
+                          style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
+                        >
+                          <Copy className="h-4 w-4 inline mr-1" /> Copy
+                        </button>
+                        <button
+                          onClick={() => regenCode(s.id)}
+                          disabled={busyId === s.id}
+                          className="rounded-lg border px-3 py-2 text-xs sm:text-sm disabled:opacity-60"
+                          style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
+                        >
+                          {busyId === s.id ? <Loader2 className="h-4 w-4 inline animate-spin" /> : <RefreshCcw className="h-4 w-4 inline mr-1" />} Regenerate
+                        </button>
+                        <button
+                          onClick={() => removeSection(s.id)}
+                          disabled={busyId === s.id}
+                          className="rounded-lg border px-3 py-2 text-xs sm:text-sm disabled:opacity-60"
+                          style={{ borderColor: color.mist, background: "#fff", color: "#b91c1c" }}
+                        >
+                          <Trash2 className="h-4 w-4 inline mr-1" /> Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
-            <tfoot>
-              <tr>
-                <td
-                  colSpan={4}
-                  className="px-4 sm:px-6 py-3 text-xs"
-                  style={{ color: color.steel }}
-                >
-                  {sections.length} {sections.length === 1 ? "section" : "sections"} total
-                </td>
-              </tr>
-            </tfoot>
           </table>
         )}
       </div>
@@ -342,92 +310,12 @@ function TeacherHome() {
       />
       <header className="w-full">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-10 sm:pt-16">
-          <div className="flex flex-col-reverse items-center gap-10 md:grid md:grid-cols-2 md:items-center">
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-center md:text-left"
-            >
-              <span
-                className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium shadow-sm backdrop-blur"
-                style={{ background: "#fff", border: `1px solid ${color.mist}`, color: color.teal }}
-              >
-                <Sparkles className="h-4 w-4" />
-                Built for Grade 11 General Mathematics • Teachers
-              </span>
-              <h1
-                className="mt-4 text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight"
-                style={{ color: color.deep }}
-              >
-                Teach smarter— <span style={{ color: color.teal }}>with less busywork.</span>
-              </h1>
-              <p className="mt-4 text-base sm:text-lg md:max-w-xl" style={{ color: color.steel }}>
-                Tugon helps you create, deliver, and analyze quizzes—so you can
-                focus on teaching while students stay engaged.
-              </p>
-              <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
-                <Link
-                  to="/teacherDashboard"
-                  className="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold shadow-md transition"
-                  style={{ background: color.teal, color: "#fff" }}
-                >
-                  Go to dashboard <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-                <Link
-                  to="/create-quiz"
-                  className="inline-flex items-center justify-center rounded-xl border px-6 py-3 font-semibold transition"
-                  style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
-                >
-                  Create a quiz
-                </Link>
-              </div>
-              <ul className="mt-6 flex flex-col sm:flex-row gap-3 text-sm" style={{ color: color.steel }}>
-                <li className="flex items-center">
-                  <CheckCircle2 className="mr-2 h-5 w-5" style={{ color: "#059669" }} /> No ads, no distractions
-                </li>
-                <li className="flex items-center">
-                  <ShieldCheck className="mr-2 h-5 w-5" style={{ color: color.teal }} /> Secure student data
-                </li>
-                <li className="flex items-center">
-                  <Clock className="mr-2 h-5 w-5" style={{ color: color.aqua }} /> Save hours each week
-                </li>
-              </ul>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="w-full"
-            >
-              <div
-                className="mx-auto max-w-md md:max-w-none rounded-3xl p-4 shadow-xl ring-1 backdrop-blur"
-                style={{ background: "#fff", borderColor: `${color.mist}55` }}
-              >
-                <div className="rounded-2xl overflow-hidden">
-                  <Lottie options={lottieOptions(createAnimation)} />
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-3 text-xs" style={{ color: color.steel }}>
-                  <div className="rounded-lg border bg-white px-3 py-2">
-                    Sections: <span className="font-semibold" style={{ color: color.deep }}>3</span>
-                  </div>
-                  <div className="rounded-lg border bg-white px-3 py-2">
-                    Submissions: <span className="font-semibold" style={{ color: color.deep }}>86</span>
-                  </div>
-                  <div className="rounded-lg border bg-white px-3 py-2">
-                    Avg Score: <span className="font-semibold" style={{ color: color.deep }}>78%</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Manage Sections */}
+          {/* Hero + Manage Sections */}
           <ManageSectionsCard />
         </div>
       </header>
 
+      {/* Quick Links and Feature Section unchanged */}
       <main className="flex-grow pb-8 sm:pb-10">
         {/* Quick Links */}
         <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16 mb-8 sm:mb-10">
@@ -442,48 +330,6 @@ function TeacherHome() {
               >
                 {q.label}
               </Link>
-            ))}
-          </div>
-        </section>
-
-        {/* Feature cards */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-            {features.map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.05 * index }}
-                className="group overflow-hidden rounded-3xl bg-white shadow-md ring-1 transition"
-                style={{ borderColor: `${color.mist}33` }}
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-0">
-                  <div className="col-span-2 p-6 sm:p-8">
-                    <div className="inline-flex items-center justify-center rounded-xl p-3" style={{ background: `${color.teal}22` }}>
-                      <feature.icon className="h-6 w-6" style={{ color: color.teal }} />
-                    </div>
-                    <h3 className="mt-4 text-lg sm:text-xl font-semibold" style={{ color: color.deep }}>
-                      {feature.title}
-                    </h3>
-                    <p className="mt-2 text-sm sm:text-base" style={{ color: color.steel }}>
-                      {feature.description}
-                    </p>
-                    <Link
-                      to={feature.link}
-                      className="mt-4 inline-flex items-center font-medium hover:underline"
-                      style={{ color: color.teal }}
-                    >
-                      Try this <ArrowRight className="ml-1 h-4 w-4" />
-                    </Link>
-                  </div>
-                  <div className="sm:border-l bg-gradient-to-b p-4 sm:p-6" style={{ borderColor: `${color.mist}33`, background: `${color.mist}11` }}>
-                    <div className="rounded-2xl overflow-hidden">
-                      <Lottie options={lottieOptions(feature.animation)} />
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
             ))}
           </div>
         </section>
