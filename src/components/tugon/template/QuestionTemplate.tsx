@@ -16,7 +16,7 @@ interface QuestionTemplateProps {
   onSubmit: (finalSteps: WizardStep[], validationResult?: any) => void;
   onIndexChange: (index: number) => void;
   onAttemptUpdate?: (attempt: any) => void;
-  expectedAnswers: any;
+  expectedAnswers?: any; // ✨ OPTIONAL: Falls back to Supabase if not provided
 }
 
 /**
@@ -92,7 +92,9 @@ export default function QuestionTemplate({
             categoryId={categoryId}
             questionId={questionId}
             steps={[]} // Let AnswerWizard auto-generate steps
-            expectedAnswers={expectedAnswers}
+            // ✨ Only pass expectedAnswers if provided (for testing/override)
+            // Otherwise AnswerWizard fetches from Supabase using IDs
+            {...(expectedAnswers && { expectedAnswers })}
             onValidationResult={onValidationResult}
             onSubmit={onSubmit}
             onIndexChange={onIndexChange}

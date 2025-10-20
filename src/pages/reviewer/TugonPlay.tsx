@@ -612,7 +612,6 @@ export default function TugonPlay() {
           topicId={topicId}
           categoryId={finalCategoryId}
           questionId={questionId}
-          expectedAnswers={expectedAnswers}
           onValidationResult={(type, currentStep) => {
             console.log(`📱 Mobile onValidationResult callback:`, { type, currentStep });
             // Only trigger handleAttempt when all steps are complete (correct or all incorrect)
@@ -684,13 +683,12 @@ export default function TugonPlay() {
       <div className="flex-1 bg-gray-50 overflow-y-auto min-h-[50vh]">
         <div className="container mx-auto px-12 py-10">
           <div className="max-w-2xl mx-auto">
-            <QuestionTemplate
-              key={`desktop-template-${topicId}-${finalCategoryId}-${questionId}`}
-              topicId={topicId}
-              categoryId={finalCategoryId}
-              questionId={questionId}
-              expectedAnswers={expectedAnswers}
-              onValidationResult={(type, currentStep) => {
+          <QuestionTemplate
+            key={`desktop-template-${topicId}-${finalCategoryId}-${questionId}`}
+            topicId={topicId}
+            categoryId={finalCategoryId}
+            questionId={questionId}
+            onValidationResult={(type, currentStep) => {
                 console.log(`🖥️ Desktop onValidationResult callback:`, { type, currentStep });
                 // Only trigger handleAttempt when all steps are complete (correct or all incorrect)
                 if (type === "correct") {

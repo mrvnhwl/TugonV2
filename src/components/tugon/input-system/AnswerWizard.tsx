@@ -1,10 +1,8 @@
 //AnswerWizard
 
 import { useEffect, useState } from "react";
-import { predefinedAnswers as predefinedAnswersData } from "@/components/data/answers/index";
 import type { PredefinedAnswer, Step as AnswerStep } from "@/components/data/answers/types";
-import { getAnswerForQuestion } from "@/components/data/answers/index"; // ⚠️ Fallback only
-import { fetchAnswerSteps, getAnswerForQuestionHybrid } from "@/lib/supabaseAnswers"; // ✨ NEW: Supabase integration
+import { fetchAnswerSteps } from "@/lib/supabaseAnswers"; // ✨ Supabase-only integration
 import { cn } from "../../cn";
 import UserInput from './UserInput';
 import InputValidator from './UserInputValidator';
@@ -106,34 +104,38 @@ export default function AnswerWizard({
   const [answersLoading, setAnswersLoading] = useState<boolean>(true);
   const [answersError, setAnswersError] = useState<string | null>(null);
 
-  // ✨ NEW: Fetch answer steps from Supabase
+  // ✨ Fetch answer steps from Supabase (NO FALLBACK)
   useEffect(() => {
     let isMounted = true;
+
+    console.log('🔍 ANSWERWIZARD USEEFFECT TRIGGERED:', {
+      topicId,
+      categoryId, 
+      questionId,
+      hasExpectedAnswers: expectedAnswers && expectedAnswers.length > 0,
+      expectedAnswersLength: expectedAnswers?.length || 0
+    });
 
     const loadAnswerSteps = async () => {
       // Priority 1: Use provided expectedAnswers prop
       if (expectedAnswers && expectedAnswers.length > 0) {
         console.log('📝 Using provided expectedAnswers prop');
+        console.log('📝 expectedAnswers content:', expectedAnswers);
         setAnswersSource(expectedAnswers);
         setAnswersLoading(false);
         return;
       }
 
-      // Priority 2: Fetch from Supabase
+      // Priority 2: Fetch ONLY from Supabase (no fallback)
       if (topicId && categoryId && questionId) {
         setAnswersLoading(true);
         setAnswersError(null);
 
         try {
-          console.log(`🔄 Fetching answer steps from Supabase: Topic ${topicId}, Category ${categoryId}, Question ${questionId}`);
+          console.log(`🔄 Fetching answer steps from Supabase ONLY: Topic ${topicId}, Category ${categoryId}, Question ${questionId}`);
           
-          // Use hybrid function that falls back to hardcoded if Supabase fails
-          const steps = await getAnswerForQuestionHybrid(
-            topicId,
-            categoryId,
-            questionId,
-            getAnswerForQuestion // Fallback function
-          );
+          // Fetch directly from Supabase (no hybrid, no fallback)
+          const steps = await fetchAnswerSteps(topicId, categoryId, questionId);
 
           if (!isMounted) return;
 
@@ -147,13 +149,14 @@ export default function AnswerWizard({
             setAnswersSource([predefinedAnswer]);
             console.log('✅ Loaded answer steps from Supabase:', predefinedAnswer);
           } else {
-            console.warn('⚠️ No answer steps found');
+            console.warn('⚠️ No answer steps found in Supabase database');
+            setAnswersError('No answer steps found in database. Please add answer data for this question.');
             setAnswersSource([]);
           }
         } catch (err) {
-          console.error('❌ Error loading answer steps:', err);
+          console.error('❌ Error loading answer steps from Supabase:', err);
           if (isMounted) {
-            setAnswersError('Failed to load answer steps from database');
+            setAnswersError('Failed to load answer steps from database. Check console for details.');
             setAnswersSource([]);
           }
         } finally {
@@ -163,6 +166,8 @@ export default function AnswerWizard({
         }
       } else {
         // No IDs provided
+        console.warn('⚠️ No topicId, categoryId, or questionId provided to AnswerWizard');
+        setAnswersError('Missing question identifiers (topicId, categoryId, or questionId)');
         setAnswersSource([]);
         setAnswersLoading(false);
       }
