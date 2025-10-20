@@ -10,6 +10,7 @@ import {
   PenSquare,
   ChevronLeft,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import Footer from "../components/Footer";
 import { motion } from "framer-motion";
@@ -23,6 +24,8 @@ interface Quiz {
   title: string;
   description: string | null;
   created_at: string;
+  // publish_to holds array of section ids this quiz is published to
+  publish_to?: string[] | null | string;
 }
 
 interface StudentProgress {
@@ -34,7 +37,7 @@ interface StudentProgress {
 
 type Section = { id: string; name: string }; // <-- added
 
-function TeacherDashboard() {
+export default function TeacherDashboard() {
   const { user } = useAuth();
 
   // ---------- Auth display ----------
@@ -240,6 +243,26 @@ function TeacherDashboard() {
       next.has(topicTitle) ? next.delete(topicTitle) : next.add(topicTitle);
       return next;
     });
+  };
+
+  // ---------- update quiz publish_to on DB and reflect locally
+  const updateQuizPublish = async (quizId: string, publishTo: string[]) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("quizzes")
+        .update({ publish_to: publishTo })
+        .eq("id", quizId);
+      if (error) throw error;
+      setQuizzes((prev) => prev.map((q) => (q.id === quizId ? { ...q, publish_to: publishTo } : q)));
+      // small feedback (you can replace with toast)
+      alert("Publish settings updated");
+    } catch (e) {
+      console.error("Failed to update publish settings:", e);
+      alert("Failed to update publish settings");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ---------- Derived for table & pagination ----------
@@ -602,7 +625,11 @@ function TeacherDashboard() {
             </motion.div>
 
             {/* Available Quizzes */}
-            <QuizzesBlock quizzes={quizzes} />
+            <QuizzesBlock
+              quizzes={quizzes}
+              sections={sections}
+              onUpdatePublish={updateQuizPublish}
+            />
           </div>
 
           {/* RIGHT: Topics w/ favorites */}
@@ -617,14 +644,78 @@ function TeacherDashboard() {
 
 /* ----------------------- small presentational blocks ---------------------- */
 
-function QuizzesBlock({ quizzes }: { quizzes: Quiz[] }) {
+function QuizzesBlock({
+  quizzes,
+  sections,
+  onUpdatePublish,
+}: {
+  quizzes: Quiz[];
+  sections: { id: string; name: string }[];
+  onUpdatePublish: (quizId: string, publishTo: string[]) => Promise<void>;
+}) {
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
+    } as const;
+    const itemVariants = {
+      hidden: { y: 16, opacity: 0 },
+      visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } },
+    } as const;
+
+  // Search and filter state
+  const [quizSearch, setQuizSearch] = React.useState("");
+  
+  // Modal state
+  const [publishModalOpenFor, setPublishModalOpenFor] = React.useState<string | null>(null);
+  const [publishSelection, setPublishSelection] = React.useState<Set<string>>(new Set());
+  const [sectionSearch, setSectionSearch] = React.useState("");
+
+  const normalizePublishTo = (pub: Quiz['publish_to']): string[] => {
+    if (!pub) return [];
+    if (Array.isArray(pub)) return pub.map(String);
+    if (typeof pub === 'string') {
+      try {
+        const parsed = JSON.parse(pub);
+        if (Array.isArray(parsed)) return parsed.map(String);
+      } catch {}
+      // fallback: comma separated
+      return pub.split(',').map(x => x.trim()).filter(Boolean);
+    }
+    return [];
   };
-  const itemVariants = {
-    hidden: { y: 16, opacity: 0 },
-    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } },
+
+  const openPublishModal = async (quiz: Quiz) => {
+    // fetch latest publish_to from DB to ensure we show the persisted value
+    try {
+      const { data, error } = await supabase.from('quizzes').select('publish_to').eq('id', quiz.id).single();
+      if (error) throw error;
+      const initial = new Set(normalizePublishTo((data as any)?.publish_to ?? quiz.publish_to));
+      setPublishSelection(initial);
+    } catch (e) {
+      console.error('Failed to fetch latest publish_to for quiz', quiz.id, e);
+      // fallback to whatever we had in memory
+      const initial = new Set(normalizePublishTo(quiz.publish_to));
+      setPublishSelection(initial);
+    }
+    setPublishModalOpenFor(quiz.id);
+  };
+
+  const closePublishModal = () => {
+    setPublishModalOpenFor(null);
+    setPublishSelection(new Set());
+  };
+
+  const toggleSection = (id: string) => {
+    setPublishSelection((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const savePublish = async (quizId: string) => {
+    await onUpdatePublish(quizId, Array.from(publishSelection));
+    closePublishModal();
   };
 
   return (
@@ -635,9 +726,24 @@ function QuizzesBlock({ quizzes }: { quizzes: Quiz[] }) {
       animate="visible"
       variants={containerVariants}
     >
-      <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6" style={{ color: color.deep }}>
-        Available Quizzes 🧠
-      </h2>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <h2 className="text-lg sm:text-2xl font-bold" style={{ color: color.deep }}>
+          Available Quizzes 🧠
+        </h2>
+        
+        {/* Quiz search */}
+        <div className="relative w-full sm:w-auto">
+          <input
+            type="text"
+            value={quizSearch}
+            onChange={(e) => setQuizSearch(e.target.value)}
+            placeholder="Search quizzes..."
+            className="w-full sm:w-64 px-4 py-2 pr-8 rounded-xl border text-sm"
+            style={{ borderColor: color.mist, color: color.deep }}
+          />
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: color.steel }} />
+        </div>
+      </div>
 
       {quizzes.length === 0 ? (
         <div className="text-sm" style={{ color: color.steel }}>
@@ -645,7 +751,12 @@ function QuizzesBlock({ quizzes }: { quizzes: Quiz[] }) {
         </div>
       ) : (
         <motion.div className="space-y-3 sm:space-y-4" variants={containerVariants}>
-          {quizzes.map((quiz) => (
+          {quizzes
+            .filter(quiz => 
+              !quizSearch || 
+              quiz.title.toLowerCase().includes(quizSearch.toLowerCase())
+            )
+            .map((quiz) => (
             <motion.div
               key={quiz.id}
               variants={itemVariants}
@@ -656,7 +767,9 @@ function QuizzesBlock({ quizzes }: { quizzes: Quiz[] }) {
                 className="rounded-lg p-4 transition flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
                 style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
               >
-                <div className="min-w-0">
+                <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-4 w-full">
+                {/* LEFT SIDE (text) */}
+                <div className="min-w-0 flex-1">
                   <h3
                     className="text-base sm:text-lg font-semibold truncate"
                     style={{ color: color.deep }}
@@ -664,22 +777,142 @@ function QuizzesBlock({ quizzes }: { quizzes: Quiz[] }) {
                   >
                     {quiz.title}
                   </h3>
-                  <p className="text-sm mt-1 line-clamp-2 sm:line-clamp-none" style={{ color: color.steel }}>
+
+                  <p
+                    className="text-sm mt-1 line-clamp-2"
+                    style={{
+                      color: color.steel,
+                      maxWidth: "100%",
+                    }}
+                  >
                     {quiz.description ?? ""}
                   </p>
                 </div>
-                <Link
-                  to={`/edit-quiz/${quiz.id}`}
-                  className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full transition w-full sm:w-auto text-sm sm:text-base"
-                  style={{ background: color.teal, color: "#fff" }}
-                >
-                  <PenSquare className="h-4 w-4" />
-                  <span>Edit Quiz</span>
-                </Link>
+
+                {/* RIGHT SIDE (buttons) */}
+                <div className="flex gap-2 flex-shrink-0">
+                  <Link
+                    to={`/edit-quiz/${quiz.id}`}
+                    className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full transition text-sm sm:text-base"
+                    style={{ background: color.teal, color: "#fff" }}
+                  >
+                    <PenSquare className="h-4 w-4" />
+                    <span>Edit Quiz</span>
+                  </Link>
+
+                  <button
+                    onClick={() => openPublishModal(quiz)}
+                    className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full border transition text-sm sm:text-base"
+                    style={{
+                      background: "#fff",
+                      borderColor: color.mist,
+                      color: color.deep,
+                    }}
+                  >
+                    <span>Publish To</span>
+                  </button>
+                </div>
+              </div>
               </div>
             </motion.div>
           ))}
         </motion.div>
+      )}
+
+      {/* Publish modal */}
+      {publishModalOpenFor && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30" onClick={closePublishModal} />
+          <div 
+            className="relative w-[480px] rounded-2xl shadow-2xl bg-white flex flex-col" 
+              style={{ border: `1px solid ${color.mist}`, height: '500px' }}
+          >
+            {/* Header */}
+            <div className="p-4 border-b" style={{ borderColor: color.mist }}>
+              <h3 className="font-bold" style={{ color: color.deep }}>Who can access this quiz?</h3>
+            </div>
+            
+            {/* Search and Select All - Fixed section */}
+            <div className="p-4 border-b" style={{ borderColor: color.mist }}>
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  value={sectionSearch}
+                  onChange={(e) => setSectionSearch(e.target.value)}
+                  placeholder="Search sections..."
+                  className="w-full px-4 py-2 pr-8 rounded-xl border text-sm"
+                  style={{ borderColor: color.mist, color: color.deep }}
+                />
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: color.steel }} />
+              </div>
+              
+              <label className="flex items-center gap-3 py-2 px-2 hover:bg-gray-50 rounded transition-colors">
+                <input
+                  type="checkbox"
+                  checked={sections.length > 0 && sections.every(s => publishSelection.has(s.id))}
+                  onChange={() => {
+                    if (sections.every(s => publishSelection.has(s.id))) {
+                      setPublishSelection(new Set());
+                    } else {
+                      setPublishSelection(new Set(sections.map(s => s.id)));
+                    }
+                  }}
+                  className="w-4 h-4 accent-teal-600"
+                />
+                <span className="font-medium" style={{ color: color.deep }}>Select All Sections</span>
+              </label>
+            </div>
+
+            {/* Scrollable section list */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {sections.length === 0 ? (
+                <div className="text-sm" style={{ color: color.steel }}>No sections available.</div>
+              ) : (
+                sections
+                  .filter(s => !sectionSearch || s.name.toLowerCase().includes(sectionSearch.toLowerCase()))
+                  .map((s) => {
+                  const checked = publishSelection.has(s.id);
+                  // Show published state more clearly
+                  return (
+                    <label key={s.id} className="flex items-center gap-3 py-2 hover:bg-gray-50 px-2 rounded transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSection(s.id)}
+                        className="w-4 h-4 accent-teal-600"
+                      />
+                      <span style={{ color: color.deep }}>{s.name}</span>
+                      {checked && (
+                        <span className="ml-auto text-xs font-medium px-2 py-1 rounded-full" style={{ background: `${color.teal}22`, color: color.teal }}>
+                          Published
+                        </span>
+                      )}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            {/* Fixed footer */}
+            <div className="border-t p-4" style={{ borderColor: color.mist }}>
+              <div className="flex justify-end gap-2">
+                <button 
+                  onClick={closePublishModal} 
+                  className="rounded-xl px-4 py-2 border" 
+                  style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => savePublish(publishModalOpenFor)} 
+                  className="rounded-xl px-4 py-2" 
+                  style={{ background: color.teal, color: "#fff" }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="mt-4 text-sm" style={{ color: color.steel }}>
@@ -779,5 +1012,3 @@ function TopicsBlock({
     </motion.div>
   );
 }
-
-export default TeacherDashboard;
