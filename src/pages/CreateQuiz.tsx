@@ -13,23 +13,26 @@ import { BlockMath } from "react-katex"
 interface Answer {
   answer: string;
   is_correct: boolean;
+  id?: string;
 }
 
 interface Question {
+  id?: string;
   question: string;
-  question_type: "multiple_choice" | "true_false" | "paragraph";
+  question_type: "multiple_choice" | "true_false" | "paragraph" | "matching" | "checkboxes";
   time_limit: number;
   points: number;
   answers: Answer[];
+  matches?: string[]; // right‑side options for matching questions
 }
+
 type PadTarget =
   | { type: "question"; qIndex: number }
-  | { type: "answer"; qIndex: number; aIndex: number };
-
-const freshAnswers = () =>
-  Array.from({ length: 4 }, () => ({ answer: "", is_correct: false }));
+  | { type: "answer"; qIndex: number; aIndex: number }
+  | { type: "match"; qIndex: number; mIndex: number };
 
 // Quick check if caret is inside \( ... \)
+
 const isInsideInlineMath = (text: string, caret: number) => {
   const before = text.slice(0, caret);
   const lastOpen = before.lastIndexOf("\\(");
@@ -131,6 +134,8 @@ function CreateQuiz() {
   // Refs for caret placement
   const questionRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
   const answerRefs = useRef<(HTMLInputElement | null)[][]>([]);
+  // refs for match (right-side) inputs
+  const matchRefs = useRef<(HTMLInputElement | null)[][]>([]);
 
   // guard to prevent double-add of answers per question (debounce-like)
   const answerAddGuard = useRef<Record<number, boolean>>({});
@@ -138,10 +143,13 @@ function CreateQuiz() {
   // Sync refs when questions change
   useEffect(() => {
     questionRefs.current = questions.map(() => null);
-    answerRefs.current = questions.map(() => Array(4).fill(null));
+    answerRefs.current = questions.map((q) => Array(q.answers.length).fill(null));
+    matchRefs.current = questions.map((q) => Array((q.matches || []).length).fill(null));
   }, [questions.length]);
 
   /* ----------------------------- Mutators (UI) ---------------------------- */
+  const [leftItems, setLeftItems] = useState<string[]>([""]);
+  const [rightItems, setRightItems] = useState<string[]>([""]);
 
   const addQuestion = () => {
     setQuestions((prev) => [
@@ -157,8 +165,27 @@ function CreateQuiz() {
           { answer: "", is_correct: false },
           { answer: "", is_correct: false },
         ],
+        matches: [], // new for matching type
       },
     ]);
+  };
+
+  // Insert a new question right after the given index
+  const addQuestionAfter = (index: number) => {
+    setQuestions((prev) => {
+      const next = [...prev];
+      next.splice(index + 1, 0, {
+        question_type: "multiple_choice",
+        question: "",
+        time_limit: 30,
+        points: 1000,
+        answers: freshAnswers(),
+        matches: [],
+      });
+      return next;
+    });
+    // ensure padTarget doesn't point to removed/out-of-range item
+    setPadTarget(null);
   };
 
   const removeQuestion = (index: number) => {
@@ -191,6 +218,19 @@ function CreateQuiz() {
       const next = [...prev];
       const q = { ...next[qIndex] };
       q.answers = q.answers.map((ans, i) => ({ ...ans, is_correct: i === aIndex }));
+      next[qIndex] = q;
+      return next;
+    });
+  };
+
+  // toggle correctness for checkbox-type questions (allow multiple correct)
+  const toggleCheckboxCorrect = (qIndex: number, aIndex: number) => {
+    setQuestions((prev) => {
+      const next = [...prev];
+      const q = { ...next[qIndex] };
+      q.answers = q.answers.map((ans, i) =>
+        i === aIndex ? { ...ans, is_correct: !ans.is_correct } : ans
+      );
       next[qIndex] = q;
       return next;
     });
@@ -230,6 +270,76 @@ function CreateQuiz() {
       if (pt.aIndex > aIndex) return { type: "answer", qIndex, aIndex: pt.aIndex - 1 };
       return pt;
     });
+  };
+
+  const updateMatchOption = (qIndex: number, mIndex: number, value: string) => {
+    setQuestions((prev) => {
+      const next = [...prev];
+      const q = { ...next[qIndex] };
+      q.matches = [...(q.matches || [])];
+      q.matches[mIndex] = value;
+      next[qIndex] = q;
+      return next;
+    });
+  };
+
+  const addMatchOption = (qIndex: number) => {
+    setQuestions((prev) => {
+      const next = [...prev];
+      const q = { ...next[qIndex] };
+      q.matches = [...(q.matches || []), ""];
+      next[qIndex] = q;
+      return next;
+    });
+  };
+
+  const removeMatchOption = (qIndex: number, mIndex: number) => {
+    setQuestions((prev) =>
+      prev.map((q, i) =>
+        i === qIndex ? { ...q, matches: (q.matches || []).filter((_, j) => j !== mIndex) } : q
+      )
+    );
+  };
+
+  // drag ref for reordering match options (right-side)
+  const matchDragRef = useRef<{ qIndex: number; mIndex: number } | null>(null);
+
+  const onMatchDragStart = (qIndex: number, mIndex: number, e: React.DragEvent) => {
+    matchDragRef.current = { qIndex, mIndex };
+    try { e.dataTransfer!.setData("text/plain", `${mIndex}`); } catch {}
+    e.dataTransfer!.effectAllowed = "move";
+  };
+
+  const onMatchDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // allow drop
+    e.dataTransfer!.dropEffect = "move";
+  };
+
+  const onMatchDrop = (qIndex: number, destIndex: number, e: React.DragEvent) => {
+    e.preventDefault();
+    const src = matchDragRef.current;
+    if (!src) return;
+    if (src.qIndex !== qIndex) {
+      matchDragRef.current = null;
+      return; // don't allow cross-question drops
+    }
+    if (src.mIndex === destIndex) {
+      matchDragRef.current = null;
+      return;
+    }
+
+    setQuestions((prev) => {
+      const next = [...prev];
+      const q = { ...next[qIndex] };
+      const arr = [...(q.matches || [])];
+      const [item] = arr.splice(src.mIndex, 1);
+      arr.splice(destIndex, 0, item);
+      q.matches = arr;
+      next[qIndex] = q;
+      return next;
+    });
+
+    matchDragRef.current = null;
   };
 
   /* -------------------------- Keyboard insert logic ----------------------- */
@@ -304,7 +414,7 @@ function CreateQuiz() {
         el?.focus();
         el?.setSelectionRange(caretPos, caretPos);
       });
-    } else {
+    } else if (padTarget.type === "answer") {
       const { qIndex, aIndex } = padTarget;
       if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
       const el = answerRefs.current[qIndex][aIndex];
@@ -325,6 +435,39 @@ function CreateQuiz() {
         el?.focus();
         el?.setSelectionRange(caretPos, caretPos);
       });
+    } else if (padTarget.type === "match") {
+      const { qIndex, mIndex } = padTarget;
+      if (!matchRefs.current[qIndex]) matchRefs.current[qIndex] = [];
+      const el = matchRefs.current[qIndex][mIndex];
+      const current = (questions[qIndex].matches || [])[mIndex] ?? "";
+      const selStart = el?.selectionStart ?? current.length;
+      const selEnd = el?.selectionEnd ?? selStart;
+      const alreadyInMath = isInsideInlineMath(current, selStart);
+
+      const { newText, caretPos } = insertIntoText({
+        text: current,
+        selStart,
+        selEnd,
+        alreadyInMath,
+      });
+
+      // update matches array immutably
+      setQuestions((prev) => {
+        const next = [...prev];
+        const q = { ...next[qIndex] };
+        q.matches = [...(q.matches || [])];
+        q.matches[mIndex] = newText;
+        next[qIndex] = q;
+        return next;
+      });
+
+      requestAnimationFrame(() => {
+        el?.focus();
+        el?.setSelectionRange(caretPos, caretPos);
+      });
+    } else {
+      // fallback safety
+      alert("Unsupported pad target.");
     }
   };
 
@@ -341,6 +484,13 @@ function CreateQuiz() {
     const current = questions[qIndex].answers[aIndex].answer;
     const next = smartFormat(current);
     if (next !== current) updateAnswer(qIndex, aIndex, "answer", next);
+  };
+
+  // format match (right-side) entries on blur the same way as answers
+  const onBlurFormatMatch = (qIndex: number, mIndex: number) => {
+    const current = (questions[qIndex].matches || [])[mIndex] ?? "";
+    const next = smartFormat(current);
+    if (next !== current) updateMatchOption(qIndex, mIndex, next);
   };
 
   /* ------------------------------- Validation ----------------------------- */
@@ -384,6 +534,13 @@ const validate = () => {
       if (q.answers && q.answers.length > 0) {
         console.warn(`Question ${i + 1} is paragraph type and should not have answer choices.`);
       }
+    } else if (q.question_type === "matching") {
+      if (!q.answers || q.answers.length < 1) return `Question ${i + 1} must have at least 1 left item.`;
+      if (!q.matches || q.matches.length < 1) return `Question ${i + 1} must have at least 1 right option.`;
+    } else if (q.question_type === "checkboxes") {
+      if (!q.answers || q.answers.length < 1) return `Question ${i + 1} must have at least 1 option.`;
+      const correctCount = q.answers.filter((a) => a.is_correct).length;
+      if (correctCount < 1) return `Question ${i + 1} must have at least one correct option.`;
     }
   }
 
@@ -394,7 +551,7 @@ const validate = () => {
 
   /* ------------------------------- Submit --------------------------------- */
 
-  const handleSubmit = async (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   const reason = validate();
   if (reason) return alert(reason);
@@ -430,8 +587,37 @@ const validate = () => {
 
       if (qErr || !qRow) throw qErr || new Error("Failed to insert question.");
 
-      // 3️⃣ Insert answers (skip if paragraph type)
-      if (q.question_type !== "paragraph" && q.answers.length > 0) {
+      // 3️⃣ Handle all answer types
+      if (q.question_type === "matching") {
+  // Left items (questions)
+  if (q.answers.length > 0) {
+    const leftRows = q.answers.map((a, i) => ({
+      question_id: qRow.id,
+      answer: a.answer,
+      is_correct: false,
+      side: "left", // optional column in DB
+      match_index: i, // ✅ this line ensures scoring works
+    }));
+    const { error: leftErr } = await supabase.from("answers").insert(leftRows);
+    if (leftErr) throw leftErr;
+  }
+
+  // Right items (answers)
+  if (q.matches?.length) {
+    const rightRows = q.matches.map((m) => ({
+      question_id: qRow.id,
+      answer: m,
+      is_correct: false,
+      side: "right", // optional column in DB
+    }));
+    const { error: rightErr } = await supabase.from("answers").insert(rightRows);
+    if (rightErr) throw rightErr;
+  }
+
+
+
+      } else if (q.question_type !== "paragraph" && q.answers.length > 0) {
+        // Multiple choice, true/false, or checkbox types
         const answersRows = q.answers.map((a) => ({
           question_id: qRow.id,
           answer: a.answer,
@@ -455,13 +641,6 @@ const validate = () => {
   }
 };
 
-
-  // Live preview text for the focused field
-  const previewText = (() => {
-    if (!padTarget) return "";
-    if (padTarget.type === "question") return questions[padTarget.qIndex]?.question ?? "";
-    return questions[padTarget.qIndex]?.answers?.[padTarget.aIndex]?.answer ?? "";
-  })();
 
   /* --------------------------------- UI ----------------------------------- */
 
@@ -508,14 +687,25 @@ const validate = () => {
             >
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-base sm:text-lg font-semibold">Question {qIndex + 1}</h2>
-                <button
-                  type="button"
-                  onClick={() => removeQuestion(qIndex)}
-                  className="text-red-600 hover:text-red-700"
-                  aria-label="Remove question"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => addQuestionAfter(qIndex)}
+                    className="text-green-600 hover:text-green-700 p-1"
+                    title="Add question below"
+                    aria-label="Add question below"
+                  >
+                    <Plus className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeQuestion(qIndex)}
+                    className="text-red-600 hover:text-red-700 p-1"
+                    aria-label="Remove question"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Question type selector */}
@@ -533,6 +723,9 @@ const validate = () => {
                   <option value="multiple_choice">Multiple Choice</option>
                   <option value="true_false">True or False</option>
                   <option value="paragraph">Paragraph</option>
+                  <option value="matching">Matching</option>
+                  <option value="checkboxes">Checkboxes (multiple correct)</option>
+                  
                 </select>
               </div>
 
@@ -670,6 +863,197 @@ const validate = () => {
                 </div>
               )}
 
+              {/* Checkboxes type: multiple options can be correct */}
+              {(q as any).question_type === "checkboxes" && (
+                <div className="space-y-4">
+                  {q.answers.map((a, aIndex) => (
+                    <div key={aIndex} className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Option {aIndex + 1}
+                        </label>
+                        <input
+                          ref={(el) => {
+                            if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
+                            answerRefs.current[qIndex][aIndex] = el;
+                          }}
+                          onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex })}
+                          onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
+                          type="text"
+                          required
+                          value={a.answer}
+                          onChange={(e) =>
+                            updateAnswer(qIndex, aIndex, "answer", e.target.value)
+                          }
+                          className="w-full rounded-md border-gray-300 shadow-sm 
+                                     focus:border-indigo-500 focus:ring-indigo-500 
+                                     caret-black font-mono px-3 py-2"
+                          placeholder="Type option text"
+                        />
+                        {a.answer.trim() && (
+                          <div className="mt-1 p-2 bg-gray-50 border rounded-md">
+                            <MathJax dynamic>{a.answer}</MathJax>
+                          </div>
+                        )}
+                      </div>
+
+                      <label className="flex items-center gap-2 text-sm mt-7">
+                        <input
+                          type="checkbox"
+                          checked={a.is_correct}
+                          onChange={() => toggleCheckboxCorrect(qIndex, aIndex)}
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>Correct</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => removeAnswer(qIndex, aIndex)}
+                        className="mt-7 text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => addAnswerChoice(qIndex)}
+                    className="mt-2 flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add another option</span>
+                  </button>
+                </div>
+              )}
+
+              {(q as any).question_type === "matching" && (
+                <div className="overflow-auto">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Left items (editable) */}
+                    <div>
+                      <div className="font-semibold p-2 border bg-gray-50">Left items</div>
+                      <div className="mt-2 space-y-2">
+                        {q.answers.map((a, ai) => (
+                          <div key={ai} className="flex items-center gap-2">
+                            <input
+                              ref={(el) => {
+                                if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
+                                answerRefs.current[qIndex][ai] = el;
+                              }}
+                              onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex: ai })}
+                              onBlur={() => onBlurFormatAnswer(qIndex, ai)}
+                              type="text"
+                              value={a.answer}
+                              onChange={(e) => updateAnswer(qIndex, ai, "answer", e.target.value)}
+                              className="flex-1 rounded-md border px-2 py-1 font-mono"
+                              placeholder={`Left item ${ai + 1}`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeAnswer(qIndex, ai)}
+                              className="text-gray-400 hover:text-red-600 p-1"
+                              aria-label={`Remove left item ${ai + 1}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={() => addAnswerChoice(qIndex)}
+                            className="inline-flex items-center gap-2 px-3 py-1 text-sm rounded-md border bg-white hover:bg-gray-50"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Add left item</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right options (editable & one-column) */}
+                    <div>
+                      <div className="font-semibold p-2 border bg-gray-50">Right options</div>
+                      <div className="mt-2 space-y-2">
+                        {(q.matches || []).map((m, mi) => (
+                          <div key={mi} className="flex items-center gap-2">
+                            <input
+                              ref={(el) => {
+                                if (!matchRefs.current[qIndex]) matchRefs.current[qIndex] = [];
+                                matchRefs.current[qIndex][mi] = el;
+                              }}
+                              onFocus={() => setPadTarget({ type: "match", qIndex, mIndex: mi })}
+                              onBlur={() => onBlurFormatMatch(qIndex, mi)}
+                              type="text"
+                              value={m}
+                              onChange={(e) => updateMatchOption(qIndex, mi, e.target.value)}
+                              className="flex-1 rounded-md border px-2 py-1 font-mono"
+                              placeholder={`Right option ${mi + 1}`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeMatchOption(qIndex, mi)}
+                              className="text-gray-400 hover:text-red-600 p-1"
+                              aria-label={`Remove right option ${mi + 1}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={() => addMatchOption(qIndex)}
+                            className="inline-flex items-center gap-2 px-3 py-1 text-sm rounded-md border bg-white hover:bg-gray-50"
+                          >
+                            <Plus className="h-4 w-4" />
+                            <span>Add right option</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* separator + preview */}
+                  <div className="my-4 relative">
+                    <div className="border-t border-dashed border-gray-200" />
+                    <span className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-white px-2 text-sm text-gray-500">
+                      Question Preview
+                    </span>
+                  </div>
+
+                  {/* Preview below the inputs: two-column (left items / right options) with formatted math */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="font-semibold p-2 border bg-gray-50">Preview — Left items</div>
+                      <div className="mt-2 space-y-2">
+                        {q.answers.map((a, ai) => (
+                          <div key={ai} className="p-2 border rounded bg-white">
+                            <MathJax dynamic>{a.answer || `Left ${ai + 1}`}</MathJax>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="font-semibold p-2 border bg-gray-50">Preview — Right options</div>
+                      <div className="mt-2 space-y-2">
+                        {(q.matches || []).map((m, mi) => (
+                          <div key={mi} className="p-2 border rounded bg-white flex items-center justify-between">
+                            <MathJax dynamic>{m || `Option ${mi + 1}`}</MathJax>
+                            <input type="checkbox" disabled />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {(q as any).question_type === "true_false" && (
                 <div className="space-y-3">
                   {["True", "False"].map((val, i) => (
@@ -709,13 +1093,15 @@ const validate = () => {
 
   {questions.map((q, qIndex) => (
     <div key={qIndex} className="mb-6 p-4 border rounded-lg">
-      {/* Question */}
+      {/* Question (rendered) */}
       <div className="font-semibold mb-2 text-lg font-mono">
-        Question {qIndex + 1}:{" "}
-        <MathJax dynamic>{q.question || ""}</MathJax>
+        Question {qIndex + 1}:
+        <div className="mt-1">
+          <MathJax dynamic>{q.question || ""}</MathJax>
+        </div>
       </div>
 
-      {/* Render based on question type */}
+      {/* Multiple Choice (rendered) */}
       {q.question_type === "multiple_choice" && (
         <div className="flex flex-col gap-2">
           {q.answers.map((a, aIndex) => (
@@ -732,31 +1118,91 @@ const validate = () => {
         </div>
       )}
 
-      {q.question_type === "true_false" && (
+      {/* Checkboxes (rendered) */}
+      {q.question_type === "checkboxes" && (
         <div className="flex flex-col gap-2">
-          {(q.answers.length > 0 ? q.answers : [
-            { answer: "True" },
-            { answer: "False" },
-          ]).map((a, aIndex) => (
+          {q.answers.map((a, aIndex) => (
             <label
               key={aIndex}
               className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
             >
-              <input type="radio" name={`q-${qIndex}`} disabled />
+              <input type="checkbox" name={`q-${qIndex}`} disabled />
               <span className="font-mono">
-                <MathJax dynamic>{a.answer}</MathJax>
+                <MathJax dynamic>{a.answer || `Option ${aIndex + 1}`}</MathJax>
               </span>
             </label>
           ))}
         </div>
       )}
 
+      {/* True / False (rendered) */}
+      {q.question_type === "true_false" && (
+        <div className="flex flex-col gap-2">
+          {(q.answers.length > 0 ? q.answers : [{ answer: "True" }, { answer: "False" }]).map(
+            (a, aIndex) => (
+              <label
+                key={aIndex}
+                className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
+              >
+                <input type="radio" name={`q-${qIndex}`} disabled />
+                <span className="font-mono">
+                  <MathJax dynamic>{a.answer}</MathJax>
+                </span>
+              </label>
+            )
+          )}
+        </div>
+      )}
+
+      {/* Paragraph: input + formatted render below */}
       {q.question_type === "paragraph" && (
-        <textarea
-          disabled
-          className="w-full border rounded p-2 mt-2 font-mono"
-          placeholder="Student answer will appear here..."
-        ></textarea>
+        <div className="mt-2">
+          <textarea
+            disabled
+            className="w-full border rounded p-2 mt-2 font-mono"
+            placeholder="Student answer will appear here..."
+          ></textarea>
+
+          {/* Rendered math preview - mirrors what the math pad/formatter produces */}
+          <div className="mt-2 p-2 bg-gray-50 border rounded-md">
+            <MathJax dynamic>{/* empty by default; teacher's question already above */ ""}</MathJax>
+          </div>
+        </div>
+      )}
+
+      {/* Matching: left/right both rendered with MathJax + separator */}
+      {q.question_type === "matching" && (
+        <div className="overflow-auto mt-3">
+          {/* separator */}
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="font-semibold p-2 border bg-gray-50">Left items</div>
+              <div className="mt-2 space-y-2">
+                {q.answers.map((a, ai) => (
+                  <div key={ai} className="p-2 border rounded bg-white">
+                    <MathJax dynamic>{a.answer || `Left ${ai + 1}`}</MathJax>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="font-semibold p-2 border bg-gray-50">Right options</div>
+              <div className="mt-2 space-y-2">
+                {(q.matches || []).map((m, mi) => (
+                  <div
+                    key={mi}
+                    className="p-2 border rounded bg-white flex items-center justify-between"
+                  >
+                    <MathJax dynamic>{m || `Option ${mi + 1}`}</MathJax>
+                    <input type="checkbox" disabled />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="text-sm text-gray-500 mt-2">
@@ -769,15 +1215,7 @@ const validate = () => {
 
           {/* Footer buttons */}
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-between">
-            <button
-              type="button"
-              onClick={addQuestion}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Add Question</span>
-            </button>
-
+            {/* Add Question moved into each question block so it's always right below the last question */}
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 type="submit"
@@ -845,6 +1283,7 @@ const validate = () => {
                       time_limit: 30,
                       points: 1000,
                       answers: freshAnswers(),
+                      matches: [],
                     },
                   ]);
                   setCreatedQuizId(null);
@@ -870,3 +1309,6 @@ const validate = () => {
 }
 
 export default CreateQuiz;
+
+const freshAnswers = (): Answer[] =>
+  Array.from({ length: 4 }, () => ({ answer: "", is_correct: false }));
