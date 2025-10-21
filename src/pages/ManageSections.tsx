@@ -479,7 +479,7 @@ function ManageSectionsCard() {
           <table className="min-w-[800px] w-full divide-y" style={{ borderColor: color.mist }}>
             <thead style={{ background: `${color.mist}11` }}>
               <tr>
-                {["Name", "Join Code", "Available", "Expires", "Actions"].map((h) => (
+                {["Name", "Join Code", "Created", "Expires", "Actions"].map((h) => (
                   <th key={h} className="px-4 sm:px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: color.steel }}>{h}</th>
                 ))}
               </tr>

@@ -138,7 +138,7 @@ function AppContent() {
     "/topicselector",       // 👈 show Teacher navbar on TopicSelector page
     "/tugon-topics",        // 👈 show Teacher navbar on Topic Creation page
      // 👈 NEW: Topic Creation Selection page
-    "/topic-presenter/",    // 👈 show Teacher navbar on Topic Presenter page
+   
   ];
 
   const studentPrefixes = ["/", "/studentDashboard", "/studentHome"];
