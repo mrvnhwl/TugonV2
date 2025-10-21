@@ -958,7 +958,7 @@ export default function ProgressMap({
 
                             {/* Footer status with expandable stats */}
                             <div className="pt-3 border-t border-gray-100">
-                              <button
+                             {/* <button
                                 onClick={() => toggleCategoryExpansion(category.categoryId)}
                                 className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wider transition-colors hover:opacity-70"
                               >
@@ -991,7 +991,7 @@ export default function ProgressMap({
                                     isCompleted ? "text-emerald-500" : hasProgress ? "text-teal-500" : "text-indigo-500"
                                   }`}
                                 />
-                              </button>
+                              </button> */}
 
                               {/* Expandable Question Stats */}
                               {expandedCategories.has(category.categoryId) && (
@@ -1083,7 +1083,7 @@ export default function ProgressMap({
                                         })()}
                                       </div>
                                     );
-                                  })}
+                                  })}  
                                   
                                   {category.questions.every(q => {
                                     const fullCategoryProgress = progressService.getCategoryProgress(level.id, category.categoryId);

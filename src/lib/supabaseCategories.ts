@@ -97,13 +97,18 @@ export async function fetchTopicsWithCategoriesAndQuestions(): Promise<SupabaseT
 
     console.log(`✅ Fetched ${questions?.length || 0} questions`);
 
-    // Step 4: Group questions by category
-    const categoriesWithQuestions: SupabaseCategory[] = (categories || []).map((category: any) => ({
-      ...category,
-      questions: (questions || []).filter(
-        (q: any) => q.topic_id === category.topic_id && q.category_id === category.category_id
-      ),
-    }));
+    // Step 4: Group questions by category and filter out categories with no questions
+    const categoriesWithQuestions: SupabaseCategory[] = (categories || [])
+      .map((category: any) => ({
+        ...category,
+        questions: (questions || []).filter(
+          (q: any) => q.topic_id === category.topic_id && q.category_id === category.category_id
+        ),
+      }))
+      // ✨ FILTER: Only include categories that have at least one question
+      .filter((category: any) => category.questions && category.questions.length > 0);
+
+    console.log(`🔍 Filtered to ${categoriesWithQuestions.length} categories with questions (removed empty categories)`);
 
     // Step 5: Group categories by topic
     const topicsWithCategories: SupabaseTopic[] = topics.map((topic: any) => ({
@@ -150,11 +155,14 @@ export async function fetchCategoriesByTopic(topicId: number): Promise<SupabaseC
 
     if (questionsError) throw questionsError;
 
-    // Group questions by category
-    const categoriesWithQuestions: SupabaseCategory[] = (categories || []).map((category: any) => ({
-      ...category,
-      questions: (questions || []).filter((q: any) => q.category_id === category.category_id),
-    }));
+    // Group questions by category and filter out categories with no questions
+    const categoriesWithQuestions: SupabaseCategory[] = (categories || [])
+      .map((category: any) => ({
+        ...category,
+        questions: (questions || []).filter((q: any) => q.category_id === category.category_id),
+      }))
+      // ✨ FILTER: Only include categories that have at least one question
+      .filter((category: any) => category.questions && category.questions.length > 0);
 
     return categoriesWithQuestions;
 
