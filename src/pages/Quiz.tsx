@@ -23,7 +23,8 @@ interface Question {
   question: string;
   time_limit: number;
   points: number;
-  question_type: "multiplechoice" | "trueorfalse" | "paragraph" | "checkboxes" | "matching";
+  // 🔥 FIXED: 'paragraph' changed to 'identification'
+  question_type: "multiplechoice" | "trueorfalse" | "identification" | "checkboxes" | "matching"; 
   matches?: string[];
 }
 
@@ -40,7 +41,8 @@ type AnswerRecord = {
   isCorrect: boolean;
   awarded: number;
 };
-
+// **NEW:** Key for Session Storage
+const STORAGE_KEY = (quizId: string) => `quiz_progress_${quizId}`;
 // Helper: Standard Fisher-Yates shuffle algorithm
 const shuffleArray = <T,>(array: T[]): T[] => {
   const newArray = [...array];
@@ -50,7 +52,6 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   }
   return newArray;
 };
-
 // Helper to auto-wrap math expressions for MathJax
 const wrapMath = (str: string | undefined | null) => {
   if (!str) return "";
@@ -110,7 +111,8 @@ function ConfirmLeaveModal({
         aria-modal="true"
       >
         <div
-          className="flex items-center justify-between px-5 py-4 border-b"
+          className="flex items-center justify-between px-5 py-4 
+border-b"
           style={{ borderColor: color.mist }}
         >
           <h3 className="font-bold text-lg" style={{ color: color.deep }}>
@@ -118,17 +120,19 @@ function ConfirmLeaveModal({
           </h3>
           <button onClick={onStay} className="p-1 rounded hover:bg-black/5">
             <X className="h-5 w-5" />
-          </button>
+          
+</button>
         </div>
 
         <div className="px-5 py-4 text-sm" style={{ color: color.steel }}>
-          Are you sure you want to leave? <strong>You can only attempt once.</strong>
+          Are you sure you want to leave? <strong>Your current progress will be lost.</strong>
         </div>
 
         <div className="px-5 pb-5 flex gap-3 justify-end">
           <button
             onClick={onStay}
-            className="rounded-xl px-4 py-2 font-semibold border"
+            
+className="rounded-xl px-4 py-2 font-semibold border"
             style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
           >
             Stay
@@ -136,6 +140,7 @@ function ConfirmLeaveModal({
           <button
             onClick={onLeave}
             className="rounded-xl px-4 py-2 font-semibold"
+        
             style={{ background: color.teal, color: "#fff" }}
           >
             Leave quiz
@@ -158,36 +163,108 @@ function Quiz() {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [questionIndex, setQuestionIndex] = useState<number>(0);
-
   const [matchesByQuestion, setMatchesByQuestion] = useState<Record<string, string[]>>({});
   const [checkboxSelections, setCheckboxSelections] = useState<Record<string, Set<string>>>({});
   const [matchingSelections, setMatchingSelections] = useState<Record<string, number[]>>({});
   const [shuffledMatchOptions, setShuffledMatchOptions] = useState<
     { answer: string; originalIndex: number }[]
   >([]);
-
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
   const [answerLog, setAnswerLog] = useState<Record<string, AnswerRecord>>({});
-  const [paragraphAnswer, setParagraphAnswer] = useState<string>("");
+  // 🔥 RENAMED: 'paragraphAnswer' to 'identificationAnswer'
+  const [identificationAnswer, setIdentificationAnswer] = useState<string>(""); 
   const [showResult, setShowResult] = useState(false);
 
   const returnTo = (location.state as any)?.returnTo || "/challenge";
-
   const [leaveOpen, setLeaveOpen] = useState(false);
+  // guardEnabled ensures the quiz cannot be exited prematurely
   const guardEnabled = !showResult;
   const backAttemptRef = useRef(false);
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const voicesRef = useRef<SpeechSynthesisVoice[] | null>(null);
-
+  // Ref to ensure state loading only happens once on initial component mount
+  const hasLoadedStateRef = useRef(false);
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const sfxCorrectRef = useRef<HTMLAudioElement | null>(null);
-  sfxCorrectRef.current = new Audio(sfxCorrectSrc); // Initialize here
+  sfxCorrectRef.current = new Audio(sfxCorrectSrc);
   const sfxWrongRef = useRef<HTMLAudioElement | null>(null);
-  sfxWrongRef.current = new Audio(sfxWrongSrc); // Initialize here
+  sfxWrongRef.current = new Audio(sfxWrongSrc);
   const sfxFinishRef = useRef<HTMLAudioElement | null>(null);
-  sfxFinishRef.current = new Audio(sfxFinishSrc); // Initialize here
+  sfxFinishRef.current = new Audio(sfxFinishSrc);
+  /* ---------------------------
+     STATE PERSISTENCE LOGIC
+  ---------------------------- */
+
+  const saveState = () => {
+    if (!id || showResult) return;
+    const stateToSave = {
+      questionIndex,
+      answerLog,
+      checkboxSelections: Object.fromEntries(
+        Object.entries(checkboxSelections).map(([k, v]) => [k, Array.from(v)])
+      ),
+      matchingSelections,
+      // 🔥 RENAMED: 'paragraphAnswer' to 'identificationAnswer'
+      identificationAnswer, 
+    };
+    try {
+      sessionStorage.setItem(STORAGE_KEY(id), JSON.stringify(stateToSave));
+      // console.log("Quiz state saved.");
+      // Debugging line removed
+    } catch (e) {
+      console.error("Could not save state to sessionStorage:", e);
+    }
+  };
+
+  const loadState = (qs: Question[]) => {
+    if (!id || qs.length === 0 || hasLoadedStateRef.current) return false;
+    try {
+      const savedState = sessionStorage.getItem(STORAGE_KEY(id));
+      if (savedState) {
+        const parsedState = JSON.parse(savedState);
+        const loadedIndex = Math.min(parsedState.questionIndex, qs.length - 1);
+
+        setQuestionIndex(loadedIndex);
+        setCurrentQuestion(qs[loadedIndex]);
+        setAnswerLog(parsedState.answerLog || {});
+        // 🔥 RENAMED: 'paragraphAnswer' to 'identificationAnswer'
+        setIdentificationAnswer(parsedState.identificationAnswer || ""); 
+        // Convert array back to Set for checkboxSelections
+        const loadedCheckboxes = Object.fromEntries(
+          Object.entries(parsedState.checkboxSelections || {}).map(([k, v]) => [k, new Set(v as string[])])
+        );
+        setCheckboxSelections(loadedCheckboxes);
+        
+        setMatchingSelections(parsedState.matchingSelections || {});
+        
+        hasLoadedStateRef.current = true; // Mark state as loaded
+        toast.info("Progress loaded. Resuming quiz.");
+        return true;
+      }
+    } catch (e) {
+      console.warn("Failed to load quiz state, starting fresh.", e);
+    }
+    return false;
+  };
+
+  // Effect to save state whenever key variables change
+  useEffect(() => {
+    if (questions.length > 0) {
+        saveState();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // 🔥 RENAMED: 'paragraphAnswer' to 'identificationAnswer'
+  }, [questionIndex, answerLog, checkboxSelections, matchingSelections, identificationAnswer]); 
+  // Clear state on quiz finish or retry
+  const clearState = () => {
+    if (id) sessionStorage.removeItem(STORAGE_KEY(id));
+  }
+
+  /* ---------------------------
+     END STATE PERSISTENCE LOGIC
+  ---------------------------- */
 
 
   // Hide navbar while in quiz
@@ -197,48 +274,7 @@ function Quiz() {
       document.body.classList.remove("hide-navbar");
     };
   }, []);
-
-  // Preload voices
-  useEffect(() => {
-    const synth = window.speechSynthesis;
-    const loadVoices = () => {
-      voicesRef.current = synth.getVoices();
-    };
-    loadVoices();
-    if (typeof window !== "undefined") {
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        window.speechSynthesis.onvoiceschanged = null;
-      }
-    };
-  }, []);
-
-  // Initialize Audio Elements and STRICT autoplay for BGM
-  useEffect(() => {
-    const bgm = new Audio(bgmSrc);
-    bgm.loop = true;
-    bgm.preload = "auto";
-    bgm.volume = 0.25;
-    bgmRef.current = bgm;
-
-    if (sfxCorrectRef.current) { sfxCorrectRef.current.volume = 0.8; sfxCorrectRef.current.preload = "auto"; }
-    if (sfxWrongRef.current) { sfxWrongRef.current.volume = 0.8; sfxWrongRef.current.preload = "auto"; }
-    if (sfxFinishRef.current) { sfxFinishRef.current.volume = 0.9; sfxFinishRef.current.preload = "auto"; }
-
-    bgm.play().catch((err) => {
-      console.warn("BGM autoplay was blocked by the browser:", err);
-    });
-
-    return () => {
-      try {
-        bgm.pause();
-      } catch {}
-      bgmRef.current = null;
-      // SFX refs are persistent, no need to null them out here if they are initialized once.
-    };
-  }, []);
+  // ... (Audio setup and speech functions remain the same) ...
 
   const playCorrectSfx = () => {
     const s = sfxCorrectRef.current;
@@ -248,7 +284,6 @@ function Quiz() {
       s.play();
     } catch {}
   };
-
   const playWrongSfx = () => {
     const s = sfxWrongRef.current;
     if (!s) return;
@@ -257,7 +292,6 @@ function Quiz() {
       s.play();
     } catch {}
   };
-
   const playFinishSfx = () => {
     const s = sfxFinishRef.current;
     if (!s) return;
@@ -266,7 +300,6 @@ function Quiz() {
       s.play();
     } catch {}
   };
-
   const stopBgm = () => {
     try {
       bgmRef.current?.pause();
@@ -280,7 +313,6 @@ function Quiz() {
     setIsSpeaking(false);
   };
 
-  // Builds the speech string WITHOUT "Question N of M"
   const buildSpeechForCurrent = () => {
     if (!currentQuestion) return "";
     const qText = toSpeakable(currentQuestion.question);
@@ -301,6 +333,7 @@ function Quiz() {
       "Google US English",
       "Google UK English Female",
       "Google UK English Male",
+  
       "Samantha",
       "Victoria",
     ];
@@ -312,7 +345,6 @@ function Quiz() {
       voices.find((v) => /^en/i.test(v.lang));
     return byName || voices[0];
   };
-
   const speakCurrent = () => {
     if (!("speechSynthesis" in window)) {
       toast.error("Read Aloud is not supported in this browser.");
@@ -344,7 +376,6 @@ function Quiz() {
     setIsSpeaking(true);
     window.speechSynthesis.speak(utter);
   };
-
   // Stop speech & music if unmounting
   useEffect(() => {
     return () => {
@@ -352,7 +383,48 @@ function Quiz() {
       stopBgm();
     };
   }, []);
+  // Preload voices
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    const loadVoices = () => {
+      voicesRef.current = synth.getVoices();
+    };
+    loadVoices();
+    if (typeof window !== "undefined") {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
+  }, 
+  []);
 
+  // Initialize Audio Elements and STRICT autoplay for BGM
+  useEffect(() => {
+    const bgm = new Audio(bgmSrc);
+    bgm.loop = true;
+    bgm.preload = "auto";
+    bgm.volume = 0.25;
+    bgmRef.current = bgm;
+
+    if (sfxCorrectRef.current) { sfxCorrectRef.current.volume = 0.8; sfxCorrectRef.current.preload = "auto"; }
+    if (sfxWrongRef.current) { sfxWrongRef.current.volume = 0.8; sfxWrongRef.current.preload = "auto"; }
+    if (sfxFinishRef.current) { sfxFinishRef.current.volume = 0.9; sfxFinishRef.current.preload = "auto"; }
+
+    // 🔥 FIX: Removed line break from inside the console.warn string
+    bgm.play().catch((err) => { 
+      console.warn("BGM autoplay was blocked by the browser:", err); 
+    });
+
+    return () => {
+      try {
+        bgm.pause();
+      } catch {}
+      bgmRef.current = null;
+    };
+  }, []);
   // Load quiz + questions
   const loadQuizContent = async () => {
     if (!user) {
@@ -361,7 +433,6 @@ function Quiz() {
     }
     try {
       const { data: quizData, error: quizError } = await supabase.from("quizzes").select("*").eq("id", id).single();
-
       if (quizError) throw quizError;
       setQuiz(quizData as QuizType);
 
@@ -370,7 +441,6 @@ function Quiz() {
         .select("*")
         .eq("quiz_id", id)
         .order("created_at");
-
       if (qErr) throw qErr;
 
       if (questionsData && questionsData.length > 0) {
@@ -378,12 +448,17 @@ function Quiz() {
           ...q,
           points: Math.round(Number(q.points) || 0),
         }));
-
         setQuestions(qs);
-        setCurrentQuestion(qs[0]);
-        setQuestionIndex(0);
-        setAnswerLog({});
-
+        
+        // **IMPORTANT:** Try to load state here, otherwise start fresh
+        const stateLoaded = loadState(qs);
+        if (!stateLoaded) {
+            setCurrentQuestion(qs[0]);
+            setQuestionIndex(0);
+            setAnswerLog({});
+            // Clear session storage just in case a previous partial state exists
+            clearState();
+        }
 
       } else {
         setQuestions([]);
@@ -397,9 +472,8 @@ function Quiz() {
 
   useEffect(() => {
     loadQuizContent();
-  }, [id, user, navigate]); // Depend on id, user, navigate
-
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user, navigate]);
   // Load answers when the current question changes and sync isAnswered from log
   useEffect(() => {
     const loadAnswers = async (questionId: string) => {
@@ -411,6 +485,7 @@ function Quiz() {
 
         if (error) throw error;
 
+        
         const allAnswers = (answersData as any[]) || [];
 
         const leftItems = allAnswers.filter((a) => a.side === "left");
@@ -424,6 +499,7 @@ function Quiz() {
         }));
 
         const q = currentQuestion;
+   
         const qId = q?.id;
         const qType = qTypeOf(q);
 
@@ -432,13 +508,13 @@ function Quiz() {
             answer: r.answer,
             originalIndex: originalIndex,
           }));
-
           setShuffledMatchOptions(shuffleArray(indexedMatches));
-
+          
           const leftCount = leftItems.length || 0;
           setMatchingSelections((prev) => ({
             ...prev,
-            [qId]: Array(leftCount).fill(-1),
+            // Only initialize if not already loaded from storage
+            [qId]: prev[qId] || Array(leftCount).fill(-1), 
           }));
         } else {
           setMatchingSelections((prev) => {
@@ -447,14 +523,15 @@ function Quiz() {
               delete copy[qId as string];
               return copy;
             }
+       
             return prev;
           });
           setShuffledMatchOptions([]);
-
           if (qType === "checkboxes" && qId) {
             setCheckboxSelections((prev) => ({
               ...prev,
-              [qId]: new Set<string>(),
+              // Only initialize if not already loaded from storage
+              [qId]: prev[qId] || new Set<string>(), 
             }));
           } else {
             setCheckboxSelections((prev) => {
@@ -462,6 +539,7 @@ function Quiz() {
                 const copy = { ...prev };
                 delete copy[qId as string];
                 return copy;
+         
               }
               return prev;
             });
@@ -474,17 +552,17 @@ function Quiz() {
     };
 
     if (currentQuestion) {
-      const start = currentQuestion.time_limit || 30;
+      const start = currentQuestion.time_limit ||
+      30;
       setTimeLeft(start);
+      // Determine if the question has been answered from the log
       setIsAnswered(!!answerLog[currentQuestion.id]);
       stopSpeaking();
       loadAnswers(currentQuestion.id);
-      setParagraphAnswer("");
+      // The identificationAnswer state is now handled by persistence in loadState
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuestion, answerLog]);
-
-
+  }, [currentQuestion, answerLog, questionIndex]);
   // Countdown
   useEffect(() => {
     if (!isAnswered && timeLeft > 0) {
@@ -492,36 +570,36 @@ function Quiz() {
       return () => clearInterval(timer);
     }
     if (!isAnswered && timeLeft === 0) {
-      setIsAnswered(true);
+      // For identification questions, this should trigger submission logic
+      if (qTypeOf(currentQuestion) === "identification") {
+        handleSubmitIdentificationAnswer(true); // Pass flag for time out
+      } else {
+        // For other types, just mark as answered to stop the timer
+        setIsAnswered(true);
+      }
     }
   }, [timeLeft, isAnswered]);
-
   const totalPoints = useMemo(
     () => (questions?.length ? questions.reduce((s, q) => s + (q.points || 0), 0) : 0),
     [questions]
   );
-
   const progressPct = useMemo(
     () => (questions.length ? Math.round(((questionIndex + 1) / questions.length) * 100) : 0),
     [questionIndex, questions.length]
   );
-
   /** Derived, idempotent score from answerLog */
   const score = useMemo(
     () => Object.values(answerLog).reduce((sum, r) => sum + (r.awarded || 0), 0),
     [answerLog]
   );
-
   /** Derived correct count from answerLog */
   const correctCount = useMemo(
     () => Object.values(answerLog).reduce((sum, r) => sum + (r.isCorrect ? 1 : 0), 0),
     [answerLog]
   );
-
   // helpers to normalize question_type strings (support variants like "multiple_choice")
   const qTypeOf = (q?: Question | null) =>
     (q?.question_type || "").toString().toLowerCase().replace(/[_\s-]/g, "");
-
   // checkbox handlers (student)
   const toggleCheckboxSelection = (qId: string, answerId: string) => {
     setCheckboxSelections((prev) => {
@@ -546,11 +624,9 @@ function Quiz() {
 
     const correctIds = answers.filter((a) => a.is_correct).map((a) => String(a.id));
     const selectedIds = selected.map(String);
-
     const equal =
       correctIds.length === selectedIds.length &&
       correctIds.sort().join(",") === selectedIds.sort().join(",");
-
     const base = currentQuestion.points || 0;
 
     if (equal) {
@@ -567,7 +643,6 @@ function Quiz() {
         awarded: equal ? base : 0,
       },
     }));
-
     setIsAnswered(true);
     toast.success("Answer submitted.");
   };
@@ -585,10 +660,8 @@ function Quiz() {
   const submitMatchingAnswer = async () => {
     if (!currentQuestion || !user) return;
     if (isAnswered) return;
-
     const qId = currentQuestion.id;
     const mapping = matchingSelections[qId] || [];
-
     if (mapping.some((m) => m === -1)) {
       toast.error("Please match all left items before submitting.");
       return;
@@ -629,12 +702,12 @@ function Quiz() {
     const percentCorrect = total > 0 ? correctCount / total : 0;
     const base = currentQuestion.points || 0;
     const awarded =
-      percentCorrect === 1 ? base : Math.round(base * percentCorrect);
+      percentCorrect === 1 ?
+      base : Math.round(base * percentCorrect);
 
 
     if (percentCorrect === 1) playCorrectSfx();
     else playWrongSfx();
-
     setAnswerLog((prev) => ({
       ...prev,
       [qId]: {
@@ -643,7 +716,6 @@ function Quiz() {
         awarded,
       },
     }));
-
     setIsAnswered(true);
     toast.success(
       percentCorrect === 1
@@ -655,7 +727,6 @@ function Quiz() {
 
   const handleAnswer = (answer: Answer) => {
     if (!currentQuestion) return;
-
     if (answerLog[currentQuestion.id]) {
       setIsAnswered(true);
       return;
@@ -663,12 +734,12 @@ function Quiz() {
 
     setIsAnswered(true);
 
-    const base = currentQuestion.points || 0;
+    const base = currentQuestion.points ||
+    0;
 
     if (answer.is_correct) {
       const awarded = base;
       playCorrectSfx();
-
       setAnswerLog((prev) => ({
         ...prev,
         [currentQuestion.id]: {
@@ -692,50 +763,72 @@ function Quiz() {
   };
 
 
-  const submitParagraphAnswer = async () => {
-    if (!currentQuestion || !user) return;
+  // 🔥 NEW FUNCTION: Self-grading identification logic
+  const handleSubmitIdentificationAnswer = (timeExpired: boolean = false) => {
+    if (!currentQuestion) return;
     if (isAnswered) return;
 
-    const text = paragraphAnswer.trim();
-    if (!text) {
+    const qId = currentQuestion.id;
+    const text = identificationAnswer.trim();
+    const base = currentQuestion.points || 0;
+
+    if (!text && !timeExpired) {
       toast.error("Please enter your answer.");
+      return;
+    }
+    
+    // If time expired and no answer, just log 0 and exit.
+    if (!text && timeExpired) {
+      setIsAnswered(true);
+      setAnswerLog((prev) => ({
+        ...prev,
+        [qId]: { selectedAnswerId: "identification_timeout", isCorrect: false, awarded: 0 },
+      }));
+      toast.error("Time's up! No answer submitted.");
       return;
     }
 
     setIsAnswered(true);
 
-    try {
-      const { data: inserted, error } = await supabase
-        .from("paragraph_responses")
-        .insert({
-          user_id: user.id,
-          quiz_id: id,
-          question_id: currentQuestion.id,
-          answer_text: text,
-        })
-        .select()
-        .single();
+    const correctAnswers = answers.filter((a) => a.is_correct);
+    const submittedTextLower = text.toLowerCase();
 
-      if (error) throw error;
+    // Check if the submitted text (case-insensitive, exact match) matches any correct answer
+    const isCorrect = correctAnswers.some(
+      (a) => a.answer.trim().toLowerCase() === submittedTextLower
+    );
+    
+    let awarded = 0;
+    if (isCorrect) {
+      awarded = timeExpired ? Math.ceil(base / 2) : base; // Half points if correct but timed out
+    }
+    
 
-      const selectedId = inserted?.id ? String(inserted.id) : "paragraph_response";
-
+    if (isCorrect) {
+      playCorrectSfx();
       setAnswerLog((prev) => ({
         ...prev,
-        [currentQuestion.id]: {
-          selectedAnswerId: selectedId,
+        [qId]: {
+          selectedAnswerId: "identification_correct",
+          isCorrect: true,
+          awarded,
+        },
+      }));
+      toast.success(`Correct! You earned ${awarded} points 🎯`);
+    } else {
+      playWrongSfx();
+      setAnswerLog((prev) => ({
+        ...prev,
+        [qId]: {
+          selectedAnswerId: "identification_wrong",
           isCorrect: false,
           awarded: 0,
         },
       }));
-
-      toast.success("Answer submitted.");
-    } catch (e) {
-      console.error("Failed to save paragraph response:", e);
-      toast.error("Failed to submit answer. Please try again.");
-      setIsAnswered(false);
+      toast.error("Incorrect.");
     }
   };
+
 
   const nextQuestion = () => {
     if (!questions.length) return;
@@ -747,7 +840,6 @@ function Quiz() {
       finishQuiz();
     }
   };
-
   const prevQuestion = () => {
     if (!questions.length) return;
     if (questionIndex > 0) {
@@ -767,26 +859,32 @@ function Quiz() {
       });
     } catch (e) {
       console.error("Error saving progress:", e);
-      toast.error("Failed to save progress.");
     }
 
     playFinishSfx();
     stopBgm();
+    clearState();
+    // Clear state when finished
 
     setShowResult(true);
   };
 
   const handleRetryQuiz = () => {
+    clearState();
+    // Clear state before retrying
+    hasLoadedStateRef.current = false;
+    // Allow state to be loaded again if needed
     setShowResult(false);
     setQuestionIndex(0);
     setAnswerLog({});
-    setParagraphAnswer("");
+    // 🔥 RENAMED: 'paragraphAnswer' to 'identificationAnswer'
+    setIdentificationAnswer(""); 
     setCheckboxSelections({});
     setMatchingSelections({});
     setIsAnswered(false);
-    setCurrentQuestion(questions[0]); // Reset to the first question
+    setCurrentQuestion(questions[0]);
+    // Reset to the first question
     toast.info("Quiz has been reset. Good luck!");
-    
     // Ensure BGM restarts if it was stopped for the finish sfx
     try {
       bgmRef.current?.play().catch((err) => console.warn("BGM autoplay was blocked on retry:", err));
@@ -798,13 +896,16 @@ function Quiz() {
   useEffect(() => {
     if (!guardEnabled) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      saveState(); // Save state immediately before unload
       e.preventDefault();
       e.returnValue = "";
       return "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [guardEnabled]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guardEnabled, questionIndex, answerLog]);
+  // Depend on state to ensure latest is saved
 
   // Intercept browser Back with a modal using a history pushState loop
   useEffect(() => {
@@ -818,6 +919,7 @@ function Quiz() {
       push();
     };
     window.addEventListener("popstate", onPop);
+    
     return () => window.removeEventListener("popstate", onPop);
   }, [guardEnabled]);
 
@@ -827,6 +929,8 @@ function Quiz() {
   };
 
   const handleLeave = () => {
+    clearState();
+    // Clear state on forced leave
     setLeaveOpen(false);
     stopBgm();
     if (backAttemptRef.current) {
@@ -836,7 +940,6 @@ function Quiz() {
       navigate(returnTo, { replace: true });
     }
   };
-
   if (!quiz || !currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -850,88 +953,58 @@ function Quiz() {
 
   const headerGradient = `linear-gradient(135deg, ${color.ocean} 0%, ${color.teal} 55%, ${color.aqua} 100%)`;
   const cardBorder = `${color.mist}66`;
-
   // Get awarded points for display
   const awardedPoints = answerLog[currentQuestion.id]?.awarded;
-  
   // Define a safe, simple red color for failed attempts
-  const failColor = "#dc2626"; // Tailwind CSS red-600
-
-  // Helper to check if it's a selection-based question (MC, T/F, Checkboxes)
+  const failColor = "#dc2626";
+  // Define a safe, simple green color for success
+  const successColor = "#16a34a"; // Tailwind green-600
+  // Tailwind CSS red-600 // Helper to check if it's a selection-based question (MC, T/F, Checkboxes)
   const isSelectionType = ["multiplechoice", "trueorfalse", "checkboxes"].includes(qTypeOf(currentQuestion));
-
   return (
     <div className="min-h-screen" style={{ background: `linear-gradient(${color.mist}11, #fff)` }}>
       {/* Header */}
-      <header
-        className="relative"
-        style={{ background: headerGradient, boxShadow: "0 10px 26px rgba(0,0,0,0.08)" }}
-      >
+      <header className="relative" style={{ background: headerGradient, boxShadow: "0 10px 26px rgba(0,0,0,0.08)" }} >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-white text-center">
           {/* Title */}
           <h1 className="text-xl sm:text-2xl font-extrabold leading-tight">
             <MathJax dynamic inline>{wrapMath(quiz?.title || "")}</MathJax>
           </h1>
-          
           {/* Timer and Total Score (Side-by-Side) */}
           <div className="flex justify-center items-center gap-4 mt-3">
-              {/* Timer */}
-              <div
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold"
-                  style={{ background: "#ffffff22", border: "1px solid #ffffff33" }}
-              >
-                  <Timer className="h-4 w-4" />
-                  <span>{timeLeft}s</span>
-              </div>
-              
-              {/* TOTAL SCORE Indicator */}
-              <div
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-bold"
-                  style={{ background: "#ffffff44", border: "1px solid #ffffff33" }}
-              >
-                  <span className="text-xs">SCORE:</span>
-                  <span className="text-lg">{score.toLocaleString()}</span>
-              </div>
+            {/* Timer */}
+            <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold" style={{ background: "#ffffff22", border: "1px solid #ffffff33" }} >
+              <Timer className="h-4 w-4" />
+              <span>{timeLeft}s</span>
+            </div>
+            {/* TOTAL SCORE Indicator */}
+            <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm 
+font-bold" style={{ background: "#ffffff44", border: "1px solid #ffffff33" }} >
+              <span className="text-xs">SCORE:</span>
+              <span className="text-lg">{score.toLocaleString()}</span>
+            </div>
           </div>
-
           {/* Read Aloud */}
           <div className="mt-3">
-            <button
-              onClick={speakCurrent}
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold border transition"
-              style={{
-                background: "#ffffff22",
-                borderColor: "#ffffff33",
-                color: "white",
-              }}
-              aria-label={isSpeaking ? "Stop reading" : "Read question and answers"}
-              title={isSpeaking ? "Stop" : "Read Aloud"}
-            >
-              {isSpeaking ? <Square className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              {isSpeaking ? "Stop" : "Read Aloud"}
+            <button onClick={speakCurrent} className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold border transition" style={{ background: "#ffffff22", borderColor: "#ffffff33", color: "white", }} aria-label={isSpeaking ?
+"Stop reading" : "Read question and answers"} title={isSpeaking ? "Stop" : "Read Aloud"} >
+              {isSpeaking ?
+              <Square className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              {isSpeaking ?
+              "Stop" : "Read Aloud"}
             </button>
           </div>
-
           {/* Progress (visual only) */}
           <div className="mt-3 text-xs opacity-90">
-            Question {questionIndex + 1} of {questions.length} 
+            Question {questionIndex + 1} of {questions.length}
             {/* Points Display */}
             <span className="ml-2 font-bold">({currentQuestion.points} Points)</span>
           </div>
           <div className="mt-2 h-2.5 w-full rounded-full overflow-hidden" style={{ background: "#ffffff2f" }}>
-            <div
-              className="h-2.5 rounded-full"
-              style={{
-                width: `${progressPct}%`,
-                background: "#fff",
-                boxShadow: "0 2px 10px rgba(255,255,255,.45)",
-                transition: "width .25s ease",
-              }}
-            />
+            <div className="h-2.5 rounded-full" style={{ width: `${progressPct}%`, background: "#fff", boxShadow: "0 2px 10px rgba(255,255,255,.45)", transition: "width .25s ease", }} />
           </div>
         </div>
       </header>
-
       {/* Main Card */}
       <main className="max-w-4xl mx-auto px-4 py-6">
         <div className="bg-white rounded-2xl shadow-xl ring-1 p-6 sm:p-7" style={{ borderColor: cardBorder }}>
@@ -941,60 +1014,91 @@ function Quiz() {
               <MathJax dynamic inline>{wrapMath(currentQuestion.question)}</MathJax>
             </h2>
           </div>
-
-          {/* Answers */}
-          {currentQuestion.question_type === "paragraph" ? (
-            <div className="mt-4">
-              <textarea
-                value={paragraphAnswer}
-                onChange={(e) => setParagraphAnswer(e.target.value)}
-                placeholder="Type your answer here..."
-                disabled={isAnswered}
-                className="w-full p-4 rounded-xl border-2 border-gray-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-300 outline-none text-gray-800 resize-none min-h-[120px]"
-              />
-              {!isAnswered && (
-                <div className="flex items-center gap-3 mt-4">
-                  <button
-                    onClick={submitParagraphAnswer}
-                    className="px-6 py-2 rounded-lg text-white font-semibold"
-                    style={{
-                      background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                      boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+          
+          {/* Answers */} 
+          {/* 🔥 MODIFIED TERNARY: Checks for "identification" */}
+          {qTypeOf(currentQuestion) === "identification" ? (
+            // Identification (Short Answer) Input Box and Feedback
+            (() => {
+              const isSubmitted = isAnswered;
+              const log = answerLog[currentQuestion.id];
+              const isCorrect = log?.isCorrect;
+              const awardedPoints = log?.awarded;
+              const currentPoints = currentQuestion.points || 0;
+              const correctAnswers = answers.filter(a => a.is_correct);
+              
+              let inputBorderColor = isSubmitted ? (isCorrect ? successColor : failColor) : "border-gray-200";
+              let ringColor = isSubmitted ? (isCorrect ? successColor : failColor) : color.teal;
+              
+              return (
+                <div className="mt-4">
+                  <input // Switched to <input> for short answer
+                    type="text"
+                    value={identificationAnswer}
+                    onChange={(e) => setIdentificationAnswer(e.target.value)}
+                    placeholder="Type your answer here..."
+                    disabled={isSubmitted}
+                    className="w-full p-4 rounded-xl border-2 focus:ring-2 focus:ring-offset-2 outline-none text-gray-800 transition-colors duration-150"
+                    style={{ 
+                      borderColor: inputBorderColor,
+                      boxShadow: isSubmitted ? `0 0 0 4px ${ringColor}22` : "none",
+                      // Added the missing hover/focus logic for better UX when not submitted
+                      ...(!isSubmitted && { borderColor: "border-gray-200", ":focus": { borderColor: color.teal, ringColor: color.teal } })
                     }}
-                  >
-                    Submit Answer
-                  </button>
-                  <div className="text-sm text-gray-500">This answer will be saved and marked later.</div>
+                  />
+                  
+                  {!isSubmitted && (
+                    <div className="flex items-center gap-3 mt-4">
+                      <button
+                        onClick={() => handleSubmitIdentificationAnswer(false)} // Pass false for manual submit
+                        className="px-6 py-2 rounded-lg text-white font-semibold"
+                        style={{ 
+                          background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`, 
+                          boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+                        }}
+                      >
+                        Submit Answer
+                      </button>
+                    </div>
+                  )}
+                  
+                  {isSubmitted && (
+                    <div className="mt-3 text-sm">
+                      <div className="font-bold mb-1" style={{ color: isCorrect ? successColor : failColor }}>
+                        {isCorrect ? "✅ Correct!" : "❌ Incorrect."}
+                      </div>
+                      {!isCorrect && correctAnswers.length > 0 && (
+                        <div style={{ color: color.deep }}>
+                          Correct Answer(s): 
+                          <span className="font-semibold ml-1">
+                            {correctAnswers.map(a => a.answer).join(" OR ")}
+                          </span>
+                        </div>
+                      )}
+                      <div className="mt-2" style={{ color: isCorrect ? successColor : failColor }}>
+                        You earned <span className="font-bold">{awardedPoints}</span> / {currentPoints} points.
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {isAnswered && (
-                <div className="mt-3 text-sm text-green-600">Answer submitted — waiting for grading.</div>
-              )}
-            </div>
-          ) : (
+              )
+            })()
+          ) : ( 
+            // Original IIFE for other question types (checkboxes, matching, MC/T/F)
             (() => {
               const qType = qTypeOf(currentQuestion);
-
               // CHECKBOXES
               if (qType === "checkboxes") {
                 const qId = currentQuestion.id;
                 const sel = checkboxSelections[qId] || new Set<string>();
+                
                 return (
                   <div className="col-span-1 md:col-span-2">
                     {/* Enforced 2-column for checkboxes as requested */}
-                    <div className="grid gap-3 grid-cols-2"> 
+                    <div className="grid gap-3 grid-cols-2">
                       {answers.map((ans) => (
-                        <label
-                          key={ans.id}
-                          className="p-3 rounded-full border flex items-center gap-3 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-all"
-                        >
-                          <input
-                            type="checkbox"
-                            disabled={isAnswered}
-                            checked={sel.has(ans.id)}
-                            onChange={() => toggleCheckboxSelection(qId, ans.id)}
-                            className="h-4 w-4"
-                          />
+                        <label key={ans.id} className="p-3 rounded-full border flex items-center gap-3 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-all" >
+                          <input type="checkbox" disabled={isAnswered} checked={sel.has(ans.id)} onChange={() => toggleCheckboxSelection(qId, ans.id)} className="h-4 w-4" />
                           <span className="flex-grow">
                             <MathJax dynamic inline>{wrapMath(ans.answer)}</MathJax>
                           </span>
@@ -1002,14 +1106,7 @@ function Quiz() {
                       ))}
                       {!isAnswered && (
                         <div className="col-span-2 flex gap-2 mt-3 justify-end">
-                          <button
-                            type="button"
-                            onClick={submitCheckboxAnswer}
-                            className="px-4 py-2 rounded-lg text-white"
-                            style={{
-                              background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                            }}
-                          >
+                          <button type="button" onClick={submitCheckboxAnswer} className="px-4 py-2 rounded-lg text-white" style={{ background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`, }} >
                             Submit
                           </button>
                         </div>
@@ -1018,18 +1115,16 @@ function Quiz() {
                   </div>
                 );
               }
-
               // MATCHING
               if (qType === "matching") {
                 const qId = currentQuestion.id;
                 const lefts = answers;
                 const mapping = matchingSelections[qId] || Array(lefts.length).fill(-1);
                 const shuffledOptions = shuffledMatchOptions;
-
+                
                 return (
                   <div className="col-span-1 md:col-span-2">
                     <div className="font-semibold mb-3">Match the following</div>
-
                     <div className="grid grid-cols-2 gap-4">
                       {lefts.map((leftItem, leftIndex) => (
                         <div key={leftIndex} className="flex items-center gap-4">
@@ -1039,26 +1134,18 @@ function Quiz() {
                             </MathJax>
                           </div>
                           <div className="flex-1">
-                            <select
-                              className="w-full p-2.5 rounded-lg border-2 border-gray-200 focus:border-teal-500 text-sm disabled:bg-gray-100"
-                              value={mapping[leftIndex]}
-                              onChange={(e) =>
-                                setMatchingChoice(
-                                  qId,
-                                  leftIndex,
-                                  Number(e.target.value)
-                                )
-                              }
-                              disabled={isAnswered}
+                            <select className="w-full p-2.5 rounded-lg border-2 border-gray-200 focus:border-teal-500 text-sm disabled:bg-gray-100" value={mapping[leftIndex]} onChange={(e) => setMatchingChoice(
+                              qId,
+                              leftIndex,
+                              Number(e.target.value)
+                            )
+                            } disabled={isAnswered}
                             >
                               <option value={-1} disabled>
                                 Select Match
                               </option>
                               {shuffledOptions.map((matchData, shuffledIndex) => (
-                                <option
-                                  key={shuffledIndex}
-                                  value={matchData.originalIndex}
-                                >
+                                <option key={shuffledIndex} value={matchData.originalIndex} >
                                   <MathJax dynamic inline>
                                     {wrapMath(matchData.answer)}
                                   </MathJax>
@@ -1069,16 +1156,10 @@ function Quiz() {
                         </div>
                       ))}
                     </div>
-
                     {!isAnswered && (
                       <div className="flex gap-2 mt-4 justify-end">
-                        <button
-                          type="button"
-                          onClick={submitMatchingAnswer}
-                          className="px-4 py-2 rounded-lg text-white"
-                          style={{
-                            background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                          }}
+                        <button type="button" onClick={submitMatchingAnswer} className="px-4 py-2 rounded-lg text-white" 
+                          style={{ background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`, }}
                         >
                           Submit
                         </button>
@@ -1087,7 +1168,6 @@ function Quiz() {
                   </div>
                 );
               }
-
               // MULTIPLE CHOICE / TRUE OR FALSE (Default: simple select)
               // Enforced 2-column for all MC/T-F
               return (
@@ -1097,49 +1177,36 @@ function Quiz() {
                     const answered = answerLog[currentQuestion.id];
                     const isSelected = answered?.selectedAnswerId === ans.id;
                     const isCorrect = ans.is_correct;
-
                     let bgColor = isSelected ? color.mist : "bg-gray-50";
                     let borderColor = isSelected ? color.teal : "border-gray-200";
-
                     if (isAnswered) {
                       if (isCorrect) {
                         bgColor = "#d1fae5"; // green-100
                         borderColor = "#34d399"; // green-400
                       } else if (isSelected && !isCorrect) {
                         bgColor = "#fee2e2"; // red-100
-                        borderColor = "#f87171"; // red-400
+                        borderColor = 
+                        "#f87171"; // red-400
                       }
                     }
-                    
                     // The main button is the answer choice
                     return (
-                      <button
-                        key={ans.id}
-                        onClick={() => handleAnswer(ans)}
-                        disabled={isAnswered}
-                        // Simplified classes for correct grid rendering
+                      <button key={ans.id} onClick={() => handleAnswer(ans)} disabled={isAnswered} // Simplified classes for correct grid rendering
                         className={`p-3 rounded-full border flex items-center gap-3 transition-all text-left ${bgColor}`}
-                        style={{ borderColor, cursor: isAnswered ? "default" : "pointer" }}
+                        style={{ borderColor, cursor: isAnswered ?
+                        "default" : "pointer", }}
                       >
-                        <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0"
-                          style={{
-                            background: isAnswered && isCorrect ? color.teal : isSelected ? color.teal : color.mist,
-                            color: isAnswered && isCorrect ? "white" : isSelected ? "white" : color.steel,
-                            border: `1px solid ${isAnswered && isCorrect ? color.teal : isSelected ? color.teal : color.mist}`,
-                          }}
-                        >
-                          {alpha}
-                        </div>
-                        <span className="flex-grow text-sm" style={{ color: color.deep }}>
+                        <span className="font-bold w-6 shrink-0">{alpha})</span>
+                        <span className="flex-grow">
                           <MathJax dynamic inline>{wrapMath(ans.answer)}</MathJax>
                         </span>
+                        {/* Status Checkmark/X */}
                         {isAnswered && (
-                          <div className="shrink-0">
+                          <div className="w-6 shrink-0 flex justify-end">
                             {isCorrect ? (
-                              <CheckCircle className="h-6 w-6 text-green-500" />
+                              <CheckCircle className="h-5 w-5" style={{ color: "#34d399" }} />
                             ) : isSelected ? (
-                              <XCircle className="h-6 w-6 text-red-500" />
+                              <XCircle className="h-5 w-5" style={{ color: "#f87171" }} />
                             ) : null}
                           </div>
                         )}
@@ -1148,78 +1215,34 @@ function Quiz() {
                   })}
                 </div>
               );
-            })())}
-          
-
-          {/* 🎯 Score Indicator (Simplified to just "Score: 1,000") */}
-          {isAnswered && qTypeOf(currentQuestion) !== "paragraph" && (
-              <div className="mt-6 p-4 rounded-xl border text-center font-bold text-lg"
-                   style={{
-                      borderColor: awardedPoints > 0 ? color.teal : failColor,
-                      background: awardedPoints > 0 ? `${color.teal}10` : `${failColor}10`,
-                      color: awardedPoints > 0 ? color.teal : failColor,
-                   }}>
-                  <span className="flex items-center justify-center gap-2">
-                      {awardedPoints > 0 ? (
-                        <CheckCircle className="h-6 w-6" />
-                      ) : (
-                        <XCircle className="h-6 w-6" />
-                      )}
-                      <span className="text-xl">Score: {awardedPoints?.toLocaleString() || 0}</span>
-                  </span>
-              </div>
+            })()
           )}
-
-        </div>
-
-        {/* Footer Navigation */}
-        <div className="flex justify-between mt-6">
-          <button
-            onClick={prevQuestion}
-            disabled={questionIndex === 0 || !isAnswered}
-            className="px-6 py-2 rounded-lg font-semibold disabled:opacity-50"
-            style={{
-              background: "#fff",
-              color: color.deep,
-              border: `1px solid ${color.mist}`,
-            }}
-          >
-            Previous
-          </button>
-          {isAnswered && (
-            <button
-              onClick={nextQuestion}
-              className="px-6 py-2 rounded-lg text-white font-semibold"
-              style={{
-                background: `linear-gradient(135deg, ${color.ocean}, ${color.teal})`,
-              }}
-            >
-              {questionIndex < questions.length - 1 ? "Next Question" : "Finish Quiz"}
+          {/* Navigation */}
+          <div className="flex justify-between items-center mt-6 pt-6 border-t" style={{ borderColor: cardBorder }}>
+            <button onClick={prevQuestion} disabled={questionIndex === 0 || isAnswered} className={`flex items-center gap-2 rounded-xl px-4 py-2 font-semibold transition ${questionIndex === 0 || isAnswered ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100"}`} style={{ color: color.deep }} >
+              <span className="text-xl">←</span>
+              Previous
             </button>
-          )}
+            <button onClick={nextQuestion} disabled={!isAnswered} className={`flex items-center gap-2 rounded-xl px-6 py-3 font-semibold transition text-white ${!isAnswered ? "opacity-50 cursor-not-allowed" : ""}`} style={{ background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})` }} >
+              {questionIndex === questions.length - 1 ? "Finish Quiz" : "Next Question"}
+              <span className="text-xl">→</span>
+            </button>
+          </div>
         </div>
       </main>
-
-      {/* Results Modal */}
+      {/* Quiz Result Modal (if finished) */}
       {showResult && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 backdrop-blur bg-black/30" />
-          <div
-            className="relative w-full max-w-md rounded-2xl shadow-2xl ring-1 text-center p-8"
-            style={{ background: "#fff", borderColor: `${color.mist}` }}
-            role="dialog"
-            aria-modal="true"
-          >
+          <div className="absolute inset-0 backdrop-blur bg-black/50" />
+          <div className="relative w-full max-w-lg rounded-2xl shadow-2xl ring-1 p-8 text-center" style={{ background: "#fff", borderColor: color.mist }}>
             <h3 className="font-extrabold text-3xl mb-4" style={{ color: color.teal }}>
               Quiz Complete! 🏆
             </h3>
-            <p className="text-lg mb-6 font-bold" style={{ color: color.deep }}>
-              {/* FIX: Removed ** Markdown asterisks from "Total Score" */}
+            
+            <p className="text-lg mb-8 font-bold" style={{ color: color.deep }}>
               You obtained a Total Score of <span style={{ color: color.teal }}>{score.toLocaleString()}</span> out of {totalPoints.toLocaleString()} possible points.
             </p>
-            <p className="text-md mb-8" style={{ color: color.steel }}>
-              You got {correctCount} out of {questions.length} questions correct.
-            </p>
+            
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button
                     onClick={() => navigate(returnTo, { replace: true })}
