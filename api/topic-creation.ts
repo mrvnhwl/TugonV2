@@ -252,22 +252,26 @@ REQUIREMENTS:
    - Real-world applications if relevant
    - Common mistakes to avoid
 
-CRITICAL INSTRUCTIONS:
-1. Respond ONLY with valid JSON (no markdown formatting, no code blocks, no extra text)
-2. Use double backslashes for LaTeX in JSON strings (e.g., "\\\\frac{1}{2}" not "\\frac{1}{2}")
-3. Provide explanations for ALL ${terms.length} terms
+CRITICAL INSTRUCTIONS FOR JSON:
+1. Respond ONLY with valid JSON (no markdown code blocks, no backticks, no extra text)
+2. Use FOUR backslashes for LaTeX in JSON strings: "\\\\\\\\frac{1}{2}" not "\\frac{1}{2}"
+3. Escape all quotes inside string values with backslash
+4. Do NOT use line breaks inside string values - use spaces instead
+5. Provide explanations for ALL ${terms.length} terms in the array
 
-Required JSON format:
+Required JSON format (copy this structure exactly):
 {
   "title": "Enhanced Title",
   "about_refined": "Enhanced multi-paragraph description with inline math like $f(x) = x^2$ where appropriate...",
   "terms_expounded": [
     {
       "term": "${terms[0]}",
-      "explanation": "Detailed 150-250 word explanation with examples like $f(x) = \\\\sqrt{x}$ has domain $x \\\\geq 0$..."
+      "explanation": "Detailed 150-250 word explanation with examples. Use FOUR backslashes for LaTeX like $f(x) = \\\\\\\\sqrt{x}$ has domain $x \\\\\\\\geq 0$. Do not use line breaks inside this string."
     }
   ]
-}`.trim();
+}
+
+Double-check your JSON is valid before responding.`.trim();
 
   console.log('📤 Refinement prompt:', refinementPrompt);
 
@@ -304,11 +308,37 @@ Required JSON format:
     throw new Error('No response from Gemini AI');
   }
 
-  const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+  // Remove markdown code blocks if present
+  let cleanedText = aiText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+  
+  // Extract JSON
+  const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     console.error('⚠️ Could not parse JSON from AI response:', aiText);
     throw new Error('Invalid AI response format');
   }
 
-  return JSON.parse(jsonMatch[0]);
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch (parseError: any) {
+    console.error('❌ JSON parse error:', parseError.message);
+    console.error('📄 Problematic JSON:', jsonMatch[0].substring(0, 500));
+    
+    // Try to fix common JSON issues
+    let fixedJson = jsonMatch[0]
+      // Fix unescaped quotes in explanations
+      .replace(/: "([^"]*)"([^,}\]]*)/g, (match: string, p1: string, p2: string) => {
+        if (p2.includes('"')) {
+          return `: "${p1}${p2.replace(/"/g, '\\"')}"`;
+        }
+        return match;
+      });
+    
+    try {
+      return JSON.parse(fixedJson);
+    } catch (secondError) {
+      console.error('❌ Still failed after attempted fix');
+      throw new Error(`Failed to parse AI response: ${parseError.message}`);
+    }
+  }
 }
