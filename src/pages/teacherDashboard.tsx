@@ -9,7 +9,8 @@ import {
   PenSquare,
   ChevronLeft,
   ChevronRight,
-  FolderCog
+  FolderCog,
+  Brain,
 } from "lucide-react";
 import Footer from "../components/Footer";
 import { motion } from "framer-motion";
@@ -17,6 +18,24 @@ import color from "../styles/color";
 import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabase";
 import Papa from "papaparse";
+
+/* Charts */
+import {
+  LineChart as RLineChart,
+  Line as RLine,
+  XAxis as RXAxis,
+  YAxis as RYAxis,
+  Tooltip as RTooltip,
+  CartesianGrid as RGrid,
+  ResponsiveContainer,
+  BarChart as RBarChart,
+  Bar as RBar,
+  PieChart as RPieChart,
+  Pie as RPie,
+  Cell as RCell,
+  Legend as RLegend,
+} from "recharts";
+
 interface Quiz {
   id: string;
   title: string;
@@ -234,9 +253,7 @@ export default function TeacherDashboard() {
     return Number(mean.toFixed(1));
   }, [progressAll, quizForAvg]);
 
-
-
-  // ---------- update quiz publish_to on DB and reflect locally
+  // ---------- update quiz publish_to on DB and reflect locally ----------
   const updateQuizPublish = async (quizId: string, publishTo: string[]) => {
     setLoading(true);
     try {
@@ -245,8 +262,9 @@ export default function TeacherDashboard() {
         .update({ publish_to: publishTo })
         .eq("id", quizId);
       if (error) throw error;
-      setQuizzes((prev) => prev.map((q) => (q.id === quizId ? { ...q, publish_to: publishTo } : q)));
-      // small feedback (you can replace with toast)
+      setQuizzes((prev) =>
+        prev.map((q) => (q.id === quizId ? { ...q, publish_to: publishTo } : q))
+      );
       alert("Publish settings updated");
     } catch (e) {
       console.error("Failed to update publish settings:", e);
@@ -272,6 +290,89 @@ export default function TeacherDashboard() {
     visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } },
   };
 
+  // ---------- Helpers for charts (presentation-only) ----------
+  const safeDate = (d: string) => (d ? new Date(d).toLocaleDateString?.() || "" : "");
+  const toPercent = (n: number | undefined | null) => {
+    const x = Number(n ?? 0);
+    return x > 100 ? x / 10 : x; // normalize if needed
+  };
+
+  // Sort ascending for timelines
+  const progressAsc = [...progressAll].sort(
+    (a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime()
+  );
+
+  // Class average over time (by day)
+  const byDayMap = new Map<string, number[]>();
+  progressAsc.forEach((r) => {
+    const d = new Date(r.completed_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+    const arr = byDayMap.get(key) ?? [];
+    arr.push(toPercent(r.score));
+    byDayMap.set(key, arr);
+  });
+  const classAvgOverTime = Array.from(byDayMap.entries()).map(([date, scores]) => ({
+    date,
+    avg: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+  }));
+
+  // Completions per week
+  const weekKey = (d: Date) => {
+    const copy = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dayNum = (copy.getUTCDay() + 6) % 7;
+    copy.setUTCDate(copy.getUTCDate() - dayNum + 3);
+    const week1 = new Date(Date.UTC(copy.getUTCFullYear(), 0, 4));
+    const weekNo =
+      1 + Math.round(((+copy - +week1) / 86400000 - 3 + ((week1.getUTCDay() + 6) % 7)) / 7);
+    return `${copy.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+  };
+  const weeklyMap = new Map<string, number>();
+  progressAsc.forEach((r) => {
+    const w = weekKey(new Date(r.completed_at));
+    weeklyMap.set(w, (weeklyMap.get(w) ?? 0) + 1);
+  });
+  const weeklyData = Array.from(weeklyMap.entries()).map(([week, count]) => ({ week, count }));
+
+  // Per-quiz average (by quiz_id / title)
+  const quizMap = new Map<string, { title: string; scores: number[] }>();
+  progressAll.forEach((r) => {
+    const title = r?.quizzes?.title ?? "Untitled";
+    const entry = quizMap.get(r.quiz_id) ?? { title, scores: [] };
+    entry.scores.push(toPercent(r.score));
+    quizMap.set(r.quiz_id, entry);
+  });
+  const quizAvgData = Array.from(quizMap.values())
+    .map((q) => ({
+      title: q.title,
+      avg: q.scores.length ? Math.round(q.scores.reduce((a, b) => a + b, 0) / q.scores.length) : 0,
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title))
+    .slice(0, 12); // keep it readable
+
+  // Score distribution
+  const buckets = [
+    { name: "≤60", min: -Infinity, max: 60 },
+    { name: "61–75", min: 61, max: 75 },
+    { name: "76–90", min: 76, max: 90 },
+    { name: "91–100", min: 91, max: Infinity },
+  ];
+  const dist = buckets.map((b) => ({
+    name: b.name,
+    value: progressAll.filter((r) => {
+      const s = toPercent(r.score);
+      return s >= b.min && s <= b.max;
+    }).length,
+  }));
+  const pieColors = ["#60a5fa", "#22d3ee", "#34d399", "#fbbf24"];
+
+  // TugonSense sparkline (latest 30 scores)
+  const spark = progressAsc.slice(-30).map((r, i) => ({
+    i,
+    score: toPercent(r.score),
+  }));
+
   if (loading) {
     return (
       <div
@@ -291,8 +392,6 @@ export default function TeacherDashboard() {
       </div>
     );
   }
-
-  const safeDate = (d: string) => (d ? new Date(d).toLocaleDateString?.() || "" : "");
 
   return (
     <div
@@ -355,7 +454,7 @@ export default function TeacherDashboard() {
         </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-8 gap-4">
-          {/* LEFT: KPIs + Student Progress + Quizzes */}
+          {/* LEFT: KPIs + Reports + Student Progress + Quizzes */}
           <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             {/* KPIs */}
             <motion.div
@@ -436,7 +535,7 @@ export default function TeacherDashboard() {
                   </div>
                 </motion.div>
 
-                {/* Avg Time */}
+                {/* Avg Time (placeholder) */}
                 <motion.div
                   className="rounded-2xl p-4 sm:p-5 shadow-sm transition"
                   style={{ background: `${color.mist}11`, border: `1px solid ${color.mist}55` }}
@@ -464,13 +563,7 @@ export default function TeacherDashboard() {
                 <label htmlFor="csv-upload" className="block text-sm font-medium mb-2" style={{ color: color.deep }}>
                   Import Students via CSV
                 </label>
-                <input
-                  id="csv-upload"
-                  type="file"
-                  accept=".csv"
-                  className="sr-only"
-                  onChange={handleCSVImport}
-                />
+                <input id="csv-upload" type="file" accept=".csv" className="sr-only" onChange={handleCSVImport} />
                 <div className="flex items-center gap-3">
                   <label
                     htmlFor="csv-upload"
@@ -482,6 +575,125 @@ export default function TeacherDashboard() {
                   <span className="text-xs" style={{ color: color.steel }}>
                     Expected headers: <code>email, password</code> (plus optional fields).
                   </span>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* ======= Class Reports (New Charts) ======= */}
+            <motion.div
+              className="rounded-2xl p-4 sm:p-6 shadow-xl ring-1"
+              style={{ background: "#fff", borderColor: `${color.mist}55` }}
+              initial="hidden"
+              animate="visible"
+              variants={containerVariants}
+            >
+              <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6" style={{ color: color.deep }}>
+                Class Reports 📈
+              </h2>
+
+              {/* Row 1: Average Over Time + Per-Quiz Average */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div
+                  className="rounded-xl p-4 ring-1"
+                  style={{ background: "#fff", borderColor: `${color.mist}55` }}
+                >
+                  <h3 className="font-semibold mb-3" style={{ color: color.deep }}>
+                    Class Average Over Time
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RLineChart data={classAvgOverTime} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                        <RGrid strokeDasharray="3 3" />
+                        <RXAxis dataKey="date" tick={{ fontSize: 12 }} />
+                        <RYAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
+                        <RTooltip formatter={(v: any) => [`${v}%`, "Avg"]} />
+                        <RLine type="monotone" dataKey="avg" dot={{ r: 2 }} />
+                      </RLineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl p-4 ring-1"
+                  style={{ background: "#fff", borderColor: `${color.mist}55` }}
+                >
+                  <h3 className="font-semibold mb-3" style={{ color: color.deep }}>
+                    Per-Quiz Average
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RBarChart
+                        data={quizAvgData}
+                        margin={{ top: 10, right: 20, left: 0, bottom: 40 }}
+                      >
+                        <RGrid strokeDasharray="3 3" />
+                        <RXAxis
+                          dataKey="title"
+                          tick={{ fontSize: 11 }}
+                          interval={0}
+                          angle={-25}
+                          textAnchor="end"
+                          height={60}
+                        />
+                        <RYAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
+                        <RTooltip formatter={(v: any) => [`${v}%`, "Average"]} />
+                        <RBar dataKey="avg" />
+                      </RBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 2: Completions per Week + Score Distribution */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                <div
+                  className="rounded-xl p-4 ring-1"
+                  style={{ background: "#fff", borderColor: `${color.mist}55` }}
+                >
+                  <h3 className="font-semibold mb-3" style={{ color: color.deep }}>
+                    Completions per Week
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RBarChart data={weeklyData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                        <RGrid strokeDasharray="3 3" />
+                        <RXAxis dataKey="week" tick={{ fontSize: 12 }} />
+                        <RYAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                        <RTooltip />
+                        <RBar dataKey="count" />
+                      </RBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl p-4 ring-1"
+                  style={{ background: "#fff", borderColor: `${color.mist}55` }}
+                >
+                  <h3 className="font-semibold mb-3" style={{ color: color.deep }}>
+                    Score Distribution
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RPieChart>
+                        <RPie
+                          data={dist}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius="80%"
+                          label
+                        >
+                          {dist.map((_, idx) => (
+                            <RCell key={idx} fill={pieColors[idx % pieColors.length]} />
+                          ))}
+                        </RPie>
+                        <RLegend />
+                        <RTooltip />
+                      </RPieChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -510,7 +722,9 @@ export default function TeacherDashboard() {
                 >
                   <option value="">All Sections</option>
                   {sections.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -592,8 +806,7 @@ export default function TeacherDashboard() {
                   {/* Pagination */}
                   <div className="mt-4 sm:mt-5 flex items-center justify-between">
                     <div className="text-xs sm:text-sm" style={{ color: color.steel }}>
-                      Showing <strong>{pagedStudents.length}</strong> of{" "}
-                      <strong>{studentProgress.length}</strong>
+                      Showing <strong>{pagedStudents.length}</strong> of <strong>{studentProgress.length}</strong>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -624,15 +837,51 @@ export default function TeacherDashboard() {
             </motion.div>
 
             {/* Available Quizzes */}
-            <QuizzesBlock
-              quizzes={quizzes}
-              sections={sections}
-              onUpdatePublish={updateQuizPublish}
-            />
+            <QuizzesBlock quizzes={quizzes} sections={sections} onUpdatePublish={updateQuizPublish} />
           </div>
 
-          {/* RIGHT: Topics w/ realtime updates */}
-          <TopicsBlock sections={sections} />
+          {/* RIGHT: Topics + TugonSense */}
+          <div className="space-y-6">
+            {/* TugonSense (New) */}
+            <motion.div
+              className="rounded-2xl p-6 shadow-xl ring-1"
+              style={{ background: "#fff", borderColor: `${color.mist}55` }}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xl font-bold" style={{ color: color.deep }}>
+                  TugonSense
+                </h3>
+                <Brain className="h-6 w-6" style={{ color: color.teal }} />
+              </div>
+              <div className="h-24">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RLineChart data={spark} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                    <RXAxis dataKey="i" hide />
+                    <RYAxis hide domain={[0, 100]} />
+                    <RTooltip formatter={(v: any) => [`${v}%`, "Score"]} />
+                    <RLine type="monotone" dataKey="score" dot={{ r: 1.5 }} />
+                  </RLineChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="text-sm mt-3" style={{ color: color.steel }}>
+                Adaptive practice insights. Identify trends and nudge students at the right time.
+              </p>
+              <div className="mt-4">
+                <Link
+                  to="/topicselector"
+                  className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold shadow-sm"
+                  style={{ background: color.teal, color: "#fff" }}
+                >
+                  Open TugonSense
+                </Link>
+              </div>
+            </motion.div>
+
+            {/* Topics (unchanged, but placed on right column) */}
+            <TopicsBlock sections={sections} />
+          </div>
         </div>
       </main>
 
@@ -655,30 +904,30 @@ function QuizzesBlock({
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
-    } as const;
-    const itemVariants = {
-      hidden: { y: 16, opacity: 0 },
-      visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } },
-    } as const;
+  } as const;
+  const itemVariants = {
+    hidden: { y: 16, opacity: 0 },
+    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } },
+  } as const;
 
   // Search and filter state
   const [quizSearch, setQuizSearch] = React.useState("");
-  
+
   // Modal state
   const [publishModalOpenFor, setPublishModalOpenFor] = React.useState<string | null>(null);
   const [publishSelection, setPublishSelection] = React.useState<Set<string>>(new Set());
   const [sectionSearch, setSectionSearch] = React.useState("");
 
-  const normalizePublishTo = (pub: Quiz['publish_to']): string[] => {
+  const normalizePublishTo = (pub: Quiz["publish_to"]): string[] => {
     if (!pub) return [];
     if (Array.isArray(pub)) return pub.map(String);
-    if (typeof pub === 'string') {
+    if (typeof pub === "string") {
       try {
         const parsed = JSON.parse(pub);
         if (Array.isArray(parsed)) return parsed.map(String);
       } catch {}
       // fallback: comma separated
-      return pub.split(',').map(x => x.trim()).filter(Boolean);
+      return pub.split(",").map((x) => x.trim()).filter(Boolean);
     }
     return [];
   };
@@ -686,12 +935,12 @@ function QuizzesBlock({
   const openPublishModal = async (quiz: Quiz) => {
     // fetch latest publish_to from DB to ensure we show the persisted value
     try {
-      const { data, error } = await supabase.from('quizzes').select('publish_to').eq('id', quiz.id).single();
+      const { data, error } = await supabase.from("quizzes").select("publish_to").eq("id", quiz.id).single();
       if (error) throw error;
       const initial = new Set(normalizePublishTo((data as any)?.publish_to ?? quiz.publish_to));
       setPublishSelection(initial);
     } catch (e) {
-      console.error('Failed to fetch latest publish_to for quiz', quiz.id, e);
+      console.error("Failed to fetch latest publish_to for quiz", quiz.id, e);
       // fallback to whatever we had in memory
       const initial = new Set(normalizePublishTo(quiz.publish_to));
       setPublishSelection(initial);
@@ -729,7 +978,7 @@ function QuizzesBlock({
         <h2 className="text-lg sm:text-2xl font-bold" style={{ color: color.deep }}>
           Available Quizzes 🧠
         </h2>
-        
+
         {/* Quiz search */}
         <div className="relative w-full sm:w-auto">
           <input
@@ -749,79 +998,57 @@ function QuizzesBlock({
           No quizzes yet. Create one to get started.
         </div>
       ) : (
-        <motion.div 
-          className="space-y-3 sm:space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar" 
+        <motion.div
+          className="space-y-3 sm:space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar"
           variants={containerVariants}
-          style={{ 
-            scrollbarWidth: 'thin',
-            scrollbarColor: `${color.teal}40 transparent`
+          style={{
+            scrollbarWidth: "thin",
+            scrollbarColor: `${color.teal}40 transparent`,
           }}
         >
           {quizzes
-            .filter(quiz => 
-              !quizSearch || 
-              quiz.title.toLowerCase().includes(quizSearch.toLowerCase())
-            )
+            .filter((quiz) => !quizSearch || quiz.title.toLowerCase().includes(quizSearch.toLowerCase()))
             .map((quiz) => (
-            <motion.div
-              key={quiz.id}
-              variants={itemVariants}
-              whileHover={{ scale: 1.01, x: 4 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div
-                className="rounded-lg p-4 transition flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
-                style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
-              >
-                <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-4 w-full">
-                {/* LEFT SIDE (text) */}
-                <div className="min-w-0 flex-1">
-                  <h3
-                    className="text-base sm:text-lg font-semibold truncate"
-                    style={{ color: color.deep }}
-                    title={quiz.title}
-                  >
-                    {quiz.title}
-                  </h3>
+              <motion.div key={quiz.id} variants={itemVariants} whileHover={{ scale: 1.01, x: 4 }} whileTap={{ scale: 0.98 }}>
+                <div
+                  className="rounded-lg p-4 transition flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
+                  style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base sm:text-lg font-semibold truncate" style={{ color: color.deep }} title={quiz.title}>
+                      {quiz.title}
+                    </h3>
 
-                  <p
-                    className="text-sm mt-1 line-clamp-2"
-                    style={{
-                      color: color.steel,
-                      maxWidth: "100%",
-                    }}
-                  >
-                    {quiz.description ?? ""}
-                  </p>
+                    <p className="text-sm mt-1 line-clamp-2" style={{ color: color.steel, maxWidth: "100%" }}>
+                      {quiz.description ?? ""}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Link
+                      to={`/edit-quiz/${quiz.id}`}
+                      className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full transition text-sm sm:text-base"
+                      style={{ background: color.teal, color: "#fff" }}
+                    >
+                      <PenSquare className="h-4 w-4" />
+                      <span>Edit Quiz</span>
+                    </Link>
+
+                    <button
+                      onClick={() => openPublishModal(quiz)}
+                      className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full border transition text-sm sm:text-base"
+                      style={{
+                        background: "#fff",
+                        borderColor: color.mist,
+                        color: color.deep,
+                      }}
+                    >
+                      <span>Publish To</span>
+                    </button>
+                  </div>
                 </div>
-
-                {/* RIGHT SIDE (buttons) */}
-                <div className="flex gap-2 flex-shrink-0">
-                  <Link
-                    to={`/edit-quiz/${quiz.id}`}
-                    className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full transition text-sm sm:text-base"
-                    style={{ background: color.teal, color: "#fff" }}
-                  >
-                    <PenSquare className="h-4 w-4" />
-                    <span>Edit Quiz</span>
-                  </Link>
-
-                  <button
-                    onClick={() => openPublishModal(quiz)}
-                    className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full border transition text-sm sm:text-base"
-                    style={{
-                      background: "#fff",
-                      borderColor: color.mist,
-                      color: color.deep,
-                    }}
-                  >
-                    <span>Publish To</span>
-                  </button>
-                </div>
-              </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))}
         </motion.div>
       )}
 
@@ -829,15 +1056,17 @@ function QuizzesBlock({
       {publishModalOpenFor && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/30" onClick={closePublishModal} />
-          <div 
-            className="relative w-[480px] rounded-2xl shadow-2xl bg-white flex flex-col" 
-              style={{ border: `1px solid ${color.mist}`, height: '500px' }}
+          <div
+            className="relative w-[480px] rounded-2xl shadow-2xl bg-white flex flex-col"
+            style={{ border: `1px solid ${color.mist}`, height: "500px" }}
           >
             {/* Header */}
             <div className="p-4 border-b" style={{ borderColor: color.mist }}>
-              <h3 className="font-bold" style={{ color: color.deep }}>Who can access this quiz?</h3>
+              <h3 className="font-bold" style={{ color: color.deep }}>
+                Who can access this quiz?
+              </h3>
             </div>
-            
+
             {/* Search and Select All - Fixed section */}
             <div className="p-4 border-b" style={{ borderColor: color.mist }}>
               <div className="relative mb-3">
@@ -851,69 +1080,78 @@ function QuizzesBlock({
                 />
                 <FolderCog className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: color.steel }} />
               </div>
-              
+
               <label className="flex items-center gap-3 py-2 px-2 hover:bg-gray-50 rounded transition-colors">
                 <input
                   type="checkbox"
-                  checked={sections.length > 0 && sections.every(s => publishSelection.has(s.id))}
+                  checked={sections.length > 0 && sections.every((s) => publishSelection.has(s.id))}
                   onChange={() => {
-                    if (sections.every(s => publishSelection.has(s.id))) {
+                    if (sections.every((s) => publishSelection.has(s.id))) {
                       setPublishSelection(new Set());
                     } else {
-                      setPublishSelection(new Set(sections.map(s => s.id)));
+                      setPublishSelection(new Set(sections.map((s) => s.id)));
                     }
                   }}
                   className="w-4 h-4 accent-teal-600"
                 />
-                <span className="font-medium" style={{ color: color.deep }}>Select All Sections</span>
+                <span className="font-medium" style={{ color: color.deep }}>
+                  Select All Sections
+                </span>
               </label>
             </div>
 
             {/* Scrollable section list */}
             <div className="flex-1 overflow-y-auto p-4">
               {sections.length === 0 ? (
-                <div className="text-sm" style={{ color: color.steel }}>No sections available.</div>
+                <div className="text-sm" style={{ color: color.steel }}>
+                  No sections available.
+                </div>
               ) : (
                 sections
-                  .filter(s => !sectionSearch || s.name.toLowerCase().includes(sectionSearch.toLowerCase()))
+                  .filter((s) => !sectionSearch || s.name.toLowerCase().includes(sectionSearch.toLowerCase()))
                   .map((s) => {
-                  const checked = publishSelection.has(s.id);
-                  // Show published state more clearly
-                  return (
-                    <label key={s.id} className="flex items-center gap-3 py-2 hover:bg-gray-50 px-2 rounded transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSection(s.id)}
-                        className="w-4 h-4 accent-teal-600"
-                      />
-                      <span style={{ color: color.deep }}>{s.name}</span>
-                      {checked && (
-                        <span className="ml-auto text-xs font-medium px-2 py-1 rounded-full" style={{ background: `${color.teal}22`, color: color.teal }}>
-                          Published
-                        </span>
-                      )}
-                    </label>
-                  );
-                })
+                    const checked = publishSelection.has(s.id);
+                    return (
+                      <label
+                        key={s.id}
+                        className="flex items-center gap-3 py-2 hover:bg-gray-50 px-2 rounded transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSection(s.id)}
+                          className="w-4 h-4 accent-teal-600"
+                        />
+                        <span style={{ color: color.deep }}>{s.name}</span>
+                        {checked && (
+                          <span
+                            className="ml-auto text-xs font-medium px-2 py-1 rounded-full"
+                            style={{ background: `${color.teal}22`, color: color.teal }}
+                          >
+                            Published
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })
               )}
             </div>
             {/* Fixed footer */}
             <div className="border-t p-4" style={{ borderColor: color.mist }}>
               <div className="flex justify-end gap-2">
-                <button 
-                  onClick={closePublishModal} 
-                  className="rounded-xl px-4 py-2 border" 
+                <button
+                  onClick={closePublishModal}
+                  className="rounded-xl px-4 py-2 border"
                   style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
                 >
                   Cancel
                 </button>
-                <button 
-                  onClick={() => savePublish(publishModalOpenFor)} 
-                  className="rounded-xl px-4 py-2" 
+                <button
+                  onClick={() => publishModalOpenFor && savePublish(publishModalOpenFor)}
+                  className="rounded-xl px-4 py-2"
                   style={{ background: color.teal, color: "#fff" }}
                 >
-                  Save
+                  {false ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
@@ -928,15 +1166,11 @@ function QuizzesBlock({
   );
 }
 
-function TopicsBlock({
-  sections
-}: {
-  sections: Section[];
-}) {
-  type TopicRow = { 
-    id: string; 
-    title: string; 
-    file_url: string | null; 
+function TopicsBlock({ sections }: { sections: Section[] }) {
+  type TopicRow = {
+    id: string;
+    title: string;
+    file_url: string | null;
     created_at: string;
     publish_to?: string[] | null | string;
   };
@@ -947,31 +1181,27 @@ function TopicsBlock({
   const [publishSelection, setPublishSelection] = useState<Set<string>>(new Set());
   const [sectionSearch, setSectionSearch] = useState("");
 
-  const normalizePublishTo = (pub: TopicRow['publish_to']): string[] => {
+  const normalizePublishTo = (pub: TopicRow["publish_to"]): string[] => {
     if (!pub) return [];
     if (Array.isArray(pub)) return pub.map(String);
-    if (typeof pub === 'string') {
+    if (typeof pub === "string") {
       try {
         const parsed = JSON.parse(pub);
         if (Array.isArray(parsed)) return parsed.map(String);
       } catch {}
-      return pub.split(',').map(x => x.trim()).filter(Boolean);
+      return pub.split(",").map((x) => x.trim()).filter(Boolean);
     }
     return [];
   };
 
   const openPublishModal = async (topic: TopicRow) => {
     try {
-      const { data, error } = await supabase
-        .from('topics')
-        .select('publish_to')
-        .eq('id', topic.id)
-        .single();
+      const { data, error } = await supabase.from("topics").select("publish_to").eq("id", topic.id).single();
       if (error) throw error;
       const initial = new Set(normalizePublishTo((data as any)?.publish_to ?? topic.publish_to));
       setPublishSelection(initial);
     } catch (e) {
-      console.error('Failed to fetch latest publish_to for topic', topic.id, e);
+      console.error("Failed to fetch latest publish_to for topic", topic.id, e);
       const initial = new Set(normalizePublishTo(topic.publish_to));
       setPublishSelection(initial);
     }
@@ -994,25 +1224,20 @@ function TopicsBlock({
   const savePublish = async (topicId: string) => {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('topics')
-        .update({ publish_to: Array.from(publishSelection) })
-        .eq('id', topicId);
+      const { error } = await supabase.from("topics").update({ publish_to: Array.from(publishSelection) }).eq("id", topicId);
       if (error) throw error;
-      setTopics(prev => prev.map(t => 
-        t.id === topicId 
-          ? { ...t, publish_to: Array.from(publishSelection) }
-          : t
-      ));
+      setTopics((prev) =>
+        prev.map((t) => (t.id === topicId ? { ...t, publish_to: Array.from(publishSelection) } : t))
+      );
     } catch (e) {
-      console.error('Failed to update topic publish settings:', e);
+      console.error("Failed to update topic publish settings:", e);
     } finally {
       setLoading(false);
       closePublishModal();
     }
   };
 
-  // Initial load
+  // Initial load + realtime
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -1030,21 +1255,15 @@ function TopicsBlock({
       setLoading(false);
     })();
 
-    // Realtime subscription (INSERT | UPDATE | DELETE)
     const channel = supabase
       .channel("public:topics")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "topics" },
-        async (payload) => {
-          // Re-fetch list on any change to keep it simple & consistent
-          const { data, error } = await supabase
-            .from("topics")
-            .select("id, title, file_url, created_at")
-            .order("created_at", { ascending: false });
-          if (!error && data) setTopics(data as TopicRow[]);
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "topics" }, async () => {
+        const { data, error } = await supabase
+          .from("topics")
+          .select("id, title, file_url, created_at")
+          .order("created_at", { ascending: false });
+        if (!error && data) setTopics(data as TopicRow[]);
+      })
       .subscribe();
 
     return () => {
@@ -1083,70 +1302,68 @@ function TopicsBlock({
       </div>
 
       {loading ? (
-        <div className="text-sm" style={{ color: color.steel }}>Loading…</div>
+        <div className="text-sm" style={{ color: color.steel }}>
+          Loading…
+        </div>
       ) : topics.length === 0 ? (
         <div className="text-sm" style={{ color: color.steel }}>
-          No topics yet. Click <Link to="/manage-topics" className="underline" style={{ color: color.teal }}>Manage topics</Link> to add one.
+          No topics yet. Click{" "}
+          <Link to="/manage-topics" className="underline" style={{ color: color.teal }}>
+            Manage topics
+          </Link>{" "}
+          to add one.
         </div>
       ) : (
         <motion.div className="space-y-3" variants={containerVariants}>
           {topics.map((t) => {
-              const pubTo = normalizePublishTo(t.publish_to);
-              const publishedSections = sections.filter(s => pubTo.includes(s.id));
-              return (
-                <motion.div
-                  key={t.id}
-                  variants={itemVariants}
-                  whileHover={{ scale: 1.01, x: 4 }}
-                  whileTap={{ scale: 0.98 }}
+            const pubTo = normalizePublishTo(t.publish_to);
+            const publishedSections = sections.filter((s) => pubTo.includes(s.id));
+            return (
+              <motion.div key={t.id} variants={itemVariants} whileHover={{ scale: 1.01, x: 4 }} whileTap={{ scale: 0.98 }}>
+                <div
+                  className="flex justify-between items-center rounded-lg p-3 sm:p-4 transition relative"
+                  style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
                 >
-                  <div
-                    className="flex justify-between items-center rounded-lg p-3 sm:p-4 transition relative"
-                    style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <span className="font-medium truncate block" style={{ color: color.deep }}>
-                        {t.title}
+                  <div className="min-w-0 flex-1">
+                    <span className="font-medium truncate block" style={{ color: color.deep }}>
+                      {t.title}
+                    </span>
+                    {publishedSections.length > 0 && (
+                      <span className="mt-1 text-xs font-medium" style={{ color: color.teal }}>
+                        Published to {publishedSections.map((s) => s.name).join(", ")}
                       </span>
-                      {publishedSections.length > 0 && (
-                        <span
-                          className="mt-1 text-xs font-medium"
-                          style={{ color: color.teal }}
-                        >
-                          Published to {publishedSections.map(s => s.name).join(", ")}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center ml-4">
-                      {t.file_url && (
-                        <a
-                          href={t.file_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mr-2 sm:mr-3 p-2 rounded-full transition"
-                          aria-label={`Open ${t.title} resource`}
-                          style={{ color: color.teal }}
-                          title="Open resource"
-                        >
-                          <BookOpen className="h-5 w-5" />
-                        </a>
-                      )}
-                      <button
-                        onClick={() => openPublishModal(t)}
-                        className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full border transition text-sm"
-                        style={{
-                          background: "#fff",
-                          borderColor: color.mist,
-                          color: color.deep,
-                        }}
-                      >
-                        <span>Publish To</span>
-                      </button>
-                    </div>
+                    )}
                   </div>
-                </motion.div>
-              );
+
+                  <div className="flex items-center ml-4">
+                    {t.file_url && (
+                      <a
+                        href={t.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mr-2 sm:mr-3 p-2 rounded-full transition"
+                        aria-label={`Open ${t.title} resource`}
+                        style={{ color: color.teal }}
+                        title="Open resource"
+                      >
+                        <BookOpen className="h-5 w-5" />
+                      </a>
+                    )}
+                    <button
+                      onClick={() => openPublishModal(t)}
+                      className="flex items-center justify-center space-x-2 px-4 py-2 rounded-full border transition text-sm"
+                      style={{
+                        background: "#fff",
+                        borderColor: color.mist,
+                        color: color.deep,
+                      }}
+                    >
+                      <span>Publish To</span>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            );
           })}
         </motion.div>
       )}
@@ -1155,15 +1372,17 @@ function TopicsBlock({
       {publishModalOpenFor && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/30" onClick={closePublishModal} />
-          <div 
-            className="relative w-[480px] rounded-2xl shadow-2xl bg-white flex flex-col" 
-              style={{ border: `1px solid ${color.mist}`, height: '500px' }}
+          <div
+            className="relative w-[480px] rounded-2xl shadow-2xl bg-white flex flex-col"
+            style={{ border: `1px solid ${color.mist}`, height: "500px" }}
           >
             {/* Header */}
             <div className="p-4 border-b" style={{ borderColor: color.mist }}>
-              <h3 className="font-bold" style={{ color: color.deep }}>Who can access this topic?</h3>
+              <h3 className="font-bold" style={{ color: color.deep }}>
+                Who can access this topic?
+              </h3>
             </div>
-            
+
             {/* Search and Select All - Fixed section */}
             <div className="p-4 border-b" style={{ borderColor: color.mist }}>
               <div className="relative mb-3">
@@ -1177,69 +1396,79 @@ function TopicsBlock({
                 />
                 <FolderCog className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: color.steel }} />
               </div>
-              
+
               <label className="flex items-center gap-3 py-2 px-2 hover:bg-gray-50 rounded transition-colors">
                 <input
                   type="checkbox"
-                  checked={sections.length > 0 && sections.every(s => publishSelection.has(s.id))}
+                  checked={sections.length > 0 && sections.every((s) => publishSelection.has(s.id))}
                   onChange={() => {
-                    if (sections.every(s => publishSelection.has(s.id))) {
+                    if (sections.every((s) => publishSelection.has(s.id))) {
                       setPublishSelection(new Set());
                     } else {
-                      setPublishSelection(new Set(sections.map(s => s.id)));
+                      setPublishSelection(new Set(sections.map((s) => s.id)));
                     }
                   }}
                   className="w-4 h-4 accent-teal-600"
                 />
-                <span className="font-medium" style={{ color: color.deep }}>Select All Sections</span>
+                <span className="font-medium" style={{ color: color.deep }}>
+                  Select All Sections
+                </span>
               </label>
             </div>
 
             {/* Scrollable section list */}
             <div className="flex-1 overflow-y-auto p-4">
               {sections.length === 0 ? (
-                <div className="text-sm" style={{ color: color.steel }}>No sections available.</div>
+                <div className="text-sm" style={{ color: color.steel }}>
+                  No sections available.
+                </div>
               ) : (
                 sections
-                  .filter(s => !sectionSearch || s.name.toLowerCase().includes(sectionSearch.toLowerCase()))
+                  .filter((s) => !sectionSearch || s.name.toLowerCase().includes(sectionSearch.toLowerCase()))
                   .map((s) => {
-                  const checked = publishSelection.has(s.id);
-                  return (
-                    <label key={s.id} className="flex items-center gap-3 py-2 hover:bg-gray-50 px-2 rounded transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSection(s.id)}
-                        className="w-4 h-4 accent-teal-600"
-                      />
-                      <span style={{ color: color.deep }}>{s.name}</span>
-                      {checked && (
-                        <span className="ml-auto text-xs font-medium px-2 py-1 rounded-full" style={{ background: `${color.teal}22`, color: color.teal }}>
-                          Published
-                        </span>
-                      )}
-                    </label>
-                  );
-                })
+                    const checked = publishSelection.has(s.id);
+                    return (
+                      <label
+                        key={s.id}
+                        className="flex items-center gap-3 py-2 hover:bg-gray-50 px-2 rounded transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSection(s.id)}
+                          className="w-4 h-4 accent-teal-600"
+                        />
+                        <span style={{ color: color.deep }}>{s.name}</span>
+                        {checked && (
+                          <span
+                            className="ml-auto text-xs font-medium px-2 py-1 rounded-full"
+                            style={{ background: `${color.teal}22`, color: color.teal }}
+                          >
+                            Published
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })
               )}
             </div>
 
             {/* Fixed footer */}
             <div className="border-t p-4" style={{ borderColor: color.mist }}>
               <div className="flex justify-end gap-2">
-                <button 
-                  onClick={closePublishModal} 
-                  className="rounded-xl px-4 py-2 border" 
+                <button
+                  onClick={closePublishModal}
+                  className="rounded-xl px-4 py-2 border"
                   style={{ background: "#fff", color: color.deep, borderColor: color.mist }}
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={() => publishModalOpenFor && savePublish(publishModalOpenFor)}
-                  className="rounded-xl px-4 py-2" 
+                  className="rounded-xl px-4 py-2"
                   style={{ background: color.teal, color: "#fff" }}
                 >
-                  {loading ? 'Saving...' : 'Save Changes'}
+                  {loading ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
