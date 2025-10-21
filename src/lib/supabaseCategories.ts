@@ -110,12 +110,16 @@ export async function fetchTopicsWithCategoriesAndQuestions(): Promise<SupabaseT
 
     console.log(`🔍 Filtered to ${categoriesWithQuestions.length} categories with questions (removed empty categories)`);
 
-    // Step 5: Group categories by topic
-    const topicsWithCategories: SupabaseTopic[] = topics.map((topic: any) => ({
-      ...topic,
-      categories: categoriesWithQuestions.filter((c: any) => c.topic_id === topic.id),
-    }));
+    // Step 5: Group categories by topic and filter out topics with no categories
+    const topicsWithCategories: SupabaseTopic[] = topics
+      .map((topic: any) => ({
+        ...topic,
+        categories: categoriesWithQuestions.filter((c: any) => c.topic_id === topic.id),
+      }))
+      // ✨ FILTER: Only include topics that have at least one category (with questions)
+      .filter((topic: any) => topic.categories && topic.categories.length > 0);
 
+    console.log(`🔍 Filtered to ${topicsWithCategories.length} topics with categories (removed topics without categories)`);
     console.log('✅ Successfully structured topics with categories and questions');
     console.log('📊 Topics structure:', topicsWithCategories.map(t => ({
       id: t.id,
