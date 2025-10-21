@@ -144,9 +144,6 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 <NavItem to="/create-quiz" onNavigate={closeMenuOnNavigate}>
                   Create Quiz
                 </NavItem>
-                <NavItem to="/manage-sections" onNavigate={closeMenuOnNavigate}>
-                  Manage Sections
-                </NavItem>
                 <NavItem to="/student-progress" onNavigate={closeMenuOnNavigate}>
                   Student Progress
                 </NavItem>
@@ -156,6 +153,10 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 </NavItem>
                 <NavItem to="/topicselector" onNavigate={closeMenuOnNavigate}>
                    Manage Tugonsense
+                </NavItem>
+                {/* NEW: Topic Creation */}
+                <NavItem to="/tugon-topics" onNavigate={closeMenuOnNavigate}>
+                  Topic Creation
                 </NavItem>
 
                 <span aria-hidden className="mx-2" style={{ width: 1, height: 24, background: "#ffffff33" }} />
@@ -240,6 +241,10 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 </NavItem>
                 <NavItem to="/topicselector" onNavigate={closeMenuOnNavigate}>
                   Topic Selector
+                </NavItem>
+                {/* NEW: Topic Creation (mobile) */}
+                <NavItem to="/tugon-topics" onNavigate={closeMenuOnNavigate}>
+                  Topic Creation
                 </NavItem>
 
                 <div className="px-2 pt-2 flex items-center gap-2">
