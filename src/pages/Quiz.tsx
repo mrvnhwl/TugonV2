@@ -23,8 +23,7 @@ interface Question {
   question: string;
   time_limit: number;
   points: number;
-  question_type: "multiplechoice" | "trueorfalse" | "paragraph";
-  // optional: if you saved matching right-side options in the questions row as JSON
+  question_type: "multiplechoice" | "trueorfalse" | "paragraph" | "checkboxes" | "matching";
   matches?: string[];
 }
 
@@ -32,22 +31,30 @@ interface Answer {
   id: string;
   answer: string;
   is_correct: boolean;
-  side?: "left" | "right";        // used for matching questions
-  match_index?: number | null;    // correct pairing index for matching
+  side?: "left" | "right";
+  match_index?: number | null;
 }
 
-
-/** Per-question recorded outcome (idempotent) */
 type AnswerRecord = {
   selectedAnswerId: string;
   isCorrect: boolean;
-  awarded: number; // points awarded for this question (incl. time bonus)
+  awarded: number;
 };
 
-// ✅ Helper to auto-wrap math expressions for MathJax
+// Helper: Standard Fisher-Yates shuffle algorithm
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
+};
+
+// Helper to auto-wrap math expressions for MathJax
 const wrapMath = (str: string | undefined | null) => {
   if (!str) return "";
-  if (/\\\(|\\\[/.test(str)) return str; // already wrapped
+  if (/\\\(|\\\[/.test(str)) return str;
   return str.replace(/([a-zA-Z0-9\\]+(\^|_)?(\{[^}]+\})?)/g, (m) => {
     if (/\\|(\^|_)/.test(m)) return `\\(${m}\\)`;
     return m;
@@ -81,7 +88,7 @@ const toSpeakable = (s: string | null | undefined) => {
 };
 
 /* ---------------------------
-   Confirm Leave Modal
+   Confirm Leave Modal
 ---------------------------- */
 function ConfirmLeaveModal({
   open,
@@ -139,6 +146,7 @@ function ConfirmLeaveModal({
   );
 }
 
+
 function Quiz() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -151,41 +159,36 @@ function Quiz() {
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [questionIndex, setQuestionIndex] = useState<number>(0);
 
-  // store right-side match options loaded per question id (if not embedded in questions table)
   const [matchesByQuestion, setMatchesByQuestion] = useState<Record<string, string[]>>({});
-
-  // student-side selections for checkbox questions (questionId -> Set<answerId>)
   const [checkboxSelections, setCheckboxSelections] = useState<Record<string, Set<string>>>({});
-  // student-side matching selections (questionId -> array of selected right-index per left item, -1 = none)
   const [matchingSelections, setMatchingSelections] = useState<Record<string, number[]>>({});
+  const [shuffledMatchOptions, setShuffledMatchOptions] = useState<
+    { answer: string; originalIndex: number }[]
+  >([]);
 
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
-
-  /** Stores the SINGLE, locked-in result per question (prevents double counting) */
   const [answerLog, setAnswerLog] = useState<Record<string, AnswerRecord>>({});
-
-  // store paragraph answer locally before submitting
   const [paragraphAnswer, setParagraphAnswer] = useState<string>("");
-
   const [showResult, setShowResult] = useState(false);
 
   const returnTo = (location.state as any)?.returnTo || "/challenge";
 
-  // ---- Leave guard state ----
   const [leaveOpen, setLeaveOpen] = useState(false);
   const guardEnabled = !showResult;
   const backAttemptRef = useRef(false);
 
-  // --- Read Aloud (Web Speech API) ---
   const [isSpeaking, setIsSpeaking] = useState(false);
   const voicesRef = useRef<SpeechSynthesisVoice[] | null>(null);
 
-  // 🔊 Audio refs
   const bgmRef = useRef<HTMLAudioElement | null>(null);
   const sfxCorrectRef = useRef<HTMLAudioElement | null>(null);
+  sfxCorrectRef.current = new Audio(sfxCorrectSrc); // Initialize here
   const sfxWrongRef = useRef<HTMLAudioElement | null>(null);
+  sfxWrongRef.current = new Audio(sfxWrongSrc); // Initialize here
   const sfxFinishRef = useRef<HTMLAudioElement | null>(null);
+  sfxFinishRef.current = new Audio(sfxFinishSrc); // Initialize here
+
 
   // Hide navbar while in quiz
   useEffect(() => {
@@ -215,29 +218,16 @@ function Quiz() {
   // Initialize Audio Elements and STRICT autoplay for BGM
   useEffect(() => {
     const bgm = new Audio(bgmSrc);
-    bgm.loop = true; // file is ~42s; loop forever
+    bgm.loop = true;
     bgm.preload = "auto";
-    bgm.volume = 0.25; // subtle background
+    bgm.volume = 0.25;
     bgmRef.current = bgm;
 
-    const sfxCorrect = new Audio(sfxCorrectSrc);
-    sfxCorrect.preload = "auto";
-    sfxCorrect.volume = 0.8;
-    sfxCorrectRef.current = sfxCorrect;
+    if (sfxCorrectRef.current) { sfxCorrectRef.current.volume = 0.8; sfxCorrectRef.current.preload = "auto"; }
+    if (sfxWrongRef.current) { sfxWrongRef.current.volume = 0.8; sfxWrongRef.current.preload = "auto"; }
+    if (sfxFinishRef.current) { sfxFinishRef.current.volume = 0.9; sfxFinishRef.current.preload = "auto"; }
 
-    const sfxWrong = new Audio(sfxWrongSrc);
-    sfxWrong.preload = "auto";
-    sfxWrong.volume = 0.8;
-    sfxWrongRef.current = sfxWrong;
-
-    const sfxFinish = new Audio(sfxFinishSrc);
-    sfxFinish.preload = "auto";
-    sfxFinish.volume = 0.9;
-    sfxFinishRef.current = sfxFinish;
-
-    // 🔊 STRICT autoplay attempt (no gesture fallback)
     bgm.play().catch((err) => {
-      // Intentionally no fallback; just log for debugging
       console.warn("BGM autoplay was blocked by the browser:", err);
     });
 
@@ -246,9 +236,7 @@ function Quiz() {
         bgm.pause();
       } catch {}
       bgmRef.current = null;
-      sfxCorrectRef.current = null;
-      sfxWrongRef.current = null;
-      sfxFinishRef.current = null;
+      // SFX refs are persistent, no need to null them out here if they are initialized once.
     };
   }, []);
 
@@ -366,128 +354,135 @@ function Quiz() {
   }, []);
 
   // Load quiz + questions
-  useEffect(() => {
-    const run = async () => {
-      if (!user) {
-        navigate("/login");
-        return;
-      }
-      try {
-        const { data: quizData, error: quizError } = await supabase.from("quizzes").select("*").eq("id", id).single();
+  const loadQuizContent = async () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    try {
+      const { data: quizData, error: quizError } = await supabase.from("quizzes").select("*").eq("id", id).single();
 
-        if (quizError) throw quizError;
-        setQuiz(quizData as QuizType);
+      if (quizError) throw quizError;
+      setQuiz(quizData as QuizType);
 
-        const { data: questionsData, error: qErr } = await supabase
-          .from("questions")
-          .select("*")
-          .eq("quiz_id", id)
-          .order("created_at");
+      const { data: questionsData, error: qErr } = await supabase
+        .from("questions")
+        .select("*")
+        .eq("quiz_id", id)
+        .order("created_at");
 
-        if (qErr) throw qErr;
+      if (qErr) throw qErr;
 
-        if (questionsData && questionsData.length > 0) {
-  // ✅ Normalize all points to integers immediately on load
-  const qs = (questionsData as Question[]).map((q) => ({
+      if (questionsData && questionsData.length > 0) {
+        const qs = (questionsData as Question[]).map((q) => ({
           ...q,
-          points: Math.round(Number(q.points) || 0), // ✅ ensure points are integers
+          points: Math.round(Number(q.points) || 0),
         }));
 
-        // 🧩 Debug log — shows loaded question IDs and point values
-        console.log("✅ Loaded questions:", qs.map((q) => ({ id: q.id, points: q.points })));
-
-        // ✅ Set quiz state
         setQuestions(qs);
         setCurrentQuestion(qs[0]);
         setQuestionIndex(0);
         setAnswerLog({});
 
 
-        } else {
-          setQuestions([]);
-          setCurrentQuestion(null);
-        }
-      } catch (e) {
-        console.error("Error loading quiz:", e);
-        toast.error("Failed to load quiz.");
-      }
-    };
-    run();
-  }, [id, user, navigate]);
-
-  // Load answers when the current question changes and sync isAnswered from log
-  useEffect(() => {
-  const loadAnswers = async (questionId: string) => {
-    try {
-      const { data: answersData, error } = await supabase
-        .from("answers")
-        .select("*")
-        .eq("question_id", questionId);
-
-      if (error) throw error;
-
-      const allAnswers = (answersData as any[]) || [];
-
-      // 🧠 Separate left/right items using the new 'side' column
-      const leftItems = allAnswers.filter((a) => a.side === "left");
-      const rightItems = allAnswers.filter((a) => a.side === "right");
-
-      // Store lefts (questions/prompts)
-      setAnswers(leftItems);
-
-      // Store rights (options) for this question id
-      setMatchesByQuestion((prev) => ({
-        ...prev,
-        [questionId]: rightItems.map((r) => r.answer),
-      }));
-
-      // initialize student-side selections for checkbox / matching types
-      const q = currentQuestion;
-      if (!q) return;
-      const qId = q.id;
-      const qType = (q.question_type || "").toString().toLowerCase().replace(/[_\s-]/g, "");
-
-      if (qType === "checkboxes") {
-        setCheckboxSelections((prev) => ({
-          ...prev,
-          [qId]: new Set<string>(),
-        }));
       } else {
-        // clear stale checkbox selections for other types
-        setCheckboxSelections((prev) => {
-          if (prev[qId]) {
-            const copy = { ...prev };
-            delete copy[qId];
-            return copy;
-          }
-          return prev;
-        });
-      }
-
-      if (qType === "matching") {
-        // left items come from answers; ensure an array sized to left items
-        const leftCount = leftItems.length || 0;
-        setMatchingSelections((prev) => ({
-          ...prev,
-          [qId]: Array(leftCount).fill(-1),
-        }));
+        setQuestions([]);
+        setCurrentQuestion(null);
       }
     } catch (e) {
-      console.error("Error loading answers:", e);
-      toast.error("Failed to load answers.");
+      console.error("Error loading quiz:", e);
+      toast.error("Failed to load quiz.");
     }
   };
 
-  if (currentQuestion) {
-    const start = currentQuestion.time_limit || 30;
-    setTimeLeft(start);
-    setIsAnswered(!!answerLog[currentQuestion.id]);
-    stopSpeaking();
-    loadAnswers(currentQuestion.id);
-    setParagraphAnswer("");
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [currentQuestion, answerLog]);
+  useEffect(() => {
+    loadQuizContent();
+  }, [id, user, navigate]); // Depend on id, user, navigate
+
+
+  // Load answers when the current question changes and sync isAnswered from log
+  useEffect(() => {
+    const loadAnswers = async (questionId: string) => {
+      try {
+        const { data: answersData, error } = await supabase
+          .from("answers")
+          .select("*")
+          .eq("question_id", questionId);
+
+        if (error) throw error;
+
+        const allAnswers = (answersData as any[]) || [];
+
+        const leftItems = allAnswers.filter((a) => a.side === "left");
+        const rightItems = allAnswers.filter((a) => a.side === "right");
+
+        setAnswers(leftItems);
+
+        setMatchesByQuestion((prev) => ({
+          ...prev,
+          [questionId]: rightItems.map((r) => r.answer),
+        }));
+
+        const q = currentQuestion;
+        const qId = q?.id;
+        const qType = qTypeOf(q);
+
+        if (q && qId && qType === "matching") {
+          const indexedMatches = rightItems.map((r, originalIndex) => ({
+            answer: r.answer,
+            originalIndex: originalIndex,
+          }));
+
+          setShuffledMatchOptions(shuffleArray(indexedMatches));
+
+          const leftCount = leftItems.length || 0;
+          setMatchingSelections((prev) => ({
+            ...prev,
+            [qId]: Array(leftCount).fill(-1),
+          }));
+        } else {
+          setMatchingSelections((prev) => {
+            if (prev[qId as string]) {
+              const copy = { ...prev };
+              delete copy[qId as string];
+              return copy;
+            }
+            return prev;
+          });
+          setShuffledMatchOptions([]);
+
+          if (qType === "checkboxes" && qId) {
+            setCheckboxSelections((prev) => ({
+              ...prev,
+              [qId]: new Set<string>(),
+            }));
+          } else {
+            setCheckboxSelections((prev) => {
+              if (prev[qId as string]) {
+                const copy = { ...prev };
+                delete copy[qId as string];
+                return copy;
+              }
+              return prev;
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Error loading answers:", e);
+        toast.error("Failed to load answers.");
+      }
+    };
+
+    if (currentQuestion) {
+      const start = currentQuestion.time_limit || 30;
+      setTimeLeft(start);
+      setIsAnswered(!!answerLog[currentQuestion.id]);
+      stopSpeaking();
+      loadAnswers(currentQuestion.id);
+      setParagraphAnswer("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuestion, answerLog]);
 
 
   // Countdown
@@ -537,47 +532,45 @@ function Quiz() {
     });
   };
 
- const submitCheckboxAnswer = () => {
-  if (!currentQuestion) return;
-  if (isAnswered) return;
+  const submitCheckboxAnswer = () => {
+    if (!currentQuestion) return;
+    if (isAnswered) return;
 
-  const qId = currentQuestion.id;
-  const selected = Array.from(checkboxSelections[qId] || []);
+    const qId = currentQuestion.id;
+    const selected = Array.from(checkboxSelections[qId] || []);
 
-  if (selected.length === 0) {
-    toast.error("Please select at least one option.");
-    return;
-  }
+    if (selected.length === 0) {
+      toast.error("Please select at least one option.");
+      return;
+    }
 
-  // 🧩 Normalize both to string to avoid type mismatch (e.g., number vs string)
-  const correctIds = answers.filter((a) => a.is_correct).map((a) => String(a.id));
-  const selectedIds = selected.map(String);
+    const correctIds = answers.filter((a) => a.is_correct).map((a) => String(a.id));
+    const selectedIds = selected.map(String);
 
-  // 🔒 Convert both to sorted strings for stable comparison
-  const equal =
-    correctIds.length === selectedIds.length &&
-    correctIds.sort().join(",") === selectedIds.sort().join(",");
+    const equal =
+      correctIds.length === selectedIds.length &&
+      correctIds.sort().join(",") === selectedIds.sort().join(",");
 
-  const base = currentQuestion.points || 0;
+    const base = currentQuestion.points || 0;
 
-  if (equal) {
-    playCorrectSfx();
-  } else {
-    playWrongSfx();
-  }
+    if (equal) {
+      playCorrectSfx();
+    } else {
+      playWrongSfx();
+    }
 
-  setAnswerLog((prev) => ({
-    ...prev,
-    [qId]: {
-      selectedAnswerId: JSON.stringify(selectedIds),
-      isCorrect: equal,
-      awarded: equal ? base : 0, // ✅ Full base points if correct
-    },
-  }));
+    setAnswerLog((prev) => ({
+      ...prev,
+      [qId]: {
+        selectedAnswerId: JSON.stringify(selectedIds),
+        isCorrect: equal,
+        awarded: equal ? base : 0,
+      },
+    }));
 
-  setIsAnswered(true);
-  toast.success("Answer submitted.");
-};
+    setIsAnswered(true);
+    toast.success("Answer submitted.");
+  };
 
 
   // matching handlers (student)
@@ -590,121 +583,113 @@ function Quiz() {
   };
 
   const submitMatchingAnswer = async () => {
-  if (!currentQuestion || !user) return;
-  if (isAnswered) return;
+    if (!currentQuestion || !user) return;
+    if (isAnswered) return;
 
-  const qId = currentQuestion.id;
-  const mapping = matchingSelections[qId] || [];
+    const qId = currentQuestion.id;
+    const mapping = matchingSelections[qId] || [];
 
-  // Must choose all before submitting
-  if (mapping.some((m) => m === -1)) {
-    toast.error("Please match all left items before submitting.");
-    return;
-  }
+    if (mapping.some((m) => m === -1)) {
+      toast.error("Please match all left items before submitting.");
+      return;
+    }
 
-  // No points if time already ran out
-  if (timeLeft <= 0) {
-    toast.error("Time's up! No points awarded.");
-    setIsAnswered(true);
-    setAnswerLog((prev) => ({
-      ...prev,
-      [qId]: { selectedAnswerId: JSON.stringify(mapping), isCorrect: false, awarded: 0 },
-    }));
-    return;
-  }
+    if (timeLeft <= 0) {
+      toast.error("Time's up! No points awarded.");
+      setIsAnswered(true);
+      setAnswerLog((prev) => ({
+        ...prev,
+        [qId]: { selectedAnswerId: JSON.stringify(mapping), isCorrect: false, awarded: 0 },
+      }));
+      return;
+    }
 
-  try {
-    await supabase.from("matching_responses").insert({
-      user_id: user.id,
-      quiz_id: id,
-      question_id: qId,
-      mapping, // JSON column
-    });
-  } catch (e) {
-    console.error("Failed to save matching response:", e);
-    toast.error("Failed to submit answer. Please try again.");
-    return;
-  }
+    try {
+      await supabase.from("matching_responses").insert({
+        user_id: user.id,
+        quiz_id: id,
+        question_id: qId,
+        mapping,
+      });
+    } catch (e) {
+      console.error("Failed to save matching response:", e);
+      toast.error("Failed to submit answer. Please try again.");
+      return;
+    }
 
-  // Compare using match_index (safer)
-  const leftItems = answers.filter((a) => a.side === "left");
-  const correctMapping = leftItems.map((a) => a.match_index ?? -1);
+    const leftItems = answers.filter((a) => a.side === "left");
+    const correctMapping = leftItems.map((a) => a.match_index ?? -1);
 
-  let correctCount = 0;
-  for (let i = 0; i < correctMapping.length; i++) {
-    if (mapping[i] === correctMapping[i]) correctCount++;
-  }
+    let correctCount = 0;
+    for (let i = 0; i < correctMapping.length; i++) {
+      if (mapping[i] === correctMapping[i]) correctCount++;
+    }
 
-  const total = leftItems.length;
-  const percentCorrect = total > 0 ? correctCount / total : 0;
-  const base = currentQuestion.points || 0;
-  const awarded =
-  percentCorrect === 1 ? base : Math.round(base * percentCorrect);
+    const total = leftItems.length;
+    const percentCorrect = total > 0 ? correctCount / total : 0;
+    const base = currentQuestion.points || 0;
+    const awarded =
+      percentCorrect === 1 ? base : Math.round(base * percentCorrect);
 
 
-  if (percentCorrect === 1) playCorrectSfx();
-  else playWrongSfx();
-
-  setAnswerLog((prev) => ({
-    ...prev,
-    [qId]: {
-      selectedAnswerId: JSON.stringify(mapping),
-      isCorrect: percentCorrect === 1,
-      awarded,
-    },
-  }));
-
-  setIsAnswered(true);
-  toast.success(
-    percentCorrect === 1
-      ? `Perfect! Full ${base} points 🎯`
-      : `Partial credit: ${awarded} / ${base} points`
-  );
-};
-
-
-const handleAnswer = (answer: Answer) => {
-  if (!currentQuestion) return;
-
-  // prevent double-answering
-  if (answerLog[currentQuestion.id]) {
-    setIsAnswered(true);
-    return;
-  }
-
-  setIsAnswered(true);
-
-  const base = currentQuestion.points || 0;
-
-  if (answer.is_correct) {
-    // ✅ Always award full base points when correct
-    const awarded = base;
-
-    playCorrectSfx();
+    if (percentCorrect === 1) playCorrectSfx();
+    else playWrongSfx();
 
     setAnswerLog((prev) => ({
       ...prev,
-      [currentQuestion.id]: {
-        selectedAnswerId: answer.id,
-        isCorrect: true,
+      [qId]: {
+        selectedAnswerId: JSON.stringify(mapping),
+        isCorrect: percentCorrect === 1,
         awarded,
       },
     }));
-  } else {
-    // ❌ Wrong answer = 0 points
-    playWrongSfx();
 
-    setAnswerLog((prev) => ({
-      ...prev,
-      [currentQuestion.id]: {
-        selectedAnswerId: answer.id,
-        isCorrect: false,
-        awarded: 0,
-      },
-    }));
-  }
-};
+    setIsAnswered(true);
+    toast.success(
+      percentCorrect === 1
+        ? `Perfect! Full ${base} points 🎯`
+        : `Partial credit: ${awarded} / ${base} points`
+    );
+  };
 
+
+  const handleAnswer = (answer: Answer) => {
+    if (!currentQuestion) return;
+
+    if (answerLog[currentQuestion.id]) {
+      setIsAnswered(true);
+      return;
+    }
+
+    setIsAnswered(true);
+
+    const base = currentQuestion.points || 0;
+
+    if (answer.is_correct) {
+      const awarded = base;
+      playCorrectSfx();
+
+      setAnswerLog((prev) => ({
+        ...prev,
+        [currentQuestion.id]: {
+          selectedAnswerId: answer.id,
+          isCorrect: true,
+          awarded,
+        },
+      }));
+    } else {
+      playWrongSfx();
+
+      setAnswerLog((prev) => ({
+        ...prev,
+        [currentQuestion.id]: {
+          selectedAnswerId: answer.id,
+          isCorrect: false,
+          awarded: 0,
+        },
+      }));
+    }
+  };
 
 
   const submitParagraphAnswer = async () => {
@@ -720,7 +705,6 @@ const handleAnswer = (answer: Answer) => {
     setIsAnswered(true);
 
     try {
-      // Insert paragraph response — ensure table `paragraph_responses` exists
       const { data: inserted, error } = await supabase
         .from("paragraph_responses")
         .insert({
@@ -734,7 +718,6 @@ const handleAnswer = (answer: Answer) => {
 
       if (error) throw error;
 
-      // Use the inserted.id if available as selectedAnswerId; awarded is 0 (ungraded)
       const selectedId = inserted?.id ? String(inserted.id) : "paragraph_response";
 
       setAnswerLog((prev) => ({
@@ -742,7 +725,7 @@ const handleAnswer = (answer: Answer) => {
         [currentQuestion.id]: {
           selectedAnswerId: selectedId,
           isCorrect: false,
-          awarded: 0, // per your choice "A" — paragraph auto-score 0
+          awarded: 0,
         },
       }));
 
@@ -750,7 +733,6 @@ const handleAnswer = (answer: Answer) => {
     } catch (e) {
       console.error("Failed to save paragraph response:", e);
       toast.error("Failed to submit answer. Please try again.");
-      // If saving fails, allow reattempt
       setIsAnswered(false);
     }
   };
@@ -788,12 +770,29 @@ const handleAnswer = (answer: Answer) => {
       toast.error("Failed to save progress.");
     }
 
-    // 🔊 Play finish sound, then stop BGM
     playFinishSfx();
     stopBgm();
 
     setShowResult(true);
   };
+
+  const handleRetryQuiz = () => {
+    setShowResult(false);
+    setQuestionIndex(0);
+    setAnswerLog({});
+    setParagraphAnswer("");
+    setCheckboxSelections({});
+    setMatchingSelections({});
+    setIsAnswered(false);
+    setCurrentQuestion(questions[0]); // Reset to the first question
+    toast.info("Quiz has been reset. Good luck!");
+    
+    // Ensure BGM restarts if it was stopped for the finish sfx
+    try {
+      bgmRef.current?.play().catch((err) => console.warn("BGM autoplay was blocked on retry:", err));
+    } catch {}
+  };
+
 
   // Native browser confirm on refresh/close or hard navigation
   useEffect(() => {
@@ -852,6 +851,15 @@ const handleAnswer = (answer: Answer) => {
   const headerGradient = `linear-gradient(135deg, ${color.ocean} 0%, ${color.teal} 55%, ${color.aqua} 100%)`;
   const cardBorder = `${color.mist}66`;
 
+  // Get awarded points for display
+  const awardedPoints = answerLog[currentQuestion.id]?.awarded;
+  
+  // Define a safe, simple red color for failed attempts
+  const failColor = "#dc2626"; // Tailwind CSS red-600
+
+  // Helper to check if it's a selection-based question (MC, T/F, Checkboxes)
+  const isSelectionType = ["multiplechoice", "trueorfalse", "checkboxes"].includes(qTypeOf(currentQuestion));
+
   return (
     <div className="min-h-screen" style={{ background: `linear-gradient(${color.mist}11, #fff)` }}>
       {/* Header */}
@@ -864,17 +872,29 @@ const handleAnswer = (answer: Answer) => {
           <h1 className="text-xl sm:text-2xl font-extrabold leading-tight">
             <MathJax dynamic inline>{wrapMath(quiz?.title || "")}</MathJax>
           </h1>
-
-          {/* Timer */}
-          <div
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1 mt-3 text-sm font-semibold"
-            style={{ background: "#ffffff22", border: "1px solid #ffffff33" }}
-          >
-            <Timer className="h-4 w-4" />
-            <span>{timeLeft}s</span>
+          
+          {/* Timer and Total Score (Side-by-Side) */}
+          <div className="flex justify-center items-center gap-4 mt-3">
+              {/* Timer */}
+              <div
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold"
+                  style={{ background: "#ffffff22", border: "1px solid #ffffff33" }}
+              >
+                  <Timer className="h-4 w-4" />
+                  <span>{timeLeft}s</span>
+              </div>
+              
+              {/* TOTAL SCORE Indicator */}
+              <div
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-bold"
+                  style={{ background: "#ffffff44", border: "1px solid #ffffff33" }}
+              >
+                  <span className="text-xs">SCORE:</span>
+                  <span className="text-lg">{score.toLocaleString()}</span>
+              </div>
           </div>
 
-          {/* Read Aloud (no progress spoken) */}
+          {/* Read Aloud */}
           <div className="mt-3">
             <button
               onClick={speakCurrent}
@@ -894,7 +914,9 @@ const handleAnswer = (answer: Answer) => {
 
           {/* Progress (visual only) */}
           <div className="mt-3 text-xs opacity-90">
-            Question {questionIndex + 1} of {questions.length}
+            Question {questionIndex + 1} of {questions.length} 
+            {/* Points Display */}
+            <span className="ml-2 font-bold">({currentQuestion.points} Points)</span>
           </div>
           <div className="mt-2 h-2.5 w-full rounded-full overflow-hidden" style={{ background: "#ffffff2f" }}>
             <div
@@ -953,17 +975,18 @@ const handleAnswer = (answer: Answer) => {
             (() => {
               const qType = qTypeOf(currentQuestion);
 
-              // CHECKBOXES: allow multiple selections then submit
+              // CHECKBOXES
               if (qType === "checkboxes") {
                 const qId = currentQuestion.id;
                 const sel = checkboxSelections[qId] || new Set<string>();
                 return (
                   <div className="col-span-1 md:col-span-2">
-                    <div className="grid gap-3">
+                    {/* Enforced 2-column for checkboxes as requested */}
+                    <div className="grid gap-3 grid-cols-2"> 
                       {answers.map((ans) => (
                         <label
                           key={ans.id}
-                          className="p-3 rounded-xl border flex items-center gap-3 cursor-pointer bg-gray-50 hover:bg-gray-100"
+                          className="p-3 rounded-full border flex items-center gap-3 cursor-pointer bg-gray-50 hover:bg-gray-100 transition-all"
                         >
                           <input
                             type="checkbox"
@@ -978,7 +1001,7 @@ const handleAnswer = (answer: Answer) => {
                         </label>
                       ))}
                       {!isAnswered && (
-                        <div className="flex gap-2 mt-3">
+                        <div className="col-span-2 flex gap-2 mt-3 justify-end">
                           <button
                             type="button"
                             onClick={submitCheckboxAnswer}
@@ -998,207 +1021,231 @@ const handleAnswer = (answer: Answer) => {
 
               // MATCHING
               if (qType === "matching") {
-              const qId = currentQuestion.id;
-              const matches =
-                Array.isArray((currentQuestion as any).matches) &&
-                (currentQuestion as any).matches.length > 0
-                  ? (currentQuestion as any).matches
-                  : matchesByQuestion[qId] || [];
+                const qId = currentQuestion.id;
+                const lefts = answers;
+                const mapping = matchingSelections[qId] || Array(lefts.length).fill(-1);
+                const shuffledOptions = shuffledMatchOptions;
 
-              const lefts = answers;
-              const mapping = matchingSelections[qId] || Array(lefts.length).fill(-1);
+                return (
+                  <div className="col-span-1 md:col-span-2">
+                    <div className="font-semibold mb-3">Match the following</div>
 
-              return (
-                <div className="col-span-1 md:col-span-2">
-                  <div className="font-semibold mb-3">Match the following</div>
-
-                  <div className="space-y-3">
-                    {lefts.map((l, li) => (
-                      <div
-                        key={l.id}
-                        className="flex flex-col md:flex-row items-stretch border rounded-lg bg-white shadow-sm"
-                        style={{ borderColor: color.mist }}
-                      >
-                        {/* Left item */}
-                        <div className="flex-1 px-3 py-3 text-left break-words md:pr-4">
-                          <MathJax dynamic inline>{wrapMath(l.answer)}</MathJax>
-                        </div>
-
-                        {/* Divider (hidden on small screens) */}
-                        <div className="hidden md:block w-px bg-gray-300 mx-2"></div>
-
-                        {/* Right dropdown */}
-                        <div className="md:w-1/3 w-full px-3 py-3 border-t md:border-t-0 md:border-l border-gray-200">
-                          <select
-                            disabled={isAnswered}
-                            value={mapping[li] ?? -1}
-                            onChange={(e) =>
-                              setMatchingChoice(qId, li, Number(e.target.value))
-                            }
-                            className="w-full rounded border px-2 py-2 text-sm md:text-base focus:ring-2 focus:ring-teal-400"
-                          >
-                            <option value={-1}>Choose...</option>
-                            {matches.map((m: string, mi: number) => (
-                              <option key={mi} value={mi}>
-                                {m || `Option ${mi + 1}`}
+                    <div className="grid grid-cols-2 gap-4">
+                      {lefts.map((leftItem, leftIndex) => (
+                        <div key={leftIndex} className="flex items-center gap-4">
+                          <div className="flex-1 p-3 rounded-lg border text-sm text-gray-700 bg-gray-50">
+                            <MathJax dynamic inline>
+                              {wrapMath(leftItem.answer)}
+                            </MathJax>
+                          </div>
+                          <div className="flex-1">
+                            <select
+                              className="w-full p-2.5 rounded-lg border-2 border-gray-200 focus:border-teal-500 text-sm disabled:bg-gray-100"
+                              value={mapping[leftIndex]}
+                              onChange={(e) =>
+                                setMatchingChoice(
+                                  qId,
+                                  leftIndex,
+                                  Number(e.target.value)
+                                )
+                              }
+                              disabled={isAnswered}
+                            >
+                              <option value={-1} disabled>
+                                Select Match
                               </option>
-                            ))}
-                          </select>
+                              {shuffledOptions.map((matchData, shuffledIndex) => (
+                                <option
+                                  key={shuffledIndex}
+                                  value={matchData.originalIndex}
+                                >
+                                  <MathJax dynamic inline>
+                                    {wrapMath(matchData.answer)}
+                                  </MathJax>
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {!isAnswered && (
-                    <div className="mt-4 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={submitMatchingAnswer}
-                        className="px-4 py-2 rounded-lg text-white font-semibold"
-                        style={{
-                          background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                        }}
-                      >
-                        Submit Matching
-                      </button>
+                      ))}
                     </div>
-                  )}
-                </div>
-              );
-            }
 
+                    {!isAnswered && (
+                      <div className="flex gap-2 mt-4 justify-end">
+                        <button
+                          type="button"
+                          onClick={submitMatchingAnswer}
+                          className="px-4 py-2 rounded-lg text-white"
+                          style={{
+                            background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
+                          }}
+                        >
+                          Submit
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
 
-
-              // DEFAULT: single-choice buttons (unchanged)
+              // MULTIPLE CHOICE / TRUE OR FALSE (Default: simple select)
+              // Enforced 2-column for all MC/T-F
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {answers.map((answer) => {
-                    const recorded = answerLog[currentQuestion.id];
-                    const wasAnswered = !!recorded;
-                    const isCorrectChoice = answer.is_correct;
+                <div className="grid gap-3 grid-cols-2">
+                  {answers.map((ans, idx) => {
+                    const alpha = ["A", "B", "C", "D", "E", "F"][idx] || `${idx + 1}`;
+                    const answered = answerLog[currentQuestion.id];
+                    const isSelected = answered?.selectedAnswerId === ans.id;
+                    const isCorrect = ans.is_correct;
 
-                    const base = "p-4 rounded-xl text-left transition-all border-2 focus:outline-none focus-visible:ring-2";
-                    const neutral = "bg-gray-50 hover:bg-gray-100 border-transparent focus-visible:ring-[rgba(0,0,0,.06)]";
-                    const whenAnswered = isCorrectChoice ? "bg-green-50 border-green-500" : "bg-red-50 border-red-500";
+                    let bgColor = isSelected ? color.mist : "bg-gray-50";
+                    let borderColor = isSelected ? color.teal : "border-gray-200";
 
+                    if (isAnswered) {
+                      if (isCorrect) {
+                        bgColor = "#d1fae5"; // green-100
+                        borderColor = "#34d399"; // green-400
+                      } else if (isSelected && !isCorrect) {
+                        bgColor = "#fee2e2"; // red-100
+                        borderColor = "#f87171"; // red-400
+                      }
+                    }
+                    
+                    // The main button is the answer choice
                     return (
                       <button
-                        key={answer.id}
-                        onClick={() => handleAnswer(answer)}
-                        disabled={isAnswered || wasAnswered}
-                        className={`${base} ${(isAnswered || wasAnswered) ? whenAnswered : neutral}`}
+                        key={ans.id}
+                        onClick={() => handleAnswer(ans)}
+                        disabled={isAnswered}
+                        // Simplified classes for correct grid rendering
+                        className={`p-3 rounded-full border flex items-center gap-3 transition-all text-left ${bgColor}`}
+                        style={{ borderColor, cursor: isAnswered ? "default" : "pointer" }}
                       >
-                        <div className="flex items-center">
-                          <span className="flex-grow" style={{ color: color.deep }}>
-                            <MathJax dynamic inline>{wrapMath(answer.answer)}</MathJax>
-                          </span>
-                          {(isAnswered || wasAnswered) &&
-                            (isCorrectChoice ? (
-                              <CheckCircle className="h-5 w-5 text-green-600" />
-                            ) : (
-                              <XCircle className="h-5 w-5 text-red-600" />
-                            ))}
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0"
+                          style={{
+                            background: isAnswered && isCorrect ? color.teal : isSelected ? color.teal : color.mist,
+                            color: isAnswered && isCorrect ? "white" : isSelected ? "white" : color.steel,
+                            border: `1px solid ${isAnswered && isCorrect ? color.teal : isSelected ? color.teal : color.mist}`,
+                          }}
+                        >
+                          {alpha}
                         </div>
+                        <span className="flex-grow text-sm" style={{ color: color.deep }}>
+                          <MathJax dynamic inline>{wrapMath(ans.answer)}</MathJax>
+                        </span>
+                        {isAnswered && (
+                          <div className="shrink-0">
+                            {isCorrect ? (
+                              <CheckCircle className="h-6 w-6 text-green-500" />
+                            ) : isSelected ? (
+                              <XCircle className="h-6 w-6 text-red-500" />
+                            ) : null}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
                 </div>
               );
-            })()
+            })())}
+          
+
+          {/* 🎯 Score Indicator (Simplified to just "Score: 1,000") */}
+          {isAnswered && qTypeOf(currentQuestion) !== "paragraph" && (
+              <div className="mt-6 p-4 rounded-xl border text-center font-bold text-lg"
+                   style={{
+                      borderColor: awardedPoints > 0 ? color.teal : failColor,
+                      background: awardedPoints > 0 ? `${color.teal}10` : `${failColor}10`,
+                      color: awardedPoints > 0 ? color.teal : failColor,
+                   }}>
+                  <span className="flex items-center justify-center gap-2">
+                      {awardedPoints > 0 ? (
+                        <CheckCircle className="h-6 w-6" />
+                      ) : (
+                        <XCircle className="h-6 w-6" />
+                      )}
+                      <span className="text-xl">Score: {awardedPoints?.toLocaleString() || 0}</span>
+                  </span>
+              </div>
           )}
 
-          {/* Footer controls */}
-          <div className="flex justify-between items-center mt-6">
-            <button
-              onClick={prevQuestion}
-              disabled={questionIndex === 0}
-              className="px-4 py-2 rounded-lg disabled:opacity-50 border"
-              style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
-            >
-              Prev
-            </button>
+        </div>
 
-            <div className="text-sm sm:text-base font-semibold" style={{ color: color.steel }}>
-              Points: <span style={{ color: color.teal }}>{score}</span> / {totalPoints}
-            </div>
-
+        {/* Footer Navigation */}
+        <div className="flex justify-between mt-6">
+          <button
+            onClick={prevQuestion}
+            disabled={questionIndex === 0 || !isAnswered}
+            className="px-6 py-2 rounded-lg font-semibold disabled:opacity-50"
+            style={{
+              background: "#fff",
+              color: color.deep,
+              border: `1px solid ${color.mist}`,
+            }}
+          >
+            Previous
+          </button>
+          {isAnswered && (
             <button
               onClick={nextQuestion}
-              className="px-4 py-2 rounded-lg text-white"
+              className="px-6 py-2 rounded-lg text-white font-semibold"
               style={{
-                background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
+                background: `linear-gradient(135deg, ${color.ocean}, ${color.teal})`,
               }}
             >
-              {questionIndex === questions.length - 1 ? "Finish" : "Next"}
+              {questionIndex < questions.length - 1 ? "Next Question" : "Finish Quiz"}
             </button>
-          </div>
+          )}
         </div>
       </main>
 
-      {/* Final Score Modal */}
+      {/* Results Modal */}
       {showResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,.32)" }}>
-          <div className="w-[92%] max-w-md rounded-2xl shadow-2xl ring-1 p-6" style={{ background: "#fff", borderColor: cardBorder }}>
-            <div className="text-center">
-              <div
-                className="inline-flex items-center justify-center h-14 w-14 rounded-full mb-3"
-                style={{
-                  background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                  color: "#fff",
-                }}
-              >
-                🏁
-              </div>
-              <h3 className="text-xl font-extrabold" style={{ color: color.deep }}>
-                Challenge Completed!
-              </h3>
-              <p className="mt-1 text-sm" style={{ color: color.steel }}>
-                You answered <strong>{correctCount}</strong> out of <strong>{questions.length}</strong> correctly.
-              </p>
-
-              <div className="mt-4 text-3xl font-extrabold" style={{ color: color.teal }}>
-                {score}{" "}
-                
-                <span className="text-base font-semibold" style={{ color: color.steel }}>
-                  / {totalPoints}
-                </span>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 backdrop-blur bg-black/30" />
+          <div
+            className="relative w-full max-w-md rounded-2xl shadow-2xl ring-1 text-center p-8"
+            style={{ background: "#fff", borderColor: `${color.mist}` }}
+            role="dialog"
+            aria-modal="true"
+          >
+            <h3 className="font-extrabold text-3xl mb-4" style={{ color: color.teal }}>
+              Quiz Complete! 🏆
+            </h3>
+            <p className="text-lg mb-6 font-bold" style={{ color: color.deep }}>
+              {/* FIX: Removed ** Markdown asterisks from "Total Score" */}
+              You obtained a Total Score of <span style={{ color: color.teal }}>{score.toLocaleString()}</span> out of {totalPoints.toLocaleString()} possible points.
+            </p>
+            <p className="text-md mb-8" style={{ color: color.steel }}>
+              You got {correctCount} out of {questions.length} questions correct.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button
-                  onClick={() => {
-                    setShowResult(false);
-                    setQuestionIndex(0);
-                    setCurrentQuestion(questions[0]);
-                    setAnswerLog({});
-                    setIsAnswered(false);
-                    setTimeLeft(questions[0]?.time_limit || 30);
-                    stopSpeaking();
-                  }}
-                  className="px-4 py-2 rounded-lg border font-semibold"
-                  style={{ background: "#fff", color: color.deep, borderColor: cardBorder }}
+                    onClick={() => navigate(returnTo, { replace: true })}
+                    className="rounded-xl px-6 py-3 font-bold text-lg"
+                    style={{ background: color.teal, color: "#fff", boxShadow: "0 8px 20px rgba(0,190,170,0.3)" }}
                 >
-                  Retry Quiz
+                    Back to Challenges
                 </button>
                 <button
-                  onClick={() => navigate(returnTo)}
-                  className="px-4 py-2 rounded-lg text-white font-semibold"
-                  style={{
-                    background: `linear-gradient(135deg, ${color.teal}, ${color.aqua})`,
-                    boxShadow: "0 6px 16px rgba(0,0,0,0.12)",
-                  }}
+                    onClick={handleRetryQuiz}
+                    className="rounded-xl px-6 py-3 font-bold text-lg border-2"
+                    style={{ background: "white", color: color.teal, borderColor: color.teal, boxShadow: "0 8px 20px rgba(0,0,0,0.1)" }}
                 >
-                  Back to Challenges
+                    Retry Quiz
                 </button>
-              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Leave confirmation modal */}
-      <ConfirmLeaveModal open={leaveOpen && guardEnabled} onStay={handleStay} onLeave={handleLeave} />
+      {/* Leave Modal */}
+      <ConfirmLeaveModal
+        open={leaveOpen}
+        onStay={handleStay}
+        onLeave={handleLeave}
+      />
     </div>
   );
 }

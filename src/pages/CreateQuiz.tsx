@@ -645,39 +645,51 @@ const validate = () => {
   /* --------------------------------- UI ----------------------------------- */
 
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
-        className="max-w-4xl mx-auto px-3 sm:px-6 py-6 sm:py-8"
-      >
-        <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
-          {/* Quiz meta */}
-          <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-              Create New Quiz
-            </h1>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="Quiz Title"
-            />
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="Quiz Description (optional)"
-              rows={3}
-            />
-          </div>
+  <>
+    <motion.div
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="max-w-4xl mx-auto px-3 sm:px-6 py-6 sm:py-8"
+    >
+      <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+        {/* Quiz meta */}
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Create New Quiz
+          </h1>
+          <input
+            type="text"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            placeholder="Quiz Title"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            placeholder="Quiz Description (optional)"
+            rows={3}
+          />
+        </div>
 
-         
-          {/* Questions */}
-          {questions.map((q, qIndex) => (
+        {/* Questions */}
+        {questions.length === 0 ? (
+          <div className="text-center py-6 text-gray-500">
+            <p>No questions yet — click below to add one.</p>
+            <button
+              type="button"
+              onClick={() => addQuestionAfter(0)} // or addQuestion()
+              className="mt-3 inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Question
+            </button>
+          </div>
+        ) : (
+          questions.map((q, qIndex) => (
             <motion.div
               key={qIndex}
               initial={{ opacity: 0, y: 8 }}
@@ -686,7 +698,9 @@ const validate = () => {
               className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4"
             >
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-base sm:text-lg font-semibold">Question {qIndex + 1}</h2>
+                <h2 className="text-base sm:text-lg font-semibold">
+                  Question {qIndex + 1}
+                </h2>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -725,7 +739,6 @@ const validate = () => {
                   <option value="paragraph">Paragraph</option>
                   <option value="matching">Matching</option>
                   <option value="checkboxes">Checkboxes (multiple correct)</option>
-                  
                 </select>
               </div>
 
@@ -742,8 +755,8 @@ const validate = () => {
                   value={q.question}
                   onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
                   className="w-full rounded-md border-gray-300 shadow-sm 
-                             focus:border-indigo-500 focus:ring-indigo-500
-                             caret-black resize-none font-mono px-3 py-2"
+                            focus:border-indigo-500 focus:ring-indigo-500
+                            caret-black resize-none font-mono px-3 py-2"
                   rows={2}
                   placeholder="Type your question here:"
                 />
@@ -767,7 +780,11 @@ const validate = () => {
                     required
                     value={q.time_limit}
                     onChange={(e) =>
-                      updateQuestion(qIndex, "time_limit", parseInt(e.target.value || "0", 10))
+                      updateQuestion(
+                        qIndex,
+                        "time_limit",
+                        parseInt(e.target.value || "0", 10)
+                      )
                     }
                     className="w-full rounded-md border-gray-300 shadow-sm 
                                focus:border-indigo-500 focus:ring-indigo-500 font-mono px-3 py-2"
@@ -786,7 +803,11 @@ const validate = () => {
                     required
                     value={q.points}
                     onChange={(e) =>
-                      updateQuestion(qIndex, "points", parseInt(e.target.value || "0", 10))
+                      updateQuestion(
+                        qIndex,
+                        "points",
+                        parseInt(e.target.value || "0", 10)
+                      )
                     }
                     className="w-full rounded-md border-gray-300 shadow-sm 
                                focus:border-indigo-500 focus:ring-indigo-500 font-mono px-3 py-2"
@@ -928,6 +949,7 @@ const validate = () => {
                 </div>
               )}
 
+              {/* Matching */}
               {(q as any).question_type === "matching" && (
                 <div className="overflow-auto">
                   <div className="grid grid-cols-2 gap-4">
@@ -1026,7 +1048,7 @@ const validate = () => {
                     </span>
                   </div>
 
-                  {/* Preview below the inputs: two-column (left items / right options) with formatted math */}
+                  {/* Preview below the inputs */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <div className="font-semibold p-2 border bg-gray-50">Preview — Left items</div>
@@ -1054,6 +1076,7 @@ const validate = () => {
                 </div>
               )}
 
+              {/* True/False */}
               {(q as any).question_type === "true_false" && (
                 <div className="space-y-3">
                   {["True", "False"].map((val, i) => (
@@ -1079,232 +1102,222 @@ const validate = () => {
                 </div>
               )}
 
+              {/* Paragraph */}
               {(q as any).question_type === "paragraph" && (
                 <div className="text-gray-500 italic">
                   (Students will answer this question in paragraph form.)
                 </div>
               )}
             </motion.div>
-          ))}
+          ))
+        )}
 
-          {/* Student preview */}
-<div className="student-preview bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4">
-  <h2 className="text-lg font-semibold mb-2 text-center text-gray-700">Student Preview</h2>
+        {/* Student preview */}
+        <div className="student-preview bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4">
+          <h2 className="text-lg font-semibold mb-2 text-center text-gray-700">Student Preview</h2>
 
-  {questions.map((q, qIndex) => (
-    <div key={qIndex} className="mb-6 p-4 border rounded-lg">
-      {/* Question (rendered) */}
-      <div className="font-semibold mb-2 text-lg font-mono">
-        Question {qIndex + 1}:
-        <div className="mt-1">
-          <MathJax dynamic>{q.question || ""}</MathJax>
-        </div>
-      </div>
-
-      {/* Multiple Choice (rendered) */}
-      {q.question_type === "multiple_choice" && (
-        <div className="flex flex-col gap-2">
-          {q.answers.map((a, aIndex) => (
-            <label
-              key={aIndex}
-              className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
-            >
-              <input type="radio" name={`q-${qIndex}`} disabled />
-              <span className="font-mono">
-                <MathJax dynamic>{a.answer || `Choice ${aIndex + 1}`}</MathJax>
-              </span>
-            </label>
-          ))}
-        </div>
-      )}
-
-      {/* Checkboxes (rendered) */}
-      {q.question_type === "checkboxes" && (
-        <div className="flex flex-col gap-2">
-          {q.answers.map((a, aIndex) => (
-            <label
-              key={aIndex}
-              className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
-            >
-              <input type="checkbox" name={`q-${qIndex}`} disabled />
-              <span className="font-mono">
-                <MathJax dynamic>{a.answer || `Option ${aIndex + 1}`}</MathJax>
-              </span>
-            </label>
-          ))}
-        </div>
-      )}
-
-      {/* True / False (rendered) */}
-      {q.question_type === "true_false" && (
-        <div className="flex flex-col gap-2">
-          {(q.answers.length > 0 ? q.answers : [{ answer: "True" }, { answer: "False" }]).map(
-            (a, aIndex) => (
-              <label
-                key={aIndex}
-                className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
-              >
-                <input type="radio" name={`q-${qIndex}`} disabled />
-                <span className="font-mono">
-                  <MathJax dynamic>{a.answer}</MathJax>
-                </span>
-              </label>
-            )
-          )}
-        </div>
-      )}
-
-      {/* Paragraph: input + formatted render below */}
-      {q.question_type === "paragraph" && (
-        <div className="mt-2">
-          <textarea
-            disabled
-            className="w-full border rounded p-2 mt-2 font-mono"
-            placeholder="Student answer will appear here..."
-          ></textarea>
-
-          {/* Rendered math preview - mirrors what the math pad/formatter produces */}
-          <div className="mt-2 p-2 bg-gray-50 border rounded-md">
-            <MathJax dynamic>{/* empty by default; teacher's question already above */ ""}</MathJax>
-          </div>
-        </div>
-      )}
-
-      {/* Matching: left/right both rendered with MathJax + separator */}
-      {q.question_type === "matching" && (
-        <div className="overflow-auto mt-3">
-          {/* separator */}
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="font-semibold p-2 border bg-gray-50">Left items</div>
-              <div className="mt-2 space-y-2">
-                {q.answers.map((a, ai) => (
-                  <div key={ai} className="p-2 border rounded bg-white">
-                    <MathJax dynamic>{a.answer || `Left ${ai + 1}`}</MathJax>
-                  </div>
-                ))}
+          {questions.map((q, qIndex) => (
+            <div key={qIndex} className="mb-6 p-4 border rounded-lg">
+              <div className="font-semibold mb-2 text-lg font-mono">
+                Question {qIndex + 1}:
+                <div className="mt-1">
+                  <MathJax dynamic>{q.question || ""}</MathJax>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <div className="font-semibold p-2 border bg-gray-50">Right options</div>
-              <div className="mt-2 space-y-2">
-                {(q.matches || []).map((m, mi) => (
-                  <div
-                    key={mi}
-                    className="p-2 border rounded bg-white flex items-center justify-between"
-                  >
-                    <MathJax dynamic>{m || `Option ${mi + 1}`}</MathJax>
-                    <input type="checkbox" disabled />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="text-sm text-gray-500 mt-2">
-        ⏱️ {q.time_limit}s | {q.points} points
-      </div>
-    </div>
-  ))}
-</div>
-
-
-          {/* Footer buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-between">
-            {/* Add Question moved into each question block so it's always right below the last question */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:opacity-60"
-              >
-                <Save className="h-5 w-5" />
-                <span>{saving ? "Saving..." : "Save Quiz"}</span>
-              </button>
-            </div>
-          </div>
-        </form>
-      </motion.div>
-
-      {/* The floating button to open the math pad */}
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ type: "spring", stiffness: 260, damping: 20 }}
-        type="button"
-        // 1. Toggle the visibility of the math pad on click
-        onClick={() => setShowMathPad(!showMathPad)}
-        className="sticky bottom-4 left-4 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
-        aria-label="Toggle Math Keyboard"
-      >
-        <Keyboard className="h-6 w-6" />
-      </motion.button>
-
-      {/* Conditionally render the portable Math Pad */}
-      {showMathPad && (
-        <MathSymbolPad
-          onInsert={insertFromPad}
-          // 2. The onClose handler now only toggles the state
-          onClose={() => setShowMathPad(false)}
-          onPreventFocusLoss={(e) => e.preventDefault()}
-        />
-      )}
-
-      {/* Success Modal */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-3">
-          <div className="bg-white rounded-xl shadow-lg p-5 sm:p-6 w-full max-w-md space-y-4">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-              Quiz Created Successfully!
-            </h2>
-            <p className="text-sm sm:text-base text-gray-600">
-              Your quiz was saved with all questions and answers.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-end">
-              <button
-                onClick={() => navigate("/teacherDashboard")}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
-              >
-                Go to Dashboard
-              </button>
-              <button
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  setTitle("");
-                  setDescription("");
-                  setQuestions([
-                    {
-                      question_type: "multiple_choice",
-                      question: "",
-                      time_limit: 30,
-                      points: 1000,
-                      answers: freshAnswers(),
-                      matches: [],
-                    },
-                  ]);
-                  setCreatedQuizId(null);
-                }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
-              >
-                Create Another Quiz
-              </button>
-              {createdQuizId && (
-                <button
-                  onClick={() => navigate(`/edit-quiz/${createdQuizId}`)}
-                  className="px-4 py-2 bg-white border rounded-md hover:bg-gray-50 transition"
-                >
-                  Edit Quiz
-                </button>
+              {/* Multiple Choice (rendered) */}
+              {q.question_type === "multiple_choice" && (
+                <div className="flex flex-col gap-2">
+                  {q.answers.map((a, aIndex) => (
+                    <label
+                      key={aIndex}
+                      className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
+                    >
+                      <input type="radio" name={`q-${qIndex}`} disabled />
+                      <span className="font-mono">
+                        <MathJax dynamic>{a.answer || `Choice ${aIndex + 1}`}</MathJax>
+                      </span>
+                    </label>
+                  ))}
+                </div>
               )}
+
+              {/* Checkboxes (rendered) */}
+              {q.question_type === "checkboxes" && (
+                <div className="flex flex-col gap-2">
+                  {q.answers.map((a, aIndex) => (
+                    <label
+                      key={aIndex}
+                      className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
+                    >
+                      <input type="checkbox" name={`q-${qIndex}`} disabled />
+                      <span className="font-mono">
+                        <MathJax dynamic>{a.answer || `Option ${aIndex + 1}`}</MathJax>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {/* True / False (rendered) */}
+              {q.question_type === "true_false" && (
+                <div className="flex flex-col gap-2">
+                  {(q.answers.length > 0 ? q.answers : [{ answer: "True" }, { answer: "False" }]).map(
+                    (a, aIndex) => (
+                      <label
+                        key={aIndex}
+                        className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
+                      >
+                        <input type="radio" name={`q-${qIndex}`} disabled />
+                        <span className="font-mono">
+                          <MathJax dynamic>{a.answer}</MathJax>
+                        </span>
+                      </label>
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* Paragraph preview */}
+              {q.question_type === "paragraph" && (
+                <div className="mt-2">
+                  <textarea
+                    disabled
+                    className="w-full border rounded p-2 mt-2 font-mono"
+                    placeholder="Student answer will appear here..."
+                  ></textarea>
+                  <div className="mt-2 p-2 bg-gray-50 border rounded-md">
+                    <MathJax dynamic>{""}</MathJax>
+                  </div>
+                </div>
+              )}
+
+              {/* Matching preview */}
+              {q.question_type === "matching" && (
+                <div className="overflow-auto mt-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="font-semibold p-2 border bg-gray-50">Left items</div>
+                      <div className="mt-2 space-y-2">
+                        {q.answers.map((a, ai) => (
+                          <div key={ai} className="p-2 border rounded bg-white">
+                            <MathJax dynamic>{a.answer || `Left ${ai + 1}`}</MathJax>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="font-semibold p-2 border bg-gray-50">Right options</div>
+                      <div className="mt-2 space-y-2">
+                        {(q.matches || []).map((m, mi) => (
+                          <div key={mi} className="p-2 border rounded bg-white flex items-center justify-between">
+                            <MathJax dynamic>{m || `Option ${mi + 1}`}</MathJax>
+                            <input type="checkbox" disabled />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-sm text-gray-500 mt-2">
+                ⏱️ {q.time_limit}s | {q.points} points
+              </div>
             </div>
+          ))}
+        </div>
+
+        {/* Footer buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-between">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:opacity-60"
+            >
+              <Save className="h-5 w-5" />
+              <span>{saving ? "Saving..." : "Save Quiz"}</span>
+            </button>
           </div>
         </div>
-      )}
-    </>
+      </form>
+    </motion.div>
+
+    {/* The floating button to open the math pad */}
+    <motion.button
+      initial={{ scale: 0 }}
+      animate={{ scale: 1 }}
+      transition={{ type: "spring", stiffness: 260, damping: 20 }}
+      type="button"
+      onClick={() => setShowMathPad(!showMathPad)}
+      className="sticky bottom-4 left-4 z-50 p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
+      aria-label="Toggle Math Keyboard"
+    >
+      <Keyboard className="h-6 w-6" />
+    </motion.button>
+
+    {/* Conditionally render the portable Math Pad */}
+    {showMathPad && (
+      <MathSymbolPad
+        onInsert={insertFromPad}
+        onClose={() => setShowMathPad(false)}
+        onPreventFocusLoss={(e) => e.preventDefault()}
+      />
+    )}
+
+    {/* Success Modal */}
+    {showSuccessModal && (
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-3">
+        <div className="bg-white rounded-xl shadow-lg p-5 sm:p-6 w-full max-w-md space-y-4">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">
+            Quiz Created Successfully!
+          </h2>
+          <p className="text-sm sm:text-base text-gray-600">
+            Your quiz was saved with all questions and answers.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-end">
+            <button
+              onClick={() => navigate("/teacherDashboard")}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+            >
+              Go to Dashboard
+            </button>
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
+                setTitle("");
+                setDescription("");
+                setQuestions([
+                  {
+                    question_type: "multiple_choice",
+                    question: "",
+                    time_limit: 30,
+                    points: 1000,
+                    answers: freshAnswers(),
+                    matches: [],
+                  },
+                ]);
+                setCreatedQuizId(null);
+              }}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
+            >
+              Create Another Quiz
+            </button>
+            {createdQuizId && (
+              <button
+                onClick={() => navigate(`/edit-quiz/${createdQuizId}`)}
+                className="px-4 py-2 bg-white border rounded-md hover:bg-gray-50 transition"
+              >
+                Edit Quiz
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }
 
