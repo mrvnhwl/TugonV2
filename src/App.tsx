@@ -21,6 +21,7 @@ import Operation from "./pages/tugonsense/operations";
 import Evaluation from "./pages/tugonsense/evaluation";
 import Radio from "./components/Radio";
 import FloatingAIButton from "./components/FloatingAIButton";
+import ManageSections from "./pages/ManageSections";
 
 import HostGame from "./pages/HostGame";
 
@@ -122,6 +123,7 @@ function AppContent() {
     "/teacherHome",
     "/edit-quiz",
     "/quiz/",               // keep teacher navbar visible on /quiz/:id/edit alias
+    "/manage-sections",
     "/student-progress",
     "/manage-topics",       // NEW
     "/topic/",              // NEW (covers /topic/:slug and /topic/:slug/edit)
@@ -179,6 +181,7 @@ function AppContent() {
             <Route path="/quiz/:id/edit" element={<EditQuiz />} />
             <Route path="/student-progress" element={<StudentProgress />} />
             <Route path="/manage-topics" element={<ManageTopics />} />
+            <Route path="/manage-sections" element={<ManageSections />} />
             <Route path="/topic/:slug" element={<TopicView />} />
             <Route path="/topic/:slug/edit" element={<EditTopic />} />
 
