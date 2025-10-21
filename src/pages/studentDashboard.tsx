@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Play, Trophy, Clock, BarChart, BookOpen, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -42,23 +42,96 @@ interface Mistake {
   times_wrong: number | null;
 }
 
-const topics = [
-  { title: "Introduction to Functions", path: "/introductiontopic" },
-  { title: "Evaluating Functions", path: "/evaluationtopic" },
-  { title: "Piecewise-Defined Functions", path: "/piecewise" },
-  { title: "Operations on Functions", path: "/operationstopic" },
-  { title: "Composition of Functions", path: "/compositiontopic" },
-  { title: "Rational Functions", path: "/rationaltopic" },
-  { title: "Graphing Rational Functions", path: "/asymptotestopic" },
-  { title: "Rational Equations and Inequalities", path: "/rationalinequalitiestopic" },
-  { title: "Inverse Functions", path: "/inversetopic" },
-  { title: "Exponential Functions", path: "/exponentialtopic" },
-  { title: "Logarithmic Functions", path: "/logarithmictopic" },
-];
+interface Topic {
+  id: string;
+  title: string;
+  description: string | null;
+  slug: string;
+  file_url: string | null;
+  route_path?: string | null;
+  html_url?: string | null;
+  created_at: string;
+  created_by: string;
+  publish_to?: string[] | null | string;
+}
 
 function StudentDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // Add state for topics
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [loadingTopics, setLoadingTopics] = useState(true);
+
+  // Function to load topics
+  const loadTopics = async () => {
+    if (!user) return;
+    setLoadingTopics(true);
+
+    try {
+      // 1) Get student's section
+      const { data: sectionRows, error: sectionErr } = await supabase
+        .from("section_students")
+        .select("section_id")
+        .eq("student_id", user.id);
+
+      if (sectionErr) {
+        console.error("Error getting section:", sectionErr);
+        return;
+      }
+
+      const section_id = sectionRows?.[0]?.section_id;
+      if (!section_id) {
+        console.log("No section found for student");
+        return;
+      }
+
+      // 2) Get topics for the section
+      const { data: topicsData, error: topicsError } = await supabase
+        .from("topics")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (topicsError) {
+        console.error("Error loading topics:", topicsError);
+        return;
+      }
+
+      // Filter topics by publish_to
+      const filteredTopics = (topicsData || []).filter(topic => {
+        const pub = topic.publish_to;
+        if (!pub) return false;
+        
+        let publishTo: string[] = [];
+        if (Array.isArray(pub)) {
+          publishTo = pub.map(String);
+        } else if (typeof pub === "string") {
+          try {
+            const parsed = JSON.parse(pub);
+            if (Array.isArray(parsed)) {
+              publishTo = parsed.map(String);
+            } else {
+              publishTo = pub.split(",").map(x => x.trim()).filter(Boolean);
+            }
+          } catch {
+            publishTo = pub.split(",").map(x => x.trim()).filter(Boolean);
+          }
+        }
+
+        return publishTo.map(String).includes(String(section_id));
+      }).map(topic => ({
+        ...topic,
+        // default to student topic view route
+        route_path: topic.route_path || `/student/topics/${topic.slug}`
+      }));
+
+      setTopics(filteredTopics);
+    } catch (error) {
+      console.error("Error in loadTopics:", error);
+    } finally {
+      setLoadingTopics(false);
+    }
+  };
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [progress, setProgress] = useState<Progress[]>([]);
@@ -73,8 +146,8 @@ function StudentDashboard() {
   const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Mistakes from Daily Challenge
-  const [mistakes, setMistakes] = useState<Mistake[]>([]);
-  const [mistakesLoaded, setMistakesLoaded] = useState(false);
+  const [_mistakes, setMistakes] = useState<Mistake[]>([]);
+  const [_mistakesLoaded, setMistakesLoaded] = useState(false);
 
   // derive username/email safely
   const email = user?.email ?? "";
@@ -90,6 +163,13 @@ function StudentDashboard() {
     }
     loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Load topics when component mounts or user changes
+  useEffect(() => {
+    if (user) {
+      loadTopics();
+    }
   }, [user]);
 
   // track window size for confetti
@@ -222,7 +302,7 @@ function StudentDashboard() {
 
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } },
+    visible: { y: 0, opacity: 1, transition: { duration: 0.5 } },
   };
 
   // ---------- KPIs ----------
@@ -244,27 +324,20 @@ function StudentDashboard() {
     0
   );
 
-  // Fallback suggestions from low quiz scores (if no mistake data available)
-  const weakAttempts = progress.filter((p) => (p.score ?? 0) < 70);
-  const seen = new Set<string>();
-  const fallbackSuggested = weakAttempts
-    .filter((p) => {
-      if (seen.has(p.quiz_id)) return false;
-      seen.add(p.quiz_id);
-      return true;
-    })
-    .slice(0, 5);
+  // Fallback suggestions removed (unused in this view)
 
   // Random topic jump
   const jumpToRandomTopic = () => {
+    if (!topics || topics.length === 0) {
+      alert("No topics are currently available for your section.");
+      return;
+    }
     const t = topics[Math.floor(Math.random() * topics.length)];
-    if (t) navigate(t.path);
+    if (t) navigate(`/student/topics/${t.slug}`);
   };
 
   // ✅ Connect "Review Mistakes" straight to Daily Challenge
-  const goReviewFirst = () => {
-    navigate("/daily-challenge");
-  };
+  // removed goReviewFirst (unused)
 
   if (loading) {
     return (
@@ -294,7 +367,7 @@ function StudentDashboard() {
   }
 
   // Helper to trim question text for list items
-  const snippet = (s: string, n = 80) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+  // removed snippet helper (unused)
 
   return (
     <div
@@ -569,27 +642,37 @@ function StudentDashboard() {
                 Topics 📚
               </h2>
               <motion.div className="space-y-4" variants={containerVariants}>
-                {topics.map((topic) => (
-                  <motion.div
-                    key={topic.title}
-                    variants={itemVariants}
-                    whileHover={{ scale: 1.02, x: 5 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Link
-                      to={topic.path}
-                      className="block rounded-lg p-4 transition"
-                      style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+                {loadingTopics ? (
+                  <div className="text-center py-4" style={{ color: color.steel }}>
+                    Loading topics...
+                  </div>
+                ) : topics.length === 0 ? (
+                  <div className="text-center py-4" style={{ color: color.steel }}>
+                    No topics are currently available for your section.
+                  </div>
+                ) : (
+                  topics.map((topic) => (
+                    <motion.div
+                      key={topic.id}
+                      whileHover={{ scale: 1.02, x: 5 }}
+                      whileTap={{ scale: 0.98 }}
                     >
-                      <div className="flex items-center space-x-3">
-                        <BookOpen className="h-6 w-6" style={{ color: color.teal }} />
-                        <span className="font-medium" style={{ color: color.deep }}>
-                          {topic.title}
-                        </span>
-                      </div>
-                    </Link>
-                  </motion.div>
-                ))}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/student/topics/${topic.slug}`)}
+                        className="block w-full text-left rounded-lg p-4 transition"
+                        style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <BookOpen className="h-6 w-6" style={{ color: color.teal }} />
+                          <span className="font-medium" style={{ color: color.deep }}>
+                            {topic.title}
+                          </span>
+                        </div>
+                      </button>
+                    </motion.div>
+                  ))
+                )}
               </motion.div>
 
               {/* Study Tips */}
