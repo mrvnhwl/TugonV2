@@ -255,23 +255,23 @@ REQUIREMENTS:
 CRITICAL INSTRUCTIONS FOR JSON:
 1. Respond ONLY with valid JSON (no markdown code blocks, no backticks, no extra text)
 2. Use FOUR backslashes for LaTeX in JSON strings: "\\\\\\\\frac{1}{2}" not "\\frac{1}{2}"
-3. Escape all quotes inside string values with backslash
-4. Do NOT use line breaks inside string values - use spaces instead
-5. Provide explanations for ALL ${terms.length} terms in the array
+3. Keep explanations under 200 words each to avoid truncation
+4. Do NOT use line breaks inside string values - keep everything on one line
+5. Escape ALL special characters properly
 
-Required JSON format (copy this structure exactly):
-{
-  "title": "Enhanced Title",
-  "about_refined": "Enhanced multi-paragraph description with inline math like $f(x) = x^2$ where appropriate...",
-  "terms_expounded": [
-    {
-      "term": "${terms[0]}",
-      "explanation": "Detailed 150-250 word explanation with examples. Use FOUR backslashes for LaTeX like $f(x) = \\\\\\\\sqrt{x}$ has domain $x \\\\\\\\geq 0$. Do not use line breaks inside this string."
-    }
-  ]
-}
+REQUIREMENTS:
+1. Keep title concise (add LaTeX using $ for inline math if needed)
+2. Write 2-3 paragraph "about" description (clear and educational)
+3. For EACH of the ${terms.length} terms, provide:
+   - Clear definition (suitable for students)
+   - 1-2 mathematical examples with LaTeX
+   - Real-world application (if relevant)
+   - One common mistake to avoid
 
-Double-check your JSON is valid before responding.`.trim();
+Required JSON format (single line, no breaks):
+{"title":"Enhanced Title","about_refined":"Enhanced description with inline math like $f(x) = x^2$ where appropriate. Second paragraph continues. Third paragraph wraps up.","terms_expounded":[{"term":"${terms[0]}","explanation":"Clear definition. Example: $f(x) = \\\\\\\\sqrt{x}$ has domain $x \\\\\\\\geq 0$. Real-world use. Common mistake."}]}
+
+Provide ONLY the JSON object. No additional text before or after.`.trim();
 
   console.log('📤 Refinement prompt:', refinementPrompt);
 
@@ -286,10 +286,11 @@ Double-check your JSON is valid before responding.`.trim();
         parts: [{ text: refinementPrompt }] 
       }],
       generationConfig: {
-        maxOutputTokens: 2048,
-        temperature: 0.7,
-        topP: 0.95,
-        topK: 40
+        maxOutputTokens: 3000, // Increased token limit
+        temperature: 0.5,      // Reduced randomness for consistency
+        topP: 0.9,
+        topK: 40,
+        responseMimeType: 'application/json' // Request JSON format
       }
     })
   });
@@ -301,44 +302,91 @@ Double-check your JSON is valid before responding.`.trim();
   }
 
   const data = await response.json();
-  console.log('📥 Gemini refinement response:', data);
+  console.log('📥 Gemini refinement response (first 500 chars):', JSON.stringify(data).substring(0, 500));
 
   const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!aiText) {
     throw new Error('No response from Gemini AI');
   }
 
-  // Remove markdown code blocks if present
-  let cleanedText = aiText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-  
-  // Extract JSON
+  console.log('📝 Raw AI text length:', aiText.length);
+  console.log('📝 AI text preview:', aiText.substring(0, 200));
+
+  // Step 1: Remove markdown code blocks
+  let cleanedText = aiText
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+
+  // Step 2: Extract JSON object
   const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    console.error('⚠️ Could not parse JSON from AI response:', aiText);
-    throw new Error('Invalid AI response format');
+    console.error('⚠️ Could not find JSON in AI response');
+    console.error('📄 Full AI response:', aiText);
+    throw new Error('Invalid AI response format - no JSON found');
   }
 
+  let jsonString = jsonMatch[0];
+  console.log('📝 Extracted JSON length:', jsonString.length);
+
+  // Step 3: Fix common JSON issues with 3-attempt recovery
   try {
-    return JSON.parse(jsonMatch[0]);
-  } catch (parseError: any) {
-    console.error('❌ JSON parse error:', parseError.message);
-    console.error('📄 Problematic JSON:', jsonMatch[0].substring(0, 500));
+    // Attempt 1: Parse as-is
+    const parsed = JSON.parse(jsonString);
+    console.log('✅ JSON parsed successfully on first attempt');
+    return parsed;
+  } catch (firstError: any) {
+    console.warn('⚠️ First parse failed:', firstError.message);
     
-    // Try to fix common JSON issues
-    let fixedJson = jsonMatch[0]
-      // Fix unescaped quotes in explanations
-      .replace(/: "([^"]*)"([^,}\]]*)/g, (match: string, p1: string, p2: string) => {
-        if (p2.includes('"')) {
-          return `: "${p1}${p2.replace(/"/g, '\\"')}"`;
-        }
-        return match;
-      });
-    
+    // Attempt 2: Fix escaped backslashes
     try {
-      return JSON.parse(fixedJson);
-    } catch (secondError) {
-      console.error('❌ Still failed after attempted fix');
-      throw new Error(`Failed to parse AI response: ${parseError.message}`);
+      // Replace quadruple backslashes with double
+      const fixedBackslashes = jsonString.replace(/\\\\\\\\/g, '\\\\');
+      const parsed = JSON.parse(fixedBackslashes);
+      console.log('✅ JSON parsed after fixing backslashes');
+      return parsed;
+    } catch (secondError: any) {
+      console.warn('⚠️ Second parse failed:', secondError.message);
+      
+      // Attempt 3: Try to repair truncated JSON
+      try {
+        let repairedJson = jsonString;
+        
+        // Count open braces and brackets
+        const openBraces = (repairedJson.match(/\{/g) || []).length;
+        const closeBraces = (repairedJson.match(/\}/g) || []).length;
+        const openBrackets = (repairedJson.match(/\[/g) || []).length;
+        const closeBrackets = (repairedJson.match(/\]/g) || []).length;
+        
+        console.log(`📊 JSON structure: { open: ${openBraces}, close: ${closeBraces} }, [ open: ${openBrackets}, close: ${closeBrackets} ]`);
+        
+        // If truncated, close incomplete string and structures
+        if (repairedJson.endsWith('"')) {
+          // Already has closing quote
+        } else if (!repairedJson.endsWith('}') && !repairedJson.endsWith(']')) {
+          repairedJson += '"'; // Close unterminated string
+        }
+        
+        // Close missing brackets and braces
+        for (let i = 0; i < openBrackets - closeBrackets; i++) {
+          repairedJson += ']';
+        }
+        for (let i = 0; i < openBraces - closeBraces; i++) {
+          repairedJson += '}';
+        }
+        
+        console.log('🔧 Attempting to parse repaired JSON...');
+        const parsed = JSON.parse(repairedJson);
+        console.log('✅ JSON parsed after repair');
+        return parsed;
+      } catch (thirdError: any) {
+        console.error('❌ All parsing attempts failed');
+        console.error('📄 Original error:', firstError.message);
+        console.error('📄 JSON preview (first 1000 chars):', jsonString.substring(0, 1000));
+        console.error('📄 JSON preview (last 200 chars):', jsonString.substring(jsonString.length - 200));
+        
+        throw new Error(`Failed to parse AI response after 3 attempts: ${firstError.message}`);
+      }
     }
   }
 }
