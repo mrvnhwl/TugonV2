@@ -223,11 +223,7 @@ function TopicPresenter() {
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
               {topic.title}
             </h1>
-            <p className="mt-2 text-white/90 text-sm">
-              Published by {topic.publisher_full_name || "Unknown"} •{" "}
-              {new Date(topic.published_at).toLocaleDateString()} •{" "}
-              {topic.view_count} {topic.view_count === 1 ? "view" : "views"}
-            </p>
+           
           </div>
         </div>
         <svg viewBox="0 0 1440 120" className="block w-full" aria-hidden="true">

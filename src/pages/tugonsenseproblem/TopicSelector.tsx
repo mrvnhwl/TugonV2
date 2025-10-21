@@ -1524,7 +1524,7 @@ export default function TopicSelector() {
                     style={{ 
                       borderColor: color.mist,
                     }}
-                    placeholder="Enter topic name (supports LaTeX)..."
+                    placeholder="Enter topic name..."
                     autoFocus
                   />
                   {modalName.trim() && (
@@ -1552,7 +1552,7 @@ export default function TopicSelector() {
                     style={{ 
                       borderColor: color.mist,
                     }}
-                    placeholder="Enter topic description (supports LaTeX)..."
+                    placeholder="Enter topic description..."
                     rows={3}
                   />
                   {modalDescription.trim() && (
@@ -1647,7 +1647,7 @@ export default function TopicSelector() {
                     style={{ 
                       borderColor: color.mist,
                     }}
-                    placeholder="Enter topic name (supports LaTeX)..."
+                    placeholder="Enter topic name..."
                     autoFocus
                   />
                 </div>
@@ -1667,7 +1667,7 @@ export default function TopicSelector() {
                     style={{ 
                       borderColor: color.mist,
                     }}
-                    placeholder="Enter topic description (supports LaTeX)..."
+                    placeholder="Enter topic description..."
                     rows={3}
                   />
                 </div>
@@ -1745,8 +1745,7 @@ export default function TopicSelector() {
                   style={{ background: "#fef2f2", borderColor: "#ef4444" }}
                 >
                   <p className="text-red-600 font-semibold text-xs sm:text-sm">
-                    ⚠️ Warning: If you delete this topic, all associated categories, questions, and
-                    answer steps will be permanently deleted due to CASCADE constraints.
+                    ⚠️ Warning: If you delete this topic, all associated with this topic wil be permanently removed.
                   </p>
                 </div>
               </div>
@@ -1832,7 +1831,7 @@ export default function TopicSelector() {
                     style={{ 
                       borderColor: color.mist,
                     }}
-                    placeholder="Enter category title (supports LaTeX)..."
+                    placeholder="Enter stage title..."
                     autoFocus
                   />
                 </div>
@@ -1852,7 +1851,7 @@ export default function TopicSelector() {
                     style={{ 
                       borderColor: color.mist,
                     }}
-                    placeholder="Enter category question (supports LaTeX)..."
+                    placeholder="Enter category question..."
                     rows={3}
                   />
                 </div>
@@ -1964,7 +1963,7 @@ export default function TopicSelector() {
                     style={{ 
                       borderColor: color.mist,
                     }}
-                    placeholder="Enter category title (supports LaTeX)..."
+                    placeholder="Enter category title..."
                     autoFocus
                   />
                 </div>
@@ -1984,7 +1983,7 @@ export default function TopicSelector() {
                     style={{ 
                       borderColor: color.mist,
                     }}
-                    placeholder="Enter category question (supports LaTeX)..."
+                    placeholder="Enter stage question..."
                     rows={3}
                   />
                 </div>
@@ -2072,8 +2071,7 @@ export default function TopicSelector() {
                   style={{ background: "#fef2f2", borderColor: "#ef4444" }}
                 >
                   <p className="text-red-600 font-semibold text-xs sm:text-sm">
-                    ⚠️ Warning: If you delete this category, all associated questions and
-                    answer steps will be permanently deleted due to CASCADE constraints.
+                    ⚠️ Warning: If you delete this category, all associated questions will be permanently removed.
                   </p>
                 </div>
               </div>
@@ -2461,7 +2459,7 @@ export default function TopicSelector() {
                     
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
-                        Question Text *
+                        Math Problem Statement
                       </label>
                       <textarea
                         value={editQuestionText}
@@ -2469,14 +2467,14 @@ export default function TopicSelector() {
                         disabled={saving}
                         className="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white placeholder-gray-400 resize-none disabled:bg-gray-100"
                         style={{ borderColor: color.mist }}
-                        placeholder="Enter question text (supports LaTeX)..."
+                        placeholder="Enter question text"
                         rows={3}
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
-                        Category Text
+                        Equation to Evaluate
                       </label>
                       <input
                         type="text"
@@ -2485,7 +2483,7 @@ export default function TopicSelector() {
                         disabled={saving}
                         className="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white placeholder-gray-400 disabled:bg-gray-100"
                         style={{ borderColor: color.mist }}
-                        placeholder="Enter category text (optional)..."
+                        placeholder="Enter stage text..."
                       />
                     </div>
 
@@ -2870,7 +2868,7 @@ export default function TopicSelector() {
                     
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
-                        Question Text *
+                        Math Problem Statement
                       </label>
                       <textarea
                         value={addQuestionText}
@@ -2878,14 +2876,14 @@ export default function TopicSelector() {
                         disabled={saving}
                         className="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white placeholder-gray-400 resize-none disabled:bg-gray-100"
                         style={{ borderColor: color.mist }}
-                        placeholder="Enter question text (supports LaTeX)..."
+                        placeholder="Enter question text..."
                         rows={3}
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
-                        Category Text
+                        Equation to Evaluate
                       </label>
                       <input
                         type="text"
@@ -2894,7 +2892,7 @@ export default function TopicSelector() {
                         disabled={saving}
                         className="w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white placeholder-gray-400 disabled:bg-gray-100"
                         style={{ borderColor: color.mist }}
-                        placeholder="Enter category text (optional)..."
+                        placeholder="Enter equation here to evaluate..."
                       />
                     </div>
 
