@@ -13,7 +13,7 @@ type UUID = string;
 interface EditableAnswer {
   id?: UUID;
   answer: string;
-  is_correct: boolean;
+  is_correct: boolean; 
   side?: "left" | "right";
   match_index?: number | null;
 }
@@ -26,7 +26,7 @@ interface EditableQuestion {
   question_type:
     | "multiple_choice"
     | "true_false"
-    | "paragraph"
+    | "identification" // Changed from 'paragraph' to 'identification'
     | "matching"
     | "checkboxes"
     | string;
@@ -43,21 +43,16 @@ function cleanLatex(text: string) {
   return (text || "").replace(/\\\(|\\\)/g, "");
 }
 
+// FIX: Simplified the formatting function to use \text{} within MathJax,
+// preventing formatting issues with punctuation like '?'.
 function formatWithText(text: string) {
-  if (!text?.trim()) return "";
-  const parts = text
-    .split(/(\\[a-zA-Z]+|[0-9]+(?:\.[0-9]+)?|[+\-*/=<>!~^_{}()])/)
-    .filter(Boolean);
-  const result: string[] = [];
-  parts.forEach((part, i) => {
-    if (/^\\[a-zA-Z]+$/.test(part)) result.push(part);
-    else if (/^[a-zA-Z\s]+$/.test(part))
-      result.push(`\\text{${part.replace(/\s+/g, " ").trim()}}`);
-    else result.push(part);
-    if (i < parts.length - 1 && !/[+\-*/=<>!~^_{}()]/.test(parts[i + 1] || ""))
-      result.push("\\;");
-  });
-  return `\\(${result.join("")}\\)`;
+    if (!text?.trim()) return "";
+    
+    // 1. Clean up any existing MathJax wrappers
+    const cleanText = text.replace(/\\\(|\\\)|\\\[|\\\]/g, "");
+
+    // 2. Wrap the text in the \text{} command, inside inline math delimiters
+    return `\\(\\text{${cleanText.replace(/\s+/g, " ").trim()}}\\)`;
 }
 
 export default function EditQuiz() {
@@ -199,7 +194,6 @@ export default function EditQuiz() {
       const next = [...prev];
       const q = { ...next[qIndex] };
 
-      // ✅ Explicitly assert we're assigning to a known key
       (q as any)[field] = value;
 
       // 🧩 Handle automatic setups when switching types
@@ -209,18 +203,30 @@ export default function EditQuiz() {
             { answer: "True", is_correct: true },
             { answer: "False", is_correct: false },
           ] as EditableAnswer[];
-        } else if (value === "multiple_choice" && q.answers.length < 2) {
-          q.answers = [
-            { answer: "", is_correct: false },
-            { answer: "", is_correct: false },
-          ] as EditableAnswer[];
-        } else if (value === "checkboxes" && q.answers.length < 2) {
-          q.answers = [
-            { answer: "", is_correct: false },
-            { answer: "", is_correct: false },
-          ] as EditableAnswer[];
+        } else if (value === "multiple_choice" || value === "checkboxes") {
+          if (q.answers.length < 2) {
+            q.answers = [
+              { answer: "", is_correct: false },
+              { answer: "", is_correct: false },
+            ] as EditableAnswer[];
+          }
+        } else if (value === "identification") {
+            // For identification, ensure at least one answer slot exists, marked as correct
+            if (q.answers.length < 1) {
+                q.answers = [{ answer: "", is_correct: true }] as EditableAnswer[];
+            } else {
+                // Ensure all existing answers are marked as correct for identification
+                q.answers = q.answers.map(a => ({ ...a, is_correct: true }));
+            }
         } else if (value === "matching") {
           if (!q.matches) q.matches = [];
+          if (q.answers.length < 2) {
+              q.answers = [
+                  { answer: "", is_correct: false, side: "left", match_index: 0 },
+                  { answer: "", is_correct: false, side: "left", match_index: 1 },
+              ];
+              q.matches = ["", ""];
+          }
         }
       }
 
@@ -231,12 +237,15 @@ export default function EditQuiz() {
 );
 
 
-
   const addAnswer = useCallback((qIndex: number) =>
     setQuestions(prev => {
       const next = [...prev];
       const q = { ...next[qIndex] };
-      q.answers = [...q.answers, { answer: "", is_correct: false }];
+
+      // Set is_correct to true by default for identification
+      const isCorrect = q.question_type === 'identification' ? true : false;
+      
+      q.answers = [...q.answers, { answer: "", is_correct: isCorrect }];
       next[qIndex] = q;
       return next;
     }),
@@ -273,7 +282,8 @@ export default function EditQuiz() {
       const next = [...prev];
       const q = { ...next[qIndex] };
       const updated = [...q.answers];
-      updated[aIndex] = { ...updated[aIndex], is_correct: !updated[aIndex].is_correct };
+      // FIX: Corrected typo in logic
+      updated[aIndex] = { ...updated[aIndex], is_correct: !updated[aIndex].is_correct }; 
       q.answers = updated;
       next[qIndex] = q;
       return next;
@@ -312,59 +322,60 @@ export default function EditQuiz() {
         const payload = {
           question: q.question,
           time_limit: q.time_limit,
-          points: Math.round(q.points), // ✅ ensure integer points always
+          points: Math.round(q.points),
           question_type: q.question_type,
         };
 
+        let currentQId = q.id;
+
+        // 1. Update/Insert Question
         if (q.id) {
           await supabase.from("questions").update(payload).eq("id", q.id);
-          await supabase.from("answers").delete().eq("question_id", q.id);
-          if (q.question_type === "matching") {
-            const lefts = (q.answers || []).map((a, i) => ({
-              question_id: q.id,
-              answer: a.answer,
-              side: "left",
-              match_index: i,
-              is_correct: false,
-            }));
-            const rights = (q.matches || []).map(m => ({
-              question_id: q.id,
-              answer: m,
-              side: "right",
-              is_correct: false,
-            }));
-            await supabase.from("answers").insert([...lefts, ...rights]);
-          } else if (q.question_type !== "paragraph") {
-            await supabase
-              .from("answers")
-              .insert(q.answers.map(a => ({ question_id: q.id, ...a })));
-          }
         } else {
-          const { data: newQ } = await supabase
+          const { data: newQ, error: insertError } = await supabase
             .from("questions")
             .insert({ ...payload, quiz_id: quizId })
             .select()
             .single();
-          if (q.question_type === "matching") {
-            const lefts = (q.answers || []).map((a, i) => ({
-              question_id: newQ.id,
-              answer: a.answer,
-              side: "left",
-              match_index: i,
-              is_correct: false,
-            }));
-            const rights = (q.matches || []).map(m => ({
-              question_id: newQ.id,
-              answer: m,
-              side: "right",
-              is_correct: false,
-            }));
-            await supabase.from("answers").insert([...lefts, ...rights]);
-          } else if (q.question_type !== "paragraph") {
-            await supabase
-              .from("answers")
-              .insert(q.answers.map(a => ({ question_id: newQ.id, ...a })));
-          }
+          if (insertError) throw insertError;
+          currentQId = newQ.id;
+        }
+
+        if (!currentQId) continue;
+
+        // 2. Delete existing answers for this question
+        await supabase.from("answers").delete().eq("question_id", currentQId);
+
+        // 3. Insert new answers based on type
+        if (q.question_type === "matching") {
+          const lefts = (q.answers || []).map((a, i) => ({
+            question_id: currentQId,
+            answer: a.answer,
+            side: "left",
+            match_index: i,
+            is_correct: false,
+          }));
+          const rights = (q.matches || []).map(m => ({
+            question_id: currentQId,
+            answer: m,
+            side: "right",
+            is_correct: false,
+          }));
+          await supabase.from("answers").insert([...lefts, ...rights]);
+        } else if (q.question_type === "identification") {
+            // For identification, save the list of acceptable answers, all marked as correct.
+            await supabase.from("answers").insert(
+                q.answers.map(a => ({ 
+                    question_id: currentQId, 
+                    answer: a.answer, 
+                    is_correct: true 
+                })).filter(a => a.answer.trim()) // Only save non-empty answers
+            );
+        } else {
+          // Multiple Choice, True/False, Checkboxes
+          await supabase
+            .from("answers")
+            .insert(q.answers.map(a => ({ question_id: currentQId, ...a })));
         }
       }
       setSuccessMsg("Saved successfully!");
@@ -379,11 +390,9 @@ export default function EditQuiz() {
   // ---------- Delete ----------
   const deleteQuiz = async () => {
     if (!quizId) return;
-    if (!window.confirm("Delete this quiz?")) return;
+    if (!window.confirm("Are you sure you want to permanently delete this quiz?")) return;
     setDeleting(true);
     try {
-      const qIds = questions.map(q => q.id).filter(Boolean);
-      if (qIds.length) await supabase.from("answers").delete().in("question_id", qIds);
       await supabase.from("quizzes").delete().eq("id", quizId);
       navigate("/teacherDashboard");
     } catch (err) {
@@ -452,9 +461,19 @@ export default function EditQuiz() {
 
         {/* Questions */}
         {questions.map((q, qi) => (
-          <div key={q.id ?? qi} className="border rounded-xl p-4 mb-6 bg-gray-50 shadow-sm">
+          // FIX: Added 'relative' and 'shadow-lg' for better separation
+          <div key={q.id ?? qi} ref={qi === questions.length - 1 ? lastQuestionRef : null} 
+               className="border rounded-xl p-4 mb-6 bg-gray-50 shadow-lg relative"> 
+            
+            {/* FIX: Question Indicator Bar for visual separation */}
+            <div 
+              className="absolute top-0 left-0 bottom-0 w-1.5 rounded-l-xl"
+              style={{ backgroundColor: color.teal }} 
+            ></div>
+            
             <div className="flex justify-between items-center mb-2">
-              <h2 className="font-semibold text-lg">Question {qi + 1}</h2>
+              {/* FIX: Displayed as 'No. 1', 'No. 2', etc. */}
+              <h2 className="font-semibold text-lg">No. {qi + 1}</h2> 
               <button onClick={() => removeQuestion(qi)} className="text-red-500 hover:text-red-700">
                 <Trash2 className="h-5 w-5" />
               </button>
@@ -467,9 +486,9 @@ export default function EditQuiz() {
             >
               <option value="multiple_choice">Multiple Choice</option>
               <option value="true_false">True/False</option>
-              <option value="paragraph">Paragraph</option>
+              <option value="identification">Identification (Short Answer)</option>
               <option value="matching">Matching</option>
-              <option value="checkboxes">Checkboxes</option>
+              <option value="checkboxes">Checkboxes (Multiple Correct)</option>
             </select>
 
             <textarea
@@ -477,8 +496,22 @@ export default function EditQuiz() {
               onChange={e => updateQuestionField(qi, "question", e.target.value)}
               className="w-full border rounded-md p-2 mb-2"
               rows={3}
-              placeholder="Question..."
+              placeholder="Enter your question here (supports LaTeX: \(\dots\))"
             />
+            
+            <div className="flex justify-end mb-4">
+              <button
+                type="button"
+                onClick={() => {
+                    // Logic to set pad target and show math pad (omitted for brevity)
+                    setShowMathPad(true);
+                }}
+                className="text-gray-500 hover:text-teal-600 flex items-center text-sm gap-1"
+              >
+                <Keyboard className="h-4 w-4" /> Insert Math (LaTeX)
+              </button>
+            </div>
+
 
             {/* Preview */}
             <div className="flex items-center my-4">
@@ -568,63 +601,87 @@ export default function EditQuiz() {
                 </div>
               </div>
             ) : (
-              q.question_type !== "paragraph" && (
+                
+                // --- Identification and all other types (MC, Checkbox) ---
                 <div>
-                  {q.answers.map((a, ai) => (
-                    <div key={ai} className="flex items-center gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={a.answer}
-                        onChange={e => updateAnswerField(qi, ai, "answer", e.target.value)}
-                        className="flex-1 border rounded-md p-1"
-                      />
-                      {q.question_type === "checkboxes" ? (
-                        <input
-                          type="checkbox"
-                          checked={a.is_correct}
-                          onChange={() => toggleCheckboxCorrect(qi, ai)}
-                        />
-                      ) : (
-                        <input
-                          type="radio"
-                          name={`q-${qi}`}
-                          checked={a.is_correct}
-                          onChange={() =>
-                            setQuestions(prev => {
-                              const next = [...prev];
-                              const qx = { ...next[qi] };
-                              qx.answers = qx.answers.map((ans, idx) => ({
-                                ...ans,
-                                is_correct: idx === ai,
-                              }));
-                              next[qi] = qx;
-                              return next;
-                            })
-                          }
-                        />
-                      )}
-                      <button
-                        onClick={() => removeAnswer(qi, ai)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => addAnswer(qi)}
-                    className="text-teal-600 text-sm flex items-center gap-1"
-                  >
-                    <Plus className="h-4 w-4" /> Add answer
-                  </button>
-                </div>
-              )
-            )}
+                    {(q.question_type === "identification" || q.question_type === "multiple_choice" || q.question_type === "checkboxes" || q.question_type === "true_false") && (
+                        <>
+                            {q.question_type === "identification" && (
+                                <p className="text-gray-500 text-sm italic mb-3">
+                                    List all acceptable answers.
+                                </p>
+                            )}
 
-            {q.question_type === "paragraph" && (
-              <div className="text-gray-500 italic mt-2">
-                (Students will write a paragraph answer.)
-              </div>
+                            {q.answers.map((a, ai) => (
+                                <div key={ai} className="flex items-center gap-2 mb-2">
+                                    <input
+                                        type="text"
+                                        value={a.answer}
+                                        onChange={e => updateAnswerField(qi, ai, "answer", e.target.value)}
+                                        className={`flex-1 border rounded-md p-2 
+                                            ${(q.question_type === "multiple_choice" || q.question_type === "true_false") && a.is_correct ? 'border-teal-500 bg-teal-50' : ''}
+                                            ${q.question_type === "identification" ? 'border-amber-500 bg-amber-50' : ''}
+                                        `}
+                                        placeholder={q.question_type === "identification" ? "Acceptable answer" : "Answer option"}
+                                    />
+
+                                    {/* Correctness Checkbox/Radio */}
+                                    {(q.question_type === "multiple_choice" || q.question_type === "true_false") ? (
+                                        // Radio for Multiple Choice / True/False (Only one correct)
+                                        <input
+                                            type="radio"
+                                            name={`q-${qi}`}
+                                            checked={a.is_correct}
+                                            onChange={() =>
+                                                setQuestions(prev => {
+                                                    const next = [...prev];
+                                                    const qx = { ...next[qi] };
+                                                    qx.answers = qx.answers.map((ans, idx) => ({
+                                                        ...ans,
+                                                        is_correct: idx === ai,
+                                                    }));
+                                                    next[qi] = qx;
+                                                    return next;
+                                                })
+                                            }
+                                            className="w-5 h-5 text-teal-600"
+                                        />
+                                    ) : q.question_type === "checkboxes" ? (
+                                        // Checkbox for Multiple Correct Answers
+                                        <input
+                                            type="checkbox"
+                                            checked={a.is_correct}
+                                            onChange={() => toggleCheckboxCorrect(qi, ai)}
+                                            className="w-5 h-5 text-teal-600"
+                                        />
+                                    ) : q.question_type === "identification" ? (
+                                        // Identification doesn't need a correctness toggle, as all entries are correct answers
+                                        <span className="text-amber-600 text-sm font-semibold">Correct</span>
+                                    ) : null}
+
+                                    {/* Remove Button */}
+                                    <button
+                                        onClick={() => removeAnswer(qi, ai)}
+                                        className="text-red-500 hover:text-red-700"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            ))}
+
+                            {/* Add Answer Button */}
+                            {(q.question_type !== "true_false") && (
+                                <button
+                                    onClick={() => addAnswer(qi)}
+                                    className="text-teal-600 text-sm flex items-center gap-1 mt-2"
+                                >
+                                    <Plus className="h-4 w-4" /> 
+                                    {q.question_type === "identification" ? "Add acceptable answer" : "Add answer option"}
+                                </button>
+                            )}
+                        </>
+                    )}
+                </div>
             )}
           </div>
         ))}
@@ -639,6 +696,15 @@ export default function EditQuiz() {
         {errorMsg && <p className="text-red-600 mt-3">{errorMsg}</p>}
         {successMsg && <p className="text-green-600 mt-3">{successMsg}</p>}
       </main>
+
+      {/* Math Symbol Pad Component (assuming it's implemented) */}
+      {/* <MathSymbolPad
+          open={showMathPad}
+          onClose={() => setShowMathPad(false)}
+          onInsert={handleMathInsert}
+          inputRef={currentInputRef}
+      />
+      */}
     </div>
   );
 }

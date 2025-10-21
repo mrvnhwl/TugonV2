@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, Save, Keyboard } from "lucide-react";
+import { Plus, Trash2, Save, Keyboard } from "lucide-react"; 
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { motion } from "framer-motion";
@@ -19,7 +19,8 @@ interface Answer {
 interface Question {
   id?: string;
   question: string;
-  question_type: "multiple_choice" | "true_false" | "paragraph" | "matching" | "checkboxes";
+  // Renamed 'identification' label for clarity in UI, but kept the value for logic.
+  question_type: "multiple_choice" | "true_false" | "identification" | "matching" | "checkboxes"; 
   time_limit: number;
   points: number;
   answers: Answer[];
@@ -48,7 +49,6 @@ const wrapInlineIfNeeded = (s: string) => {
 };
 
 // Very light, safe “smart formatter” for common patterns.
-// It tries to transform only simple, *standalone* math and avoids double-wrapping.
 function smartFormat(text: string): string {
   let out = text;
 
@@ -73,7 +73,7 @@ function smartFormat(text: string): string {
   );
 
   // 3) simple exponents x^2 or (x+1)^3 -> ^{...}
-  //    - If RHS is a single token/number, brace it.
+  //    - If RHS is a single token/number, brace it.
   out = out.replace(
     /(\w|\)|\])\^(\w)/g,
     (_m, base, power) => wrapInlineIfNeeded(`${base}^{${power}}`)
@@ -103,6 +103,14 @@ function smartFormat(text: string): string {
   return out;
 }
 
+// Helper to create a list of fresh answers
+const freshAnswers = () => [
+  { answer: "", is_correct: false },
+  { answer: "", is_correct: false },
+  { answer: "", is_correct: false },
+  { answer: "", is_correct: false },
+];
+
 /* -------------------------------- Component ------------------------------- */
 
 function CreateQuiz() {
@@ -126,7 +134,7 @@ function CreateQuiz() {
   const [createdQuizId, setCreatedQuizId] = useState<string | null>(null);
 
   // State for floating keyboard visibility
-  const [showMathPad, setShowMathPad] = useState(false);
+  const [showMathPad, setShowMathPad] = useState(false); 
 
   // math keyboard target
   const [padTarget, setPadTarget] = useState<PadTarget | null>(null);
@@ -148,8 +156,6 @@ function CreateQuiz() {
   }, [questions.length]);
 
   /* ----------------------------- Mutators (UI) ---------------------------- */
-  const [leftItems, setLeftItems] = useState<string[]>([""]);
-  const [rightItems, setRightItems] = useState<string[]>([""]);
 
   const addQuestion = () => {
     setQuestions((prev) => [
@@ -159,12 +165,7 @@ function CreateQuiz() {
         question: "",
         time_limit: 30,
         points: 1000,
-        answers: [
-          { answer: "", is_correct: false },
-          { answer: "", is_correct: false },
-          { answer: "", is_correct: false },
-          { answer: "", is_correct: false },
-        ],
+        answers: freshAnswers(),
         matches: [], // new for matching type
       },
     ]);
@@ -196,7 +197,38 @@ function CreateQuiz() {
   const updateQuestion = (index: number, field: keyof Question, value: any) => {
     setQuestions((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
+      // If question type changes, reset answers for the new type.
+      if (field === 'question_type') {
+        let newAnswers: Answer[] = [];
+        let newMatches: string[] = [];
+
+        // Retain answers for types that use them similarly
+        if (value === "multiple_choice" || value === "true_false" || value === "checkboxes") {
+          // If moving from another choice-based, try to keep existing, otherwise use fresh
+          newAnswers = prev[index].answers.length > 0 ? prev[index].answers.map(a => ({ ...a, is_correct: value === "multiple_choice" || value === "true_false" ? false : a.is_correct })) : freshAnswers();
+          if (value === "true_false") newAnswers = [{ answer: "True", is_correct: false }, { answer: "False", is_correct: false }];
+
+        } else if (value === "identification") { // Identification: start with one empty answer marked as correct
+          newAnswers = [{ answer: "", is_correct: true }];
+
+        } else if (value === "matching") {
+          // Reset answers for matching, they become left-side options
+          newAnswers = prev[index].answers.map(a => ({ ...a, is_correct: false }));
+          // Retain matches if available, otherwise start fresh
+          newMatches = prev[index].matches || ["", "", ""];
+        }
+        
+        // Update the question object
+        next[index] = { 
+          ...next[index], 
+          [field]: value, 
+          answers: newAnswers,
+          matches: newMatches,
+        };
+      } else {
+        next[index] = { ...next[index], [field]: value };
+      }
+      
       return next;
     });
   };
@@ -217,7 +249,13 @@ function CreateQuiz() {
     setQuestions((prev) => {
       const next = [...prev];
       const q = { ...next[qIndex] };
-      q.answers = q.answers.map((ans, i) => ({ ...ans, is_correct: i === aIndex }));
+      // Multiple choice/True-False: only one can be correct
+      if (q.question_type === 'multiple_choice' || q.question_type === 'true_false') {
+         q.answers = q.answers.map((ans, i) => ({ ...ans, is_correct: i === aIndex }));
+      } else if (q.question_type === 'identification') {
+         // Identification: all answers are implicitly correct variants
+         q.answers = q.answers.map((ans, i) => ({ ...ans, is_correct: true }));
+      }
       next[qIndex] = q;
       return next;
     });
@@ -244,7 +282,9 @@ function CreateQuiz() {
     setQuestions((prev) => {
       const next = [...prev];
       const q = { ...next[qIndex] };
-      q.answers = [...q.answers, { answer: "", is_correct: false }];
+      // If adding for identification, the new answer is also marked as correct by default.
+      const isIdentification = q.question_type === 'identification';
+      q.answers = [...q.answers, { answer: "", is_correct: isIdentification || false }];
       next[qIndex] = q;
       return next;
     });
@@ -510,9 +550,8 @@ const validate = () => {
     if (!Number.isFinite(q.points) || q.points < 50 || q.points > 10000)
       return `Question ${i + 1}: points should be between 50 and 10000.`;
 
-    // ✅ Validation by question type
+    // Validation by question type
     if (q.question_type === "multiple_choice") {
-      // ❗ Allow any number of answers (at least 2)
       if (!q.answers || q.answers.length < 2)
         return `Question ${i + 1} must have at least 2 answer choices.`;
 
@@ -521,7 +560,6 @@ const validate = () => {
         return `Question ${i + 1} must have exactly one correct answer.`;
 
     } else if (q.question_type === "true_false") {
-      // ✅ True/False still exactly 2 choices
       if (q.answers.length !== 2)
         return `Question ${i + 1} must have 2 answers (True and False).`;
 
@@ -529,11 +567,17 @@ const validate = () => {
       if (correctCount !== 1)
         return `Question ${i + 1} must have exactly one correct answer.`;
 
-    } else if (q.question_type === "paragraph") {
-      // ✅ Paragraph shouldn't have predefined choices
-      if (q.answers && q.answers.length > 0) {
-        console.warn(`Question ${i + 1} is paragraph type and should not have answer choices.`);
-      }
+    } else if (q.question_type === "identification") { 
+      // SHORT ANSWER: Must have at least one possible answer set.
+      const hasAnswers = q.answers && q.answers.length > 0 && q.answers.some(a => a.answer.trim() !== "");
+      if (!hasAnswers)
+        return `Question ${i + 1} (Short Answer) must have at least one possible correct answer.`;
+
+      // SHORT ANSWER: Ensure all defined answers are non-empty
+      const emptyAnswer = q.answers.some(a => a.answer.trim() === "" && q.answers.length > 1);
+      if (emptyAnswer)
+        return `Question ${i + 1} (Short Answer): All defined possible answers must be non-empty.`;
+        
     } else if (q.question_type === "matching") {
       if (!q.answers || q.answers.length < 1) return `Question ${i + 1} must have at least 1 left item.`;
       if (!q.matches || q.matches.length < 1) return `Question ${i + 1} must have at least 1 right option.`;
@@ -548,10 +592,9 @@ const validate = () => {
 };
 
 
-
   /* ------------------------------- Submit --------------------------------- */
 
- const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   const reason = validate();
   if (reason) return alert(reason);
@@ -580,7 +623,7 @@ const validate = () => {
           question: q.question,
           time_limit: q.time_limit,
           points: q.points,
-          question_type: q.question_type, // ✅ Save question type
+          question_type: q.question_type, 
         })
         .select("*")
         .single();
@@ -589,35 +632,48 @@ const validate = () => {
 
       // 3️⃣ Handle all answer types
       if (q.question_type === "matching") {
-  // Left items (questions)
-  if (q.answers.length > 0) {
-    const leftRows = q.answers.map((a, i) => ({
-      question_id: qRow.id,
-      answer: a.answer,
-      is_correct: false,
-      side: "left", // optional column in DB
-      match_index: i, // ✅ this line ensures scoring works
-    }));
-    const { error: leftErr } = await supabase.from("answers").insert(leftRows);
-    if (leftErr) throw leftErr;
-  }
+        // Left items (questions)
+        if (q.answers.length > 0) {
+          const leftRows = q.answers.map((a, i) => ({
+            question_id: qRow.id,
+            answer: a.answer,
+            is_correct: false,
+            side: "left", 
+            match_index: i, 
+          }));
+          const { error: leftErr } = await supabase.from("answers").insert(leftRows);
+          if (leftErr) throw leftErr;
+        }
 
-  // Right items (answers)
-  if (q.matches?.length) {
-    const rightRows = q.matches.map((m) => ({
-      question_id: qRow.id,
-      answer: m,
-      is_correct: false,
-      side: "right", // optional column in DB
-    }));
-    const { error: rightErr } = await supabase.from("answers").insert(rightRows);
-    if (rightErr) throw rightErr;
-  }
+        // Right items (answers)
+        if (q.matches?.length) {
+          const rightRows = q.matches.map((m) => ({
+            question_id: qRow.id,
+            answer: m,
+            is_correct: false,
+            side: "right", 
+          }));
+          const { error: rightErr } = await supabase.from("answers").insert(rightRows);
+          if (rightErr) throw rightErr;
+        }
 
 
+      } else if (q.question_type === "identification") { // SHORT ANSWER: Handle identification answers
+        // All identification answers are considered correct variants
+        const answersRows = q.answers
+          .filter(a => a.answer.trim() !== "") // only save non-empty answers
+          .map((a) => ({
+            question_id: qRow.id,
+            answer: a.answer,
+            is_correct: true, // All possible correct answers are marked as true
+          }));
 
-      } else if (q.question_type !== "paragraph" && q.answers.length > 0) {
-        // Multiple choice, true/false, or checkbox types
+        if (answersRows.length > 0) {
+          const { error: aErr } = await supabase.from("answers").insert(answersRows);
+          if (aErr) throw aErr;
+        }
+
+      } else if (q.answers.length > 0) { // Multiple choice, true/false, or checkbox types
         const answersRows = q.answers.map((a) => ({
           question_id: qRow.id,
           answer: a.answer,
@@ -698,14 +754,14 @@ const validate = () => {
               className="bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4"
             >
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-base sm:text-lg font-semibold">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-800">
                   Question {qIndex + 1}
                 </h2>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => addQuestionAfter(qIndex)}
-                    className="text-green-600 hover:text-green-700 p-1"
+                    className="text-indigo-600 hover:text-indigo-700 p-1" // Changed to indigo for consistency
                     title="Add question below"
                     aria-label="Add question below"
                   >
@@ -736,39 +792,55 @@ const validate = () => {
                 >
                   <option value="multiple_choice">Multiple Choice</option>
                   <option value="true_false">True or False</option>
-                  <option value="paragraph">Paragraph</option>
+                  {/* 🚨 Updated Label: 'Identification' is now 'Short Answer' for clarity */}
+                  <option value="identification">Identification</option> 
                   <option value="matching">Matching</option>
                   <option value="checkboxes">Checkboxes (multiple correct)</option>
                 </select>
               </div>
 
               {/* Question textarea */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Question {qIndex + 1}
+              <div className="mb-6 border p-3 rounded-lg bg-gray-50 border-gray-200"> {/* Design enhancement */}
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                  Question {qIndex + 1} Content
+                  {/* ✅ Keyboard Icon: KEPT for Question Input */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                        if (questionRefs.current[qIndex]) questionRefs.current[qIndex]?.focus();
+                        setPadTarget({ type: "question", qIndex });
+                        setShowMathPad(true);
+                    }}
+                    title="Show Math Pad for this question"
+                    className="ml-2 p-1 rounded-full text-indigo-600 hover:bg-indigo-50 transition bg-white" // Design enhancement
+                  >
+                    <Keyboard className="h-5 w-5 inline-block" />
+                  </button>
                 </label>
                 <textarea
                   ref={(el) => (questionRefs.current[qIndex] = el)}
-                  onFocus={() => setPadTarget({ type: "question", qIndex })}
+                  onFocus={() => { setPadTarget({ type: "question", qIndex }); }} 
                   onBlur={() => onBlurFormatQuestion(qIndex)}
                   required
                   value={q.question}
                   onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
                   className="w-full rounded-md border-gray-300 shadow-sm 
                             focus:border-indigo-500 focus:ring-indigo-500
-                            caret-black resize-none font-mono px-3 py-2"
+                            caret-black resize-none font-mono px-3 py-2 mt-1"
                   rows={2}
-                  placeholder="Type your question here:"
+                  placeholder="Type your question here (LaTeX supported)"
                 />
+                {/* ✅ Question Preview: KEPT */}
                 {q.question.trim() && (
-                  <div className="mt-2 p-2 bg-gray-50 border rounded-md">
+                  <div className="mt-2 p-2 bg-white border border-dashed border-indigo-300 rounded-md text-sm">
+                    <p className="font-semibold text-indigo-700 mb-1">Preview:</p>
                     <MathJax dynamic>{q.question}</MathJax>
                   </div>
                 )}
               </div>
 
               {/* Time & Points */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-3 border rounded-lg bg-white shadow-inner"> {/* Design enhancement */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Time Limit (sec)
@@ -818,9 +890,10 @@ const validate = () => {
 
               {/* ANSWERS SECTION (depends on type) */}
               {(q as any).question_type === "multiple_choice" && (
-                <div className="space-y-4">
+                <div className="space-y-4 p-4 border rounded-lg bg-gray-50"> {/* Design enhancement */}
+                  <h3 className="font-semibold text-gray-700">Answer Choices (Select One Correct)</h3>
                   {q.answers.map((a, aIndex) => (
-                    <div key={aIndex} className="flex items-start gap-3">
+                    <div key={aIndex} className="flex items-start gap-3 bg-white p-3 rounded-md border"> {/* Design enhancement */}
                       <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Answer {aIndex + 1}
@@ -830,7 +903,7 @@ const validate = () => {
                             if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
                             answerRefs.current[qIndex][aIndex] = el;
                           }}
-                          onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex })}
+                          onFocus={() => { setPadTarget({ type: "answer", qIndex, aIndex }); }}
                           onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
                           type="text"
                           required
@@ -839,24 +912,19 @@ const validate = () => {
                             updateAnswer(qIndex, aIndex, "answer", e.target.value)
                           }
                           className="w-full rounded-md border-gray-300 shadow-sm 
-                                     focus:border-indigo-500 focus:ring-indigo-500 
-                                     caret-black font-mono px-3 py-2"
+                                    focus:border-indigo-500 focus:ring-indigo-500 
+                                    caret-black font-mono px-3 py-2"
                           placeholder="Type your answer here"
                         />
-                        {a.answer.trim() && (
-                          <div className="mt-1 p-2 bg-gray-50 border rounded-md">
-                            <MathJax dynamic>{a.answer}</MathJax>
-                          </div>
-                        )}
                       </div>
 
-                      <label className="flex items-center gap-2 text-sm mt-7">
+                      <label className="flex flex-col items-center gap-1 text-xs mt-1"> {/* Design enhancement */}
                         <input
                           type="radio"
                           name={`correct-${qIndex}`}
                           checked={a.is_correct}
                           onChange={() => setCorrectAnswer(qIndex, aIndex)}
-                          className="text-indigo-600 focus:ring-indigo-500"
+                          className="text-indigo-600 focus:ring-indigo-500 h-5 w-5"
                         />
                         <span>Correct</span>
                       </label>
@@ -865,7 +933,7 @@ const validate = () => {
                       <button
                         type="button"
                         onClick={() => removeAnswer(qIndex, aIndex)}
-                        className="mt-7 text-gray-400 hover:text-red-600"
+                        className="mt-1 text-gray-400 hover:text-red-600 p-1"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -876,19 +944,43 @@ const validate = () => {
                   <button
                     type="button"
                     onClick={() => addAnswerChoice(qIndex)}
-                    className="mt-2 flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
+                    className="mt-2 flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
                   >
                     <Plus className="h-4 w-4" />
                     <span>Add another choice</span>
                   </button>
+
+                  {/* ✅ Student Preview: KEPT */}
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Student Preview:
+                    </p>
+                    <div className="p-4 bg-gray-100 rounded-lg space-y-3">
+                      <p className="font-semibold text-gray-900 mb-2">
+                          <MathJax dynamic>{q.question}</MathJax>
+                      </p>
+                      {q.answers.filter(a => a.answer.trim() !== "").map((a, aIndex) => (
+                          <div key={aIndex} className="flex items-center gap-2">
+                            <input type="radio" disabled className="text-indigo-600" />
+                            <span className="text-gray-800">
+                                <MathJax dynamic>{a.answer || `(Option ${aIndex + 1})`}</MathJax>
+                            </span>
+                          </div>
+                      ))}
+                      {q.answers.filter(a => a.answer.trim() === "").length > 0 && (
+                          <p className="text-xs text-gray-500 mt-2">({q.answers.filter(a => a.answer.trim() === "").length} empty option(s) hidden in preview)</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Checkboxes type: multiple options can be correct */}
               {(q as any).question_type === "checkboxes" && (
-                <div className="space-y-4">
+                <div className="space-y-4 p-4 border rounded-lg bg-gray-50"> {/* Design enhancement */}
+                   <h3 className="font-semibold text-gray-700">Answer Options (Select One or More Correct)</h3>
                   {q.answers.map((a, aIndex) => (
-                    <div key={aIndex} className="flex items-start gap-3">
+                    <div key={aIndex} className="flex items-start gap-3 bg-white p-3 rounded-md border"> {/* Design enhancement */}
                       <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Option {aIndex + 1}
@@ -898,7 +990,7 @@ const validate = () => {
                             if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
                             answerRefs.current[qIndex][aIndex] = el;
                           }}
-                          onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex })}
+                          onFocus={() => { setPadTarget({ type: "answer", qIndex, aIndex }); }}
                           onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
                           type="text"
                           required
@@ -907,343 +999,324 @@ const validate = () => {
                             updateAnswer(qIndex, aIndex, "answer", e.target.value)
                           }
                           className="w-full rounded-md border-gray-300 shadow-sm 
-                                     focus:border-indigo-500 focus:ring-indigo-500 
-                                     caret-black font-mono px-3 py-2"
-                          placeholder="Type option text"
+                                    focus:border-indigo-500 focus:ring-indigo-500 
+                                    caret-black font-mono px-3 py-2"
+                          placeholder="Type your option here"
                         />
-                        {a.answer.trim() && (
-                          <div className="mt-1 p-2 bg-gray-50 border rounded-md">
-                            <MathJax dynamic>{a.answer}</MathJax>
-                          </div>
-                        )}
                       </div>
 
-                      <label className="flex items-center gap-2 text-sm mt-7">
+                      <label className="flex flex-col items-center gap-1 text-xs mt-1"> {/* Design enhancement */}
                         <input
                           type="checkbox"
+                          name={`correct-${qIndex}-${aIndex}`}
                           checked={a.is_correct}
                           onChange={() => toggleCheckboxCorrect(qIndex, aIndex)}
-                          className="text-indigo-600 focus:ring-indigo-500"
+                          className="text-indigo-600 focus:ring-indigo-500 rounded h-5 w-5"
                         />
                         <span>Correct</span>
                       </label>
 
+                      {/* Delete option */}
                       <button
                         type="button"
                         onClick={() => removeAnswer(qIndex, aIndex)}
-                        className="mt-7 text-gray-400 hover:text-red-600"
+                        className="mt-1 text-gray-400 hover:text-red-600 p-1"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   ))}
 
+                  {/* Add option button */}
                   <button
                     type="button"
                     onClick={() => addAnswerChoice(qIndex)}
-                    className="mt-2 flex items-center gap-1 text-indigo-600 hover:text-indigo-800"
+                    className="mt-2 flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
                   >
                     <Plus className="h-4 w-4" />
                     <span>Add another option</span>
                   </button>
+
+                  {/* ✅ Student Preview: KEPT */}
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Student Preview:
+                    </p>
+                    <div className="p-4 bg-gray-100 rounded-lg space-y-3">
+                       <p className="font-semibold text-gray-900 mb-2">
+                          <MathJax dynamic>{q.question}</MathJax>
+                      </p>
+                      {q.answers.filter(a => a.answer.trim() !== "").map((a, aIndex) => (
+                          <div key={aIndex} className="flex items-center gap-2">
+                            <input type="checkbox" disabled className="text-indigo-600 rounded" />
+                            <span className="text-gray-800">
+                                <MathJax dynamic>{a.answer || `(Option ${aIndex + 1})`}</MathJax>
+                            </span>
+                          </div>
+                      ))}
+                      {q.answers.filter(a => a.answer.trim() === "").length > 0 && (
+                          <p className="text-xs text-gray-500 mt-2">({q.answers.filter(a => a.answer.trim() === "").length} empty option(s) hidden in preview)</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Matching */}
+              {/* True or False type: fixed options, single correct */}
+              {(q as any).question_type === "true_false" && (
+                <div className="space-y-4 p-4 border rounded-lg bg-gray-50"> {/* Design enhancement */}
+                   <h3 className="font-semibold text-gray-700">Set Correct Answer</h3>
+                  <p className="text-sm text-gray-700">Select the correct answer:</p>
+                  {q.answers.slice(0, 2).map((a, aIndex) => (
+                    <div key={aIndex} className={`flex items-center gap-3 p-3 rounded-md border ${a.is_correct ? 'bg-green-100 border-green-400' : 'bg-white border-gray-200'}`}> {/* Design enhancement */}
+                      <label className="flex items-center gap-3 text-base">
+                        <input
+                          type="radio"
+                          name={`correct-${qIndex}`}
+                          checked={a.is_correct}
+                          onChange={() => setCorrectAnswer(qIndex, aIndex)}
+                          className="text-green-600 focus:ring-green-500" // Changed to green
+                        />
+                        <span>{a.answer}</span>
+                      </label>
+                    </div>
+                  ))}
+                  {/* ✅ Student Preview: KEPT */}
+                  <div className="border-t pt-4 mt-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">
+                        Student Preview:
+                      </p>
+                      <div className="p-4 bg-gray-100 rounded-lg space-y-3">
+                         <p className="font-semibold text-gray-900 mb-2">
+                            <MathJax dynamic>{q.question}</MathJax>
+                        </p>
+                        <div className="flex gap-4">
+                          {q.answers.slice(0, 2).map((a, aIndex) => (
+                            <div key={aIndex} className="flex items-center gap-2">
+                              <input type="radio" disabled className="text-indigo-600" />
+                              <span className="text-gray-800">{a.answer}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                  </div>
+                </div>
+              )}
+
+              {/* IDENTIFICATION type: multiple correct variants, case-insensitive check */}
+              {(q as any).question_type === "identification" && (
+                <div className="space-y-4 p-4 border rounded-lg bg-yellow-50 border-yellow-200"> {/* Design enhancement for Short Answer */}
+                   <h3 className="font-semibold text-yellow-800">Short Answer Settings</h3>
+                  <p className="text-sm font-medium text-gray-700">
+                    Set **all** possible correct answer variations (case-insensitive check is applied during scoring):
+                  </p>
+                  <div className="mt-2 text-sm text-yellow-700 p-2 border-l-4 border-yellow-500 bg-white rounded-md"> {/* Design enhancement */}
+                    <p className="font-semibold">Tip:</p>
+                    <p>Enter the exact word(s) students should use (e.g., "Jupiter," "jupiter," or "JUPITER" if all are valid). Spaces and casing are ignored in the check.</p>
+                  </div>
+                  
+                  {q.answers.map((a, aIndex) => (
+                    <div key={aIndex} className="flex items-center gap-3 bg-white p-3 rounded-md border border-yellow-300"> {/* Design enhancement */}
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Correct Variant {aIndex + 1}
+                           {/* 🛑 Keyboard Icon: REMOVED from the Short Answer inputs */}
+                        </label>
+                        <input
+                          ref={(el) => {
+                            if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
+                            answerRefs.current[qIndex][aIndex] = el;
+                          }}
+                          // 🛑 onFocus: Only sets target, does NOT show pad
+                          onFocus={() => { setPadTarget({ type: "answer", qIndex, aIndex }); }}
+                          onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
+                          type="text"
+                          required={q.answers.length === 1} // Require if it's the only one
+                          value={a.answer}
+                          onChange={(e) =>
+                            updateAnswer(qIndex, aIndex, "answer", e.target.value)
+                          }
+                          className="w-full rounded-md border-yellow-500 shadow-sm 
+                                    focus:border-yellow-700 focus:ring-yellow-700 
+                                    caret-black font-mono px-3 py-2 border-2" // Design enhancement
+                          placeholder="e.g., Photosynthesis"
+                        />
+                      </div>
+                      
+                      {/* Delete answer (prevent deleting the only one if non-empty) */}
+                      <button
+                        type="button"
+                        onClick={() => removeAnswer(qIndex, aIndex)}
+                        disabled={q.answers.length === 1 && a.answer.trim() === ""}
+                        className={`text-gray-400 hover:text-red-600 p-1 mt-1 ${q.answers.length === 1 && a.answer.trim() === "" ? 'cursor-not-allowed opacity-50' : ''}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add answer button */}
+                  <button
+                    type="button"
+                    onClick={() => addAnswerChoice(qIndex)}
+                    className="mt-2 flex items-center gap-1 text-yellow-600 hover:text-yellow-800 text-sm font-medium" // Design enhancement
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add another correct variant</span>
+                  </button>
+                  
+                  {/* ✅ Student Preview: KEPT */}
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-1">
+                      Student Preview:
+                    </p>
+                    <div className="p-4 bg-gray-100 rounded-lg space-y-3">
+                        <p className="font-semibold text-gray-900 mb-2">
+                            <MathJax dynamic>{q.question}</MathJax>
+                        </p>
+                        <div className="relative">
+                          <input type="text" disabled className="w-full border-b border-gray-400 bg-transparent py-1 px-0 focus:outline-none focus:border-indigo-500" placeholder="Type your answer here..." />
+                          <span className="absolute right-0 bottom-0 text-xs text-gray-500">(Student Answer)</span>
+                        </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Matching type: left/right columns */}
               {(q as any).question_type === "matching" && (
-                <div className="overflow-auto">
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Left items (editable) */}
-                    <div>
-                      <div className="font-semibold p-2 border bg-gray-50">Left items</div>
-                      <div className="mt-2 space-y-2">
-                        {q.answers.map((a, ai) => (
-                          <div key={ai} className="flex items-center gap-2">
+                <div className="space-y-4 p-4 border rounded-lg bg-gray-50"> {/* Design enhancement */}
+                  <h3 className="font-semibold text-gray-700">Matching Items</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> {/* Design enhancement */}
+                    <div className="space-y-3 p-3 bg-white rounded-md border"> {/* Design enhancement */}
+                      <h4 className="text-sm font-medium text-gray-700 border-b pb-2">Left Column (Items to Match)</h4>
+                      {q.answers.map((a, aIndex) => (
+                        <div key={aIndex} className="flex items-center gap-2">
+                          <span className="p-2 bg-indigo-100 text-indigo-800 rounded-md text-xs font-mono flex-shrink-0">{String.fromCharCode(65 + aIndex)}</span>
+                          <div className="flex-1">
+                             <label className="sr-only">Left Item {aIndex + 1}</label>
                             <input
                               ref={(el) => {
                                 if (!answerRefs.current[qIndex]) answerRefs.current[qIndex] = [];
-                                answerRefs.current[qIndex][ai] = el;
+                                answerRefs.current[qIndex][aIndex] = el;
                               }}
-                              onFocus={() => setPadTarget({ type: "answer", qIndex, aIndex: ai })}
-                              onBlur={() => onBlurFormatAnswer(qIndex, ai)}
+                              onFocus={() => { setPadTarget({ type: "answer", qIndex, aIndex }); }}
+                              onBlur={() => onBlurFormatAnswer(qIndex, aIndex)}
                               type="text"
+                              required
                               value={a.answer}
-                              onChange={(e) => updateAnswer(qIndex, ai, "answer", e.target.value)}
-                              className="flex-1 rounded-md border px-2 py-1 font-mono"
-                              placeholder={`Left item ${ai + 1}`}
+                              onChange={(e) => updateAnswer(qIndex, aIndex, "answer", e.target.value)}
+                              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono px-3 py-2"
+                              placeholder="Left Item"
                             />
-                            <button
-                              type="button"
-                              onClick={() => removeAnswer(qIndex, ai)}
-                              className="text-gray-400 hover:text-red-600 p-1"
-                              aria-label={`Remove left item ${ai + 1}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
                           </div>
-                        ))}
-
-                        <div className="mt-2">
-                          <button
-                            type="button"
-                            onClick={() => addAnswerChoice(qIndex)}
-                            className="inline-flex items-center gap-2 px-3 py-1 text-sm rounded-md border bg-white hover:bg-gray-50"
-                          >
-                            <Plus className="h-4 w-4" />
-                            <span>Add left item</span>
+                          <button type="button" onClick={() => removeAnswer(qIndex, aIndex)} className="text-gray-400 hover:text-red-600 p-1 flex-shrink-0">
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
-                      </div>
+                      ))}
+                      <button type="button" onClick={() => addAnswerChoice(qIndex)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium mt-3">
+                        <Plus className="h-4 w-4" />
+                        <span>Add Left Item</span>
+                      </button>
                     </div>
 
-                    {/* Right options (editable & one-column) */}
-                    <div>
-                      <div className="font-semibold p-2 border bg-gray-50">Right options</div>
-                      <div className="mt-2 space-y-2">
-                        {(q.matches || []).map((m, mi) => (
-                          <div key={mi} className="flex items-center gap-2">
+                    <div className="space-y-3 p-3 bg-white rounded-md border"> {/* Design enhancement */}
+                      <h4 className="text-sm font-medium text-gray-700 border-b pb-2">Right Column (Match Options - Draggable)</h4>
+                      {(q.matches || []).map((m, mIndex) => (
+                        <div
+                          key={mIndex}
+                          className="flex items-center gap-2 p-1 bg-white border border-gray-200 rounded-md shadow-sm hover:shadow-md transition" // Design enhancement
+                          draggable
+                          onDragStart={(e) => onMatchDragStart(qIndex, mIndex, e)}
+                          onDragOver={onMatchDragOver}
+                          onDrop={(e) => onMatchDrop(qIndex, mIndex, e)}
+                        >
+                          <div className="w-5 h-5 flex-shrink-0 cursor-move text-gray-400 hover:text-gray-700 flex items-center justify-center">
+                            &#x2261;
+                          </div>
+                          <div className="flex-1">
+                            <label className="sr-only">Right Option {mIndex + 1}</label>
                             <input
                               ref={(el) => {
                                 if (!matchRefs.current[qIndex]) matchRefs.current[qIndex] = [];
-                                matchRefs.current[qIndex][mi] = el;
+                                matchRefs.current[qIndex][mIndex] = el;
                               }}
-                              onFocus={() => setPadTarget({ type: "match", qIndex, mIndex: mi })}
-                              onBlur={() => onBlurFormatMatch(qIndex, mi)}
+                              onFocus={() => { setPadTarget({ type: "match", qIndex, mIndex }); }}
+                              onBlur={() => onBlurFormatMatch(qIndex, mIndex)}
                               type="text"
+                              required
                               value={m}
-                              onChange={(e) => updateMatchOption(qIndex, mi, e.target.value)}
-                              className="flex-1 rounded-md border px-2 py-1 font-mono"
-                              placeholder={`Right option ${mi + 1}`}
+                              onChange={(e) => updateMatchOption(qIndex, mIndex, e.target.value)}
+                              className="w-full border-none focus:ring-0 focus:outline-none font-mono text-sm"
+                              placeholder="Right Option"
                             />
-                            <button
-                              type="button"
-                              onClick={() => removeMatchOption(qIndex, mi)}
-                              className="text-gray-400 hover:text-red-600 p-1"
-                              aria-label={`Remove right option ${mi + 1}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
                           </div>
-                        ))}
-
-                        <div className="mt-2">
-                          <button
-                            type="button"
-                            onClick={() => addMatchOption(qIndex)}
-                            className="inline-flex items-center gap-2 px-3 py-1 text-sm rounded-md border bg-white hover:bg-gray-50"
-                          >
-                            <Plus className="h-4 w-4" />
-                            <span>Add right option</span>
+                          <button type="button" onClick={() => removeMatchOption(qIndex, mIndex)} className="text-gray-400 hover:text-red-600 p-1 flex-shrink-0">
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
-                      </div>
+                      ))}
+                      <button type="button" onClick={() => addMatchOption(qIndex)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 text-sm font-medium mt-3">
+                        <Plus className="h-4 w-4" />
+                        <span>Add Right Option</span>
+                      </button>
                     </div>
                   </div>
-
-                  {/* separator + preview */}
-                  <div className="my-4 relative">
-                    <div className="border-t border-dashed border-gray-200" />
-                    <span className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-white px-2 text-sm text-gray-500">
-                      Question Preview
-                    </span>
-                  </div>
-
-                  {/* Preview below the inputs */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="font-semibold p-2 border bg-gray-50">Preview — Left items</div>
-                      <div className="mt-2 space-y-2">
-                        {q.answers.map((a, ai) => (
-                          <div key={ai} className="p-2 border rounded bg-white">
-                            <MathJax dynamic>{a.answer || `Left ${ai + 1}`}</MathJax>
+                  {/* ✅ Student Preview: KEPT */}
+                  <div className="border-t pt-4 mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Student Preview:
+                    </p>
+                    <div className="p-4 bg-gray-100 rounded-lg space-y-3">
+                        <p className="font-semibold text-gray-900 mb-2">
+                            <MathJax dynamic>{q.question}</MathJax>
+                        </p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            {q.answers.map((a, aIndex) => (
+                                <div key={aIndex} className="p-2 border border-gray-300 bg-white rounded flex items-center gap-2">
+                                    <span className="font-semibold text-indigo-800 text-sm">{String.fromCharCode(65 + aIndex)}.</span>
+                                    <MathJax dynamic>{a.answer || `(Left Item ${aIndex + 1})`}</MathJax>
+                                </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="font-semibold p-2 border bg-gray-50">Preview — Right options</div>
-                      <div className="mt-2 space-y-2">
-                        {(q.matches || []).map((m, mi) => (
-                          <div key={mi} className="p-2 border rounded bg-white flex items-center justify-between">
-                            <MathJax dynamic>{m || `Option ${mi + 1}`}</MathJax>
-                            <input type="checkbox" disabled />
+                          <div className="space-y-2">
+                            {(q.matches || []).map((m, mIndex) => (
+                                <div key={mIndex} className="p-2 border border-gray-300 bg-white rounded flex items-center gap-2">
+                                    <select disabled className="border-gray-300 rounded-md py-0 text-sm">
+                                      <option value="">A-Z</option>
+                                    </select>
+                                    <MathJax dynamic>{m || `(Right Option ${mIndex + 1})`}</MathJax>
+                                </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* True/False */}
-              {(q as any).question_type === "true_false" && (
-                <div className="space-y-3">
-                  {["True", "False"].map((val, i) => (
-                    <label key={i} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name={`tf-${qIndex}`}
-                        checked={
-                          q.answers[i]?.is_correct ||
-                          (!q.answers.length && val === "True")
-                        }
-                        onChange={() =>
-                          updateQuestion(qIndex, "answers", [
-                            { answer: "True", is_correct: val === "True" },
-                            { answer: "False", is_correct: val === "False" },
-                          ])
-                        }
-                        className="text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span>{val}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              {/* Paragraph */}
-              {(q as any).question_type === "paragraph" && (
-                <div className="text-gray-500 italic">
-                  (Students will answer this question in paragraph form.)
                 </div>
               )}
             </motion.div>
           ))
         )}
-
-        {/* Student preview */}
-        <div className="student-preview bg-white rounded-xl shadow-lg p-4 sm:p-6 space-y-4">
-          <h2 className="text-lg font-semibold mb-2 text-center text-gray-700">Student Preview</h2>
-
-          {questions.map((q, qIndex) => (
-            <div key={qIndex} className="mb-6 p-4 border rounded-lg">
-              <div className="font-semibold mb-2 text-lg font-mono">
-                Question {qIndex + 1}:
-                <div className="mt-1">
-                  <MathJax dynamic>{q.question || ""}</MathJax>
-                </div>
-              </div>
-
-              {/* Multiple Choice (rendered) */}
-              {q.question_type === "multiple_choice" && (
-                <div className="flex flex-col gap-2">
-                  {q.answers.map((a, aIndex) => (
-                    <label
-                      key={aIndex}
-                      className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
-                    >
-                      <input type="radio" name={`q-${qIndex}`} disabled />
-                      <span className="font-mono">
-                        <MathJax dynamic>{a.answer || `Choice ${aIndex + 1}`}</MathJax>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              {/* Checkboxes (rendered) */}
-              {q.question_type === "checkboxes" && (
-                <div className="flex flex-col gap-2">
-                  {q.answers.map((a, aIndex) => (
-                    <label
-                      key={aIndex}
-                      className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
-                    >
-                      <input type="checkbox" name={`q-${qIndex}`} disabled />
-                      <span className="font-mono">
-                        <MathJax dynamic>{a.answer || `Option ${aIndex + 1}`}</MathJax>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              {/* True / False (rendered) */}
-              {q.question_type === "true_false" && (
-                <div className="flex flex-col gap-2">
-                  {(q.answers.length > 0 ? q.answers : [{ answer: "True" }, { answer: "False" }]).map(
-                    (a, aIndex) => (
-                      <label
-                        key={aIndex}
-                        className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-100"
-                      >
-                        <input type="radio" name={`q-${qIndex}`} disabled />
-                        <span className="font-mono">
-                          <MathJax dynamic>{a.answer}</MathJax>
-                        </span>
-                      </label>
-                    )
-                  )}
-                </div>
-              )}
-
-              {/* Paragraph preview */}
-              {q.question_type === "paragraph" && (
-                <div className="mt-2">
-                  <textarea
-                    disabled
-                    className="w-full border rounded p-2 mt-2 font-mono"
-                    placeholder="Student answer will appear here..."
-                  ></textarea>
-                  <div className="mt-2 p-2 bg-gray-50 border rounded-md">
-                    <MathJax dynamic>{""}</MathJax>
-                  </div>
-                </div>
-              )}
-
-              {/* Matching preview */}
-              {q.question_type === "matching" && (
-                <div className="overflow-auto mt-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="font-semibold p-2 border bg-gray-50">Left items</div>
-                      <div className="mt-2 space-y-2">
-                        {q.answers.map((a, ai) => (
-                          <div key={ai} className="p-2 border rounded bg-white">
-                            <MathJax dynamic>{a.answer || `Left ${ai + 1}`}</MathJax>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="font-semibold p-2 border bg-gray-50">Right options</div>
-                      <div className="mt-2 space-y-2">
-                        {(q.matches || []).map((m, mi) => (
-                          <div key={mi} className="p-2 border rounded bg-white flex items-center justify-between">
-                            <MathJax dynamic>{m || `Option ${mi + 1}`}</MathJax>
-                            <input type="checkbox" disabled />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="text-sm text-gray-500 mt-2">
-                ⏱️ {q.time_limit}s | {q.points} points
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Footer buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-between">
-          <div className="flex flex-col sm:flex-row gap-3">
+        
+        {/* Save/Add Button */}
+        <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end items-center">
+            
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:opacity-60"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition disabled:opacity-50"
             >
-              <Save className="h-5 w-5" />
-              <span>{saving ? "Saving..." : "Save Quiz"}</span>
+              <Save className="h-5 w-5 mr-3" />
+              {saving ? "Saving Quiz..." : "Save Quiz"}
             </button>
-          </div>
+          
         </div>
       </form>
     </motion.div>
+    
+    
 
     {/* The floating button to open the math pad */}
     <motion.button
@@ -1267,61 +1340,33 @@ const validate = () => {
       />
     )}
 
+
+
     {/* Success Modal */}
     {showSuccessModal && (
-      <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-3">
-        <div className="bg-white rounded-xl shadow-lg p-5 sm:p-6 w-full max-w-md space-y-4">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-            Quiz Created Successfully!
-          </h2>
-          <p className="text-sm sm:text-base text-gray-600">
-            Your quiz was saved with all questions and answers.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-end">
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
+        <div className="bg-white p-8 rounded-lg shadow-xl max-w-sm mx-auto">
+          <h3 className="text-xl font-bold text-gray-900 mb-4">Quiz Created! 🎉</h3>
+          <p className="text-gray-700 mb-6">Your new quiz {title} has been successfully saved.</p>
+          <div className="flex justify-end gap-3">
             <button
-              onClick={() => navigate("/teacherDashboard")}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+              onClick={() => navigate("/")}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
             >
-              Go to Dashboard
+              Go Home
             </button>
             <button
-              onClick={() => {
-                setShowSuccessModal(false);
-                setTitle("");
-                setDescription("");
-                setQuestions([
-                  {
-                    question_type: "multiple_choice",
-                    question: "",
-                    time_limit: 30,
-                    points: 1000,
-                    answers: freshAnswers(),
-                    matches: [],
-                  },
-                ]);
-                setCreatedQuizId(null);
-              }}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
+              onClick={() => navigate(`/quiz/${createdQuizId}/edit`)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 transition"
             >
-              Create Another Quiz
+              View/Edit Quiz
             </button>
-            {createdQuizId && (
-              <button
-                onClick={() => navigate(`/edit-quiz/${createdQuizId}`)}
-                className="px-4 py-2 bg-white border rounded-md hover:bg-gray-50 transition"
-              >
-                Edit Quiz
-              </button>
-            )}
           </div>
         </div>
       </div>
     )}
   </>
-  );
+);
 }
 
 export default CreateQuiz;
-
-const freshAnswers = (): Answer[] =>
-  Array.from({ length: 4 }, () => ({ answer: "", is_correct: false }));
