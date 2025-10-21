@@ -235,7 +235,7 @@ async function refineWithGemini(submission: any) {
 
   const terms = Array.isArray(submission.terms) ? submission.terms : JSON.parse(submission.terms);
 
-  const refinementPrompt = `You are an expert mathematics educator creating content for high school to college students.
+  const refinementPrompt = `You are an expert mathematics educator creating content for high school to college students in the Philippines.
 
 Refine this General Mathematics topic to make it educational and engaging:
 
@@ -244,29 +244,20 @@ Refine this General Mathematics topic to make it educational and engaging:
 **Terms:** ${terms.join(', ')}
 
 REQUIREMENTS:
-1. Keep the title mostly the same (only minor improvements, add LaTeX if needed using $ for inline math)
-2. Enhance the "about" description to be clear, engaging, and educational (2-3 well-structured paragraphs)
-3. For EACH term provided, write a detailed explanation (150-250 words each) that includes:
+1. Keep the title the same
+2. Enhance the "about" description to be clear, engaging, and educational to children based on ${submission.title} (1 well-structured paragraphs)
+3. For EACH term provided, write a detailed explanation (50 words each) that includes:
    - Clear definition suitable for students
-   - Mathematical examples with proper LaTeX formatting ($ for inline, $$ for display equations)
    - Real-world applications if relevant
+   - Don't involve too much numbers, optionally just symbols they need to know based on the topic only if applicable.
    - Common mistakes to avoid
 
 CRITICAL INSTRUCTIONS FOR JSON:
 1. Respond ONLY with valid JSON (no markdown code blocks, no backticks, no extra text)
 2. Use FOUR backslashes for LaTeX in JSON strings: "\\\\\\\\frac{1}{2}" not "\\frac{1}{2}"
-3. Keep explanations under 200 words each to avoid truncation
-4. Do NOT use line breaks inside string values - keep everything on one line
-5. Escape ALL special characters properly
+3. Do NOT use line breaks inside string values - keep everything on one line
+4. Escape ALL special characters properly
 
-REQUIREMENTS:
-1. Keep title concise (add LaTeX using $ for inline math if needed)
-2. Write 2-3 paragraph "about" description (clear and educational)
-3. For EACH of the ${terms.length} terms, provide:
-   - Clear definition (suitable for students)
-   - 1-2 mathematical examples with LaTeX
-   - Real-world application (if relevant)
-   - One common mistake to avoid
 
 Required JSON format (single line, no breaks):
 {"title":"Enhanced Title","about_refined":"Enhanced description with inline math like $f(x) = x^2$ where appropriate. Second paragraph continues. Third paragraph wraps up.","terms_expounded":[{"term":"${terms[0]}","explanation":"Clear definition. Example: $f(x) = \\\\\\\\sqrt{x}$ has domain $x \\\\\\\\geq 0$. Real-world use. Common mistake."}]}
