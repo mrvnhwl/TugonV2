@@ -2362,7 +2362,7 @@ export default function TopicSelector() {
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
-                    Question Text
+                    PROBLEM STATEMENT:
                   </label>
                   <div className="p-4 rounded-xl border" style={{ borderColor: color.mist, background: `${color.teal}05` }}>
                     <MathJax dynamic>{questionToView.question_text}</MathJax>
@@ -2372,7 +2372,7 @@ export default function TopicSelector() {
                 {questionToView.category_text && (
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wide mb-2" style={{ color: color.deep }}>
-                      Category Text
+                       EQUATION TO EVALUATE:
                     </label>
                     <div className="p-4 rounded-xl border" style={{ borderColor: color.mist, background: `${color.ocean}05` }}>
                       <MathJax dynamic>{questionToView.category_text}</MathJax>
