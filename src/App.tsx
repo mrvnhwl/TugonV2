@@ -71,6 +71,7 @@ import TopicSelector  from "./pages/tugonsenseproblem/TopicSelector";
 // NEW: Topic Creation & Management
 import TugonTopics from "./pages/topic_creation/tugon_topics";
 import TopicPresenter from "./pages/topic_creation/topic_presenter";
+import TopicCreationSelection from "./pages/topic_creation/topic_creation_selection";
 
 // MathJax config (inline: \( ... \), block: \[ ... \])
 const mathJaxConfig = {
@@ -136,7 +137,8 @@ function AppContent() {
     "/topic/",              // NEW (covers /topic/:slug and /topic/:slug/edit)
     "/topicselector",       // 👈 show Teacher navbar on TopicSelector page
     "/tugon-topics",        // 👈 show Teacher navbar on Topic Creation page
-    
+     // 👈 NEW: Topic Creation Selection page
+    "/topic-presenter/",    // 👈 show Teacher navbar on Topic Presenter page
   ];
 
   const studentPrefixes = ["/", "/studentDashboard", "/studentHome"];
@@ -195,6 +197,7 @@ function AppContent() {
             <Route path="/topicselector" element={<TopicSelector />} />
             
             {/* ✨ New: Topic Creation & Management */}
+            <Route path="/topic-creation-selection" element={<TopicCreationSelection />} />
             <Route path="/tugon-topics" element={<TugonTopics />} />
             <Route path="/topic-presenter/:topicId" element={<TopicPresenter />} />
             {/* ✨ New: Student Progress */}
