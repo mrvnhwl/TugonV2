@@ -76,7 +76,6 @@ function NavItem({
           (e.currentTarget.getAttribute("aria-current") as string | null) === "page";
         e.currentTarget.style.background = isActive ? `${color.mist}22` : "transparent";
       }}
-      aria-current={({ isActive }) => (isActive ? "page" : undefined)}
     >
       {children}
     </NavLink>
@@ -151,6 +150,9 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 {/* NEW: Manage Topics */}
                 <NavItem to="/manage-topics" onNavigate={closeMenuOnNavigate}>
                   Manage Topics
+                </NavItem>
+                <NavItem to="/topicselector" onNavigate={closeMenuOnNavigate}>
+                   Manage Tugonsense
                 </NavItem>
 
                 <span aria-hidden className="mx-2" style={{ width: 1, height: 24, background: "#ffffff33" }} />
@@ -232,6 +234,9 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 {/* NEW: Manage Topics (mobile) */}
                 <NavItem to="/manage-topics" onNavigate={closeMenuOnNavigate}>
                   Manage Topics
+                </NavItem>
+                <NavItem to="/topicselector" onNavigate={closeMenuOnNavigate}>
+                  Topic Selector
                 </NavItem>
 
                 <div className="px-2 pt-2 flex items-center gap-2">
