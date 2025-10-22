@@ -143,7 +143,7 @@ export default function StudentTopics() {
   };
   const itemVariants = {
     hidden: { y: 10, opacity: 0 },
-    visible: { y: 0, opacity: 1, transition: { duration: 0.25, ease: "easeOut" } },
+    visible: { y: 0, opacity: 1 },
   };
 
   return (
@@ -215,22 +215,30 @@ export default function StudentTopics() {
                 </thead>
                 <tbody className="bg-white divide-y" style={{ borderColor: color.mist }}>
                   {filtered.map((t) => (
-                    <motion.tr key={t.id} variants={itemVariants} className="hover:bg-gray-50/60">
+                    <tr key={t.id} className="hover:bg-gray-50/60">
                       <td className="px-4 py-3 align-top">
-                        <div className="font-semibold" style={{ color: color.deep }}>{t.title}</div>
-                        <div className="text-xs" style={{ color: color.steel }}>/topic/{t.slug}</div>
+                        <motion.div variants={itemVariants}>
+                          <div className="font-semibold" style={{ color: color.deep }}>{t.title}</div>
+                          <div className="text-xs" style={{ color: color.steel }}>/topic/{t.slug}</div>
+                        </motion.div>
                       </td>
                       <td className="px-4 py-3 align-top text-sm" style={{ color: color.steel }}>
-                        {t.description || "—"}
+                        <motion.div variants={itemVariants}>
+                          {t.description || "—"}
+                        </motion.div>
                       </td>
                       <td className="px-4 py-3 align-top text-sm" style={{ color: color.steel }}>
-                        {t.created_by_email || "—"}
+                        <motion.div variants={itemVariants}>
+                          {t.created_by_email || "—"}
+                        </motion.div>
                       </td>
                       <td className="px-4 py-3 align-top text-sm" style={{ color: color.steel }}>
-                        {new Date(t.created_at).toLocaleString()}
+                        <motion.div variants={itemVariants}>
+                          {new Date(t.created_at).toLocaleString()}
+                        </motion.div>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-2">
                           {/* Student view route */}
                           <Link
                             to={`/student/topics/${t.slug}`}
@@ -259,9 +267,9 @@ export default function StudentTopics() {
                               No file
                             </span>
                           )}
-                        </div>
+                        </motion.div>
                       </td>
-                    </motion.tr>
+                    </tr>
                   ))}
                 </tbody>
               </table>
