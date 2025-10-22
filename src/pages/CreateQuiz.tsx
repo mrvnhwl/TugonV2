@@ -828,7 +828,7 @@ const validate = () => {
                             focus:border-indigo-500 focus:ring-indigo-500
                             caret-black resize-none font-mono px-3 py-2 mt-1"
                   rows={2}
-                  placeholder="Type your question here (LaTeX supported)"
+                  placeholder="Type your question here"
                 />
                 {/* ✅ Question Preview: KEPT */}
                 {q.question.trim() && (

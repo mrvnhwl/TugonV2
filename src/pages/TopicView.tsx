@@ -26,7 +26,6 @@ export default function TopicView() {
   const { slug } = useParams();
   const [topic, setTopic] = useState<TopicRow | null>(null);
   const [loading, setLoading] = useState(true);
-
   const [isDocx, setIsDocx] = useState(false);
   const [docHtml, setDocHtml] = useState<string>("");
   const [saving, setSaving] = useState(false);
@@ -74,8 +73,6 @@ export default function TopicView() {
 
   async function saveEditedHtml() {
     if (!topic) return;
-
-    // ensure we are the owner when writing
     const { data: userRes, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userRes?.user) {
       alert("Please sign in again.");
@@ -88,7 +85,6 @@ export default function TopicView() {
       const htmlToSave =
         editorRef.current?.innerHTML?.trim() || docHtml || "<p></p>";
 
-      // save rendered HTML
       const blob = new Blob([wrapHtml(topic.title, htmlToSave)], {
         type: "text/html;charset=utf-8",
       });
@@ -103,17 +99,16 @@ export default function TopicView() {
         .getPublicUrl(path);
       const publicUrl = pub?.publicUrl ?? null;
 
-      // update row; force owner match both in WHERE and in payload
       const { data: updated, error: updErr } = await supabase
         .from("topics")
         .update({
           html_url: publicUrl,
           status: "ready",
           status_message: null,
-          created_by: userId, // keep owner the same to satisfy WITH CHECK
+          created_by: userId,
         })
         .eq("id", topic.id)
-        .eq("created_by", userId) // ensure we only touch our own row
+        .eq("created_by", userId)
         .select("*")
         .maybeSingle();
 
@@ -133,7 +128,6 @@ export default function TopicView() {
     }
   }
 
-  // Download the edited content as DOCX (no build errors; loads UMD at runtime)
   async function downloadEditedDocx() {
     if (!topic) return;
     setDownloading(true);
@@ -142,10 +136,11 @@ export default function TopicView() {
         editorRef.current?.innerHTML?.trim() || docHtml || "<p></p>";
       const fullHtml = wrapHtml(topic.title, htmlToSave);
 
-      // Load html-docx-js (UMD) only in browser to avoid Vite/ESM errors
       await ensureHtmlDocxJs();
       // @ts-ignore
-      const blob = (window as any).htmlDocx.asBlob(fullHtml, { orientation: "portrait" });
+      const blob = (window as any).htmlDocx.asBlob(fullHtml, {
+        orientation: "portrait",
+      });
 
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -206,34 +201,43 @@ export default function TopicView() {
           color: "#fff",
         }}
       >
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-extrabold">{topic.title}</h1>
-            {topic.status && (
-              <span
-                className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                style={{
-                  background:
-                    topic.status === "ready"
-                      ? "#dcfce7"
-                      : topic.status === "error"
-                      ? "#fee2e2"
-                      : "#fef3c7",
-                  color:
-                    topic.status === "ready"
-                      ? "#166534"
-                      : topic.status === "error"
-                      ? "#991b1b"
-                      : "#92400e",
-                }}
-              >
-                {topic.status}
-              </span>
+        <div className="max-w-5xl mx-auto px-4 flex justify-between items-start flex-wrap gap-4">
+          {/* Left side: Title & description */}
+          <div>
+            <h1 className="text-3xl font-extrabold leading-tight">
+              {topic.title}
+            </h1>
+            {topic.description && (
+              <p className="opacity-90 mt-2">{topic.description}</p>
             )}
           </div>
-          {topic.description && (
-            <p className="opacity-90 mt-1">{topic.description}</p>
-          )}
+
+          {/* Right side: Back button */}
+          <Link
+            to="/manage-topics"
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold shadow-sm transition"
+            style={{
+              background: "rgba(255,255,255,0.96)",
+              color: color.teal,
+            }}
+            title="Back to Manage Topics"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+            <span className="leading-none whitespace-nowrap">
+              Back to Manage Topics
+            </span>
+          </Link>
         </div>
       </header>
 
@@ -298,11 +302,25 @@ export default function TopicView() {
             </p>
           </div>
         ) : topic.file_url ? (
-          <div className="rounded-xl border p-4" style={{ borderColor: color.mist }}>
+          <div
+            className="rounded-xl border p-4"
+            style={{ borderColor: color.mist }}
+          >
             {/\.(pdf)$/i.test(topic.file_url) ? (
-              <iframe title="Topic file" src={topic.file_url} className="w-full" style={{ height: 600 }} />
+              <iframe
+                title="Topic file"
+                src={topic.file_url}
+                className="w-full"
+                style={{ height: 600 }}
+              />
             ) : (
-              <a href={topic.file_url} target="_blank" rel="noreferrer" className="underline" style={{ color: color.teal }}>
+              <a
+                href={topic.file_url}
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+                style={{ color: color.teal }}
+              >
                 Open attached file
               </a>
             )}
@@ -340,11 +358,17 @@ ${body}
 </body>
 </html>`;
 }
+
 function escapeHtml(s: string) {
-  return s.replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c]!));
+  return s.replace(/[&<>'"]/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  }[c]!));
 }
 
-// Load html-docx-js (UMD) only in browser to avoid Vite/ESM build errors.
 function ensureHtmlDocxJs(): Promise<void> {
   return new Promise((resolve, reject) => {
     if ((window as any).htmlDocx) return resolve();

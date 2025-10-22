@@ -11,6 +11,7 @@ import {
   ChevronRight,
   FolderCog,
   Brain,
+  Eye, // for AI topics view count icon
 } from "lucide-react";
 import Footer from "../components/Footer";
 import { motion } from "framer-motion";
@@ -881,6 +882,9 @@ export default function TeacherDashboard() {
 
             {/* Topics (unchanged, but placed on right column) */}
             <TopicsBlock sections={sections} />
+
+            {/* AI topics (published only) */}
+            <AiTopicsBlock />
           </div>
         </div>
       </main>
@@ -1474,6 +1478,152 @@ function TopicsBlock({ sections }: { sections: Section[] }) {
             </div>
           </div>
         </div>
+      )}
+    </motion.div>
+  );
+}
+
+/* --------------------- NEW: AI-Generated Topics (display-only) --------------------- */
+
+function AiTopicsBlock() {
+  type AiTopic = {
+    id: string;
+    title: string;
+    about_refined: string | null;
+    view_count: number | null;
+    creator_full_name: string | null;
+    published_at: string;
+  };
+
+  const [topics, setTopics] = React.useState<AiTopic[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  // Load AI-published topics only (read-only)
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("published_topics")
+        .select("id, title, about_refined, view_count, creator_full_name, published_at, is_active, status")
+        .eq("is_active", true)
+        .eq("status", "published")
+        .order("published_at", { ascending: false });
+
+      if (!alive) return;
+      if (error) {
+        console.error("AI topics fetch error:", error);
+        setTopics([]);
+      } else {
+        setTopics((data as AiTopic[]) ?? []);
+      }
+      setLoading(false);
+    })();
+
+    const channel = supabase
+      .channel("public:published_topics")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "published_topics" },
+        async () => {
+          const { data, error } = await supabase
+            .from("published_topics")
+            .select("id, title, about_refined, view_count, creator_full_name, published_at, is_active, status")
+            .eq("is_active", true)
+            .eq("status", "published")
+            .order("published_at", { ascending: false });
+          if (!error && data) setTopics(data as AiTopic[]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      alive = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
+  } as const;
+  const itemVariants = {
+    hidden: { y: 16, opacity: 0 },
+    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } },
+  } as const;
+
+  return (
+    <motion.div
+      className="rounded-2xl p-4 sm:p-6 shadow-xl ring-1"
+      style={{ background: "#fff", borderColor: `${color.mist}55` }}
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+    >
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
+        <h2 className="text-lg sm:text-2xl font-bold" style={{ color: color.deep }}>
+          Additional Topics <span className="text-xs align-middle ml-2" style={{ color: color.steel }}>(AI)</span>
+        </h2>
+        <span
+          className="rounded-full px-2.5 sm:px-3 py-1 text-xs font-medium whitespace-nowrap"
+          style={{ background: `${color.teal}15`, color: color.teal, border: `1px solid ${color.teal}40` }}
+        >
+          {loading ? "…" : `${topics.length} total`}
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="text-sm" style={{ color: color.steel }}>
+          Loading…
+        </div>
+      ) : topics.length === 0 ? (
+        <div className="text-sm" style={{ color: color.steel }}>
+          No AI topics yet. You can generate them on the Topics page.
+        </div>
+      ) : (
+        <motion.div className="space-y-3" variants={containerVariants}>
+          {topics.map((t) => (
+            <motion.div
+              key={t.id}
+              variants={itemVariants}
+              whileHover={{ scale: 1.01, x: 4 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <div
+                className="flex justify-between items-center rounded-lg p-3 sm:p-4 transition relative"
+                style={{ border: `1px solid ${color.mist}`, background: "#fff" }}
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium truncate block" style={{ color: color.deep }}>
+                    {t.title}
+                  </span>
+                  {t.about_refined && (
+                    <span className="text-xs mt-1 block line-clamp-2" style={{ color: color.steel }}>
+                      {t.about_refined}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-3 text-xs mt-1" style={{ color: color.steel }}>
+                    <span className="flex items-center gap-1">
+                      <Eye className="h-3.5 w-3.5" /> {t.view_count ?? 0}
+                    </span>
+                    {t.creator_full_name && <span>✍️ {t.creator_full_name}</span>}
+                    <span>{new Date(t.published_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center ml-4">
+                  <Link
+                    to={`/topic-presenter/${t.id}`}
+                    className="px-3 py-2 rounded-full text-sm font-semibold transition"
+                    style={{ background: color.teal, color: "#fff" }}
+                    title="Open topic"
+                  >
+                    View
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
       )}
     </motion.div>
   );

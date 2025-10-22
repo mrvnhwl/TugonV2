@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useId, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   BookOpen, Play, BarChart, Trophy, Sparkles,
@@ -68,25 +68,50 @@ function StudentHome() {
   const [rankPercent, setRankPercent] = useState<string>("—");
   const [loadingStats, setLoadingStats] = useState<boolean>(true);
 
-  const lottieOptions = (animationData: LottieAny) => ({
-    loop: true,
-    autoplay: true,
-    animationData,
-    rendererSettings: { preserveAspectRatio: "xMidYMid slice" },
-  });
+  // track mounted to avoid setState on unmounted
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const inputId = useId();
+  const reducedMotion = typeof window !== "undefined" && window.matchMedia
+    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    : false;
+
+  const lottieOptions = useCallback(
+    (animationData: LottieAny) => ({
+      loop: !reducedMotion,
+      autoplay: !reducedMotion,
+      animationData,
+      rendererSettings: { preserveAspectRatio: "xMidYMid slice" },
+    }),
+    [reducedMotion]
+  );
 
   // -------- membership (safer: limit(1)) --------
   const loadMembership = useCallback(async () => {
     if (!email && !userId) return;
-    const { data } = await supabase
-      .from("section_students")
-      .select("section_id, sections(name)")
-      .or(`student_email.eq.${email},student_id.eq.${userId}`)
-      .limit(1);
-    if (data && data.length) {
-      setMySectionName((data as any)[0]?.sections?.name ?? null);
-    } else {
-      setMySectionName(null);
+    try {
+      const { data, error } = await supabase
+        .from("section_students")
+        .select("section_id, sections(name)")
+        .or(`student_email.eq.${email},student_id.eq.${userId}`)
+        .limit(1);
+
+      if (error) throw error;
+
+      if (mounted.current) {
+        if (data && data.length) {
+          setMySectionName((data as any)[0]?.sections?.name ?? null);
+        } else {
+          setMySectionName(null);
+        }
+      }
+    } catch {
+      // keep silent but avoid crash; you could surface a mild message if desired
+      if (mounted.current) setMySectionName(null);
     }
   }, [email, userId]);
 
@@ -100,56 +125,78 @@ function StudentHome() {
       if (!userId && !email) return;
       setLoadingStats(true);
 
-      // A) Daily Challenge metrics (today)
-      const { data: todayRun } = await supabase
-        .from("daily_challenge_runs")
-        .select("score, streak")
-        .eq("user_id", userId)
-        .eq("run_date", todayUTC())
-        .maybeSingle();
+      try {
+        // A) Daily Challenge metrics (today)
+        const { data: todayRun, error: todayErr } = await supabase
+          .from("daily_challenge_runs")
+          .select("score, streak")
+          .eq("user_id", userId)
+          .eq("run_date", todayUTC())
+          .maybeSingle();
 
-      setXpToday(todayRun?.score ?? 0);
-      setStreak(todayRun?.streak ?? 0);
+        if (todayErr) throw todayErr;
 
-      // B) Rank percentile on latest quiz (unchanged logic)
-      const { data: latestQuizList } = await supabase
-        .from("quizzes")
-        .select("id, created_at")
-        .order("created_at", { ascending: false })
-        .limit(1);
+        if (mounted.current) {
+          setXpToday(todayRun?.score ?? 0);
+          setStreak(todayRun?.streak ?? 0);
+        }
 
-      const latestQuizId = latestQuizList?.[0]?.id as string | undefined;
+        // B) Rank percentile on latest quiz (unchanged logic)
+        const { data: latestQuizList, error: quizErr } = await supabase
+          .from("quizzes")
+          .select("id, created_at")
+          .order("created_at", { ascending: false })
+          .limit(1);
 
-      if (latestQuizId) {
-        const { data: lb } = await supabase.rpc("get_highest_scores_for_quiz", {
-          quizid: latestQuizId,
-        });
+        if (quizErr) throw quizErr;
 
-        if (Array.isArray(lb) && lb.length) {
-          const sorted = [...lb].sort((a: any, b: any) => (b.score ?? 0) - (a.score ?? 0));
-          const n = sorted.length;
-          const idx = sorted.findIndex(
-            (row: any) => row.user_id === userId || row.user_email === email
-          );
-          if (idx >= 0) {
-            const rank = idx + 1;
-            const percentile = Math.max(1, Math.round((1 - (rank - 1) / n) * 100));
-            setRankPercent(`Top ${percentile}%`);
-          } else {
+        const latestQuizId = latestQuizList?.[0]?.id as string | undefined;
+
+        if (latestQuizId) {
+          const { data: lb, error: lbErr } = await supabase.rpc("get_highest_scores_for_quiz", {
+            quizid: latestQuizId,
+          });
+          if (lbErr) throw lbErr;
+
+          if (Array.isArray(lb) && lb.length) {
+            const sorted = [...lb].sort((a: any, b: any) => (b.score ?? 0) - (a.score ?? 0));
+            const n = sorted.length;
+            const idx = sorted.findIndex(
+              (row: any) => row.user_id === userId || row.user_email === email
+            );
+            if (mounted.current) {
+              if (idx >= 0) {
+                const rank = idx + 1;
+                const percentile = Math.max(1, Math.round((1 - (rank - 1) / n) * 100));
+                setRankPercent(`Top ${percentile}%`);
+              } else {
+                setRankPercent("—");
+              }
+            }
+          } else if (mounted.current) {
             setRankPercent("—");
           }
-        } else {
+        } else if (mounted.current) {
           setRankPercent("—");
         }
-      } else {
-        setRankPercent("—");
+      } catch {
+        if (mounted.current) {
+          // conservative fallbacks
+          setXpToday(0);
+          setStreak(0);
+          setRankPercent("—");
+        }
+      } finally {
+        if (mounted.current) setLoadingStats(false);
       }
-
-      setLoadingStats(false);
     };
 
     loadStats();
   }, [userId, email]);
+
+  // derived validation state
+  const cleanedCode = useMemo(() => code.replace(/[^A-Za-z0-9]/g, "").toUpperCase(), [code]);
+  const codeLooksValid = /^[A-Z0-9]{6}$/.test(cleanedCode);
 
   // -------- join handler --------
   const handleJoin = async () => {
@@ -161,8 +208,7 @@ function StudentHome() {
       return;
     }
 
-    const cleaned = code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-    if (!/^[A-Z0-9]{6}$/.test(cleaned)) {
+    if (!codeLooksValid) {
       setJoinErr("Enter a valid 6-character code.");
       return;
     }
@@ -172,11 +218,12 @@ function StudentHome() {
       const { data: section, error: sErr } = await supabase
         .from("sections")
         .select("id, name, join_code, expires_at")
-        .eq("join_code", cleaned)
+        .eq("join_code", cleanedCode)
         .limit(1);
 
-      const sec = section?.[0];
       if (sErr) throw sErr;
+
+      const sec = section?.[0];
       if (!sec) {
         setJoinErr("No section found for that code.");
         return;
@@ -208,12 +255,14 @@ function StudentHome() {
       }
 
       await loadMembership();
-      setJoinMsg(`Joined section: ${sec.name}`);
-      setCode("");
+      if (mounted.current) {
+        setJoinMsg(`Joined section: ${sec.name}`);
+        setCode("");
+      }
     } catch (e: any) {
-      setJoinErr(e?.message ?? "Something went wrong.");
+      if (mounted.current) setJoinErr(e?.message ?? "Something went wrong.");
     } finally {
-      setLoadingJoin(false);
+      if (mounted.current) setLoadingJoin(false);
     }
   };
 
@@ -245,8 +294,7 @@ function StudentHome() {
                 className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium shadow-sm backdrop-blur"
                 style={{ background: "#fff", border: `1px solid ${color.mist}`, color: color.teal }}
               >
-                <Sparkles className="h-4 w-4" />
-                Built for Grade 11 General Mathematics
+                <Sparkles className="h-4 w-4" aria-hidden /> Built for Grade 11 General Mathematics
               </span>
 
               <h1
@@ -268,13 +316,15 @@ function StudentHome() {
                   to="/studentDashboard"
                   className="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold shadow-md transition"
                   style={{ background: color.teal, color: "#fff" }}
+                  aria-label="Start learning on your Student Dashboard"
                 >
-                  Start learning <ArrowRight className="ml-2 h-5 w-5" />
+                  Start learning <ArrowRight className="ml-2 h-5 w-5" aria-hidden />
                 </Link>
                 <Link
                   to="/studentDashboard"
                   className="inline-flex items-center justify-center rounded-xl border px-6 py-3 font-semibold transition"
                   style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
+                  aria-label="Browse topics on your Student Dashboard"
                 >
                   Browse topics
                 </Link>
@@ -284,10 +334,11 @@ function StudentHome() {
               <div
                 className="mt-6 rounded-2xl p-4 sm:p-5 shadow-md ring-1"
                 style={{ background: "#fff", borderColor: `${color.mist}55` }}
+                aria-labelledby="join-heading"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="text-base sm:text-lg font-semibold" style={{ color: color.deep }}>
+                    <h3 id="join-heading" className="text-base sm:text-lg font-semibold" style={{ color: color.deep }}>
                       {mySectionName ? "Your Section" : "Join your class section"}
                     </h3>
                     <p className="text-xs sm:text-sm mt-1" style={{ color: color.steel }}>
@@ -307,14 +358,20 @@ function StudentHome() {
 
                   {!mySectionName && (
                     <div className="flex w-full sm:w-auto gap-2">
+                      <label htmlFor={inputId} className="sr-only">Section join code</label>
                       <input
+                        id={inputId}
                         value={code}
                         onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 6))}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !loadingJoin) handleJoin(); }}
                         maxLength={6}
-                        placeholder="enter code"
+                        placeholder="ENTER CODE"
+                        inputMode="latin"
+                        aria-invalid={!!joinErr}
+                        aria-describedby={`${inputId}-hint ${inputId}-status`}
                         className="flex-1 sm:w-40 rounded-lg border px-3 py-2 text-sm tracking-widest text-center"
                         style={{
-                          borderColor: color.mist,
+                          borderColor: code.length > 0 && !codeLooksValid ? "#fca5a5" : color.mist,
                           background: "#fff",
                           color: color.deep,
                           letterSpacing: "0.15em",
@@ -322,21 +379,28 @@ function StudentHome() {
                       />
                       <button
                         onClick={handleJoin}
-                        disabled={loadingJoin}
+                        disabled={loadingJoin || !codeLooksValid}
                         className="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold shadow-md transition disabled:opacity-60"
                         style={{ background: color.teal, color: "#fff" }}
+                        aria-live="polite"
                       >
-                        {loadingJoin ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join"}
+                        {loadingJoin ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : "Join"}
                       </button>
                     </div>
                   )}
                 </div>
 
+                {!mySectionName && (
+                  <p id={`${inputId}-hint`} className="mt-2 text-xs" style={{ color: color.steel }}>
+                    Code format: letters & numbers, exactly 6 characters (e.g., <span className="font-mono">A1B2C3</span>).
+                  </p>
+                )}
+
                 {(joinMsg || joinErr) && (
-                  <div className="mt-3 flex items-center gap-2 text-sm">
+                  <div id={`${inputId}-status`} className="mt-3 flex items-center gap-2 text-sm" aria-live="polite">
                     {joinMsg && (
                       <>
-                        <CheckCircle2 className="h-4 w-4" style={{ color: "#059669" }} />
+                        <CheckCircle2 className="h-4 w-4" style={{ color: "#059669" }} aria-hidden />
                         <span style={{ color: "#065f46" }}>{joinMsg}</span>
                       </>
                     )}
@@ -348,13 +412,13 @@ function StudentHome() {
               {/* Trust bullets */}
               <ul className="mt-6 flex flex-col sm:flex-row gap-3 text-sm" style={{ color: color.steel }}>
                 <li className="flex items-center">
-                  <CheckCircle2 className="mr-2 h-5 w-5" style={{ color: "#059669" }} /> No ads, just learning
+                  <CheckCircle2 className="mr-2 h-5 w-5" style={{ color: "#059669" }} aria-hidden /> No ads, just learning
                 </li>
                 <li className="flex items-center">
-                  <ShieldCheck className="mr-2 h-5 w-5" style={{ color: color.teal }} /> Progress saved securely
+                  <ShieldCheck className="mr-2 h-5 w-5" style={{ color: color.teal }} aria-hidden /> Progress saved securely
                 </li>
                 <li className="flex items-center">
-                  <Clock className="mr-2 h-5 w-5" style={{ color: color.aqua }} /> 5–10 minutes a day
+                  <Clock className="mr-2 h-5 w-5" style={{ color: color.aqua }} aria-hidden /> 5–10 minutes a day
                 </li>
               </ul>
             </motion.div>
@@ -369,30 +433,33 @@ function StudentHome() {
               <div
                 className="mx-auto max-w-md md:max-w-none rounded-3xl p-4 shadow-xl ring-1 backdrop-blur"
                 style={{ background: "#fff", borderColor: `${color.mist}55` }}
+                aria-label="Your learning snapshot"
               >
-                <div className="rounded-2xl overflow-hidden">
-                  <Lottie options={lottieOptions(bookAnimation)} />
+                <div className="rounded-2xl overflow-hidden" aria-hidden={reducedMotion}>
+                  {!reducedMotion ? <Lottie options={lottieOptions(bookAnimation)} /> : null}
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-3 text-xs" style={{ color: color.steel }}>
-                  <div className="rounded-lg border bg-white px-3 py-2">
-                    Daily Streak:{" "}
-                    <span className="font-semibold" style={{ color: color.deep }}>
-                      {loadingStats ? "…" : streak}
-                    </span>
-                  </div>
-                  <div className="rounded-lg border bg-white px-3 py-2">
-                    XP Today:{" "}
-                    <span className="font-semibold" style={{ color: color.deep }}>
-                      {loadingStats ? "…" : xpToday}
-                    </span>
-                  </div>
-                  <div className="rounded-lg border bg-white px-3 py-2">
-                    Rank:{" "}
-                    <span className="font-semibold" style={{ color: color.deep }}>
-                      {loadingStats ? "…" : rankPercent}
-                    </span>
-                  </div>
+                  {[
+                    { label: "Daily Streak", value: loadingStats ? null : streak },
+                    { label: "XP Today", value: loadingStats ? null : xpToday },
+                    { label: "Rank", value: loadingStats ? null : rankPercent },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-lg border bg-white px-3 py-2" style={{ borderColor: color.mist }}>
+                      <span className="block">{label}:</span>
+                      {value === null ? (
+                        <span
+                          className="mt-1 inline-block h-4 w-12 animate-pulse rounded"
+                          style={{ background: `${color.mist}66` }}
+                          aria-label={`${label} loading`}
+                        />
+                      ) : (
+                        <span className="font-semibold" style={{ color: color.deep }}>
+                          {value}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             </motion.div>
@@ -403,17 +470,21 @@ function StudentHome() {
       {/* ---------------- Main sections ---------------- */}
       <main className="flex-grow">
         {/* Topics */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16">
-          <h2 className="text-xl sm:text-2xl font-bold" style={{ color: color.deep }}>
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16" aria-labelledby="topics-heading">
+          <h2 id="topics-heading" className="text-xl sm:text-2xl font-bold" style={{ color: color.deep }}>
             Popular Topics
           </h2>
+          <p className="mt-1 text-sm" style={{ color: color.steel }}>
+            Jump straight into a lesson. You can always return to your dashboard to track progress.
+          </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {topics.map((t) => (
               <Link
                 key={t.path}
                 to={t.path}
-                className="rounded-full border px-4 py-2 text-sm transition"
+                className="rounded-full border px-4 py-2 text-sm transition hover:shadow-sm"
                 style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
+                aria-label={`Open topic: ${t.title}`}
               >
                 {t.title}
               </Link>
@@ -422,7 +493,8 @@ function StudentHome() {
         </section>
 
         {/* Feature cards */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16">
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16" aria-labelledby="features-heading">
+          <h2 id="features-heading" className="sr-only">Learning features</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
             {features.map((feature, index) => (
               <motion.div
@@ -432,25 +504,36 @@ function StudentHome() {
                 transition={{ duration: 0.5, delay: 0.05 * index }}
                 className="group overflow-hidden rounded-3xl bg-white shadow-md ring-1 transition"
                 style={{ borderColor: `${color.mist}33` }}
+                role="article"
+                aria-labelledby={`feat-${index}-title`}
               >
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-0">
                   <div className="col-span-2 p-6 sm:p-8">
-                    <div className="inline-flex items-center justify-center rounded-xl p-3" style={{ background: `${color.teal}22` }}>
+                    <div
+                      className="inline-flex items-center justify-center rounded-xl p-3"
+                      style={{ background: `${color.teal}22` }}
+                      aria-hidden
+                    >
                       <feature.icon className="h-6 w-6" style={{ color: color.teal }} />
                     </div>
-                    <h3 className="mt-4 text-lg sm:text-xl font-semibold" style={{ color: color.deep }}>
+                    <h3 id={`feat-${index}-title`} className="mt-4 text-lg sm:text-xl font-semibold" style={{ color: color.deep }}>
                       {feature.title}
                     </h3>
                     <p className="mt-2 text-sm sm:text-base" style={{ color: color.steel }}>
                       {feature.description}
                     </p>
-                    <Link to={feature.link} className="mt-4 inline-flex items-center font-medium hover:underline" style={{ color: color.teal }}>
-                      {/* link affordance */}
+                    <Link
+                      to={feature.link}
+                      className="mt-4 inline-flex items-center font-medium hover:underline"
+                      style={{ color: color.teal }}
+                      aria-label={`Explore ${feature.title}`}
+                    >
+                      Explore <ArrowRight className="ml-1 h-4 w-4" aria-hidden />
                     </Link>
                   </div>
                   <div className="sm:border-l bg-gradient-to-b p-4 sm:p-6" style={{ borderColor: `${color.mist}33`, background: `${color.mist}11` }}>
-                    <div className="rounded-2xl overflow-hidden">
-                      <Lottie options={lottieOptions(feature.animation)} />
+                    <div className="rounded-2xl overflow-hidden" aria-hidden={reducedMotion}>
+                      {!reducedMotion ? <Lottie options={lottieOptions(feature.animation)} /> : null}
                     </div>
                   </div>
                 </div>
@@ -460,27 +543,27 @@ function StudentHome() {
         </section>
 
         {/* Value props */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16">
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16" aria-labelledby="value-heading">
           <div
             className="rounded-3xl px-6 sm:px-10 py-10 sm:py-12 text-white shadow-lg"
             style={{ background: `linear-gradient(to right, ${color.teal}, ${color.aqua})` }}
           >
             <div className="grid md:grid-cols-3 gap-8">
               <div>
-                <h3 className="text-2xl font-bold">Learn smarter</h3>
+                <h3 id="value-heading" className="text-2xl font-bold">Learn smarter</h3>
                 <p className="mt-2 max-w-md text-white/90">
                   Short lessons, interactive questions, instant feedback. No fluff—just understanding.
                 </p>
               </div>
               <ul className="space-y-3 text-white/90">
                 <li className="flex items-start">
-                  <CheckCircle2 className="mr-2 mt-0.5 h-5 w-5 text-white" /> Personalized practice and hints
+                  <CheckCircle2 className="mr-2 mt-0.5 h-5 w-5 text-white" aria-hidden /> Personalized practice and hints
                 </li>
                 <li className="flex items-start">
-                  <CheckCircle2 className="mr-2 mt-0.5 h-5 w-5 text-white" /> Streaks and goals keep you on track
+                  <CheckCircle2 className="mr-2 mt-0.5 h-5 w-5 text-white" aria-hidden /> Streaks and goals keep you on track
                 </li>
                 <li className="flex items-start">
-                  <CheckCircle2 className="mr-2 mt-0.5 h-5 w-5 text-white" /> Built for SHS Gen Math
+                  <CheckCircle2 className="mr-2 mt-0.5 h-5 w-5 text-white" aria-hidden /> Built for SHS Gen Math
                 </li>
               </ul>
               <div className="flex md:justify-end">
@@ -488,9 +571,10 @@ function StudentHome() {
                   to="/studentDashboard"
                   className="inline-flex items-center rounded-xl bg-white px-5 py-3 font-semibold shadow-md transition"
                   style={{ color: color.teal }}
+                  aria-label="Continue learning on your Student Dashboard"
                 >
                   Continue your journey
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-5 w-5" aria-hidden />
                 </Link>
               </div>
             </div>
@@ -498,11 +582,11 @@ function StudentHome() {
         </section>
 
         {/* CTA */}
-        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 my-12 sm:my-16">
+        <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 my-12 sm:my-16" aria-labelledby="cta-heading">
           <div className="rounded-3xl border bg-white p-6 sm:p-10 shadow-sm" style={{ borderColor: color.mist }}>
             <div className="flex flex-col md:flex-row items-center gap-6">
               <div className="flex-1 text-center md:text-left">
-                <h3 className="text-2xl font-bold" style={{ color: color.deep }}>
+                <h3 id="cta-heading" className="text-2xl font-bold" style={{ color: color.deep }}>
                   Make today Day 1 of your streak.
                 </h3>
                 <p className="mt-2" style={{ color: color.steel }}>
@@ -514,6 +598,7 @@ function StudentHome() {
                   to="/studentDashboard"
                   className="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold shadow-md transition"
                   style={{ background: color.teal, color: "#fff" }}
+                  aria-label="Get started on your Student Dashboard"
                 >
                   Get started
                 </Link>
@@ -521,6 +606,7 @@ function StudentHome() {
                   to="/studentDashboard"
                   className="inline-flex items-center justify-center rounded-xl border px-6 py-3 font-semibold transition"
                   style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
+                  aria-label="View syllabus on your Student Dashboard"
                 >
                   View syllabus
                 </Link>

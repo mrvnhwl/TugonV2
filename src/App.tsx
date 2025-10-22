@@ -134,7 +134,7 @@ function AppContent() {
     "/manage-sections",
     "/student-progress",
     "/manage-topics",       // NEW
-    "/topic/",              // NEW (covers /topic/:slug and /topic/:slug/edit)
+   
     "/topicselector",       // 👈 show Teacher navbar on TopicSelector page
     "/tugon-topics",        // 👈 show Teacher navbar on Topic Creation page
      // 👈 NEW: Topic Creation Selection page
