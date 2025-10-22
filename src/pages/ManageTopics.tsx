@@ -381,7 +381,7 @@ export default function ManageTopics() {
   };
   const itemVariants = {
     hidden: { y: 16, opacity: 0 },
-    visible: { y: 0, opacity: 1, transition: { duration: 0.4, ease: "easeOut" } },
+    visible: { y: 0, opacity: 1 },
   };
 
   return (
@@ -406,12 +406,12 @@ export default function ManageTopics() {
             )}
           </div>
           <Link
-            to="/teacherDashboard"
-            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold"
+            to="/topic-creation-selection"
+            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-all duration-200 hover:shadow-md hover:scale-105"
             style={{ borderColor: color.mist, background: "#fff", color: color.steel }}
           >
             <ChevronLeft className="h-4 w-4" />
-            Back to Dashboard
+            Go Back
           </Link>
         </div>
 
@@ -519,101 +519,113 @@ export default function ManageTopics() {
                   {topics.map((t) => {
                     const isBuiltin = !!t.is_builtin;
                     return (
-                      <motion.tr key={t.id} variants={itemVariants} className="hover:bg-gray-50/60">
+                      <tr key={t.id} className="hover:bg-gray-50/60">
                         <td className="px-4 py-3 align-top">
-                          <div className="flex items-center gap-2">
-                            <div className="font-semibold" style={{ color: color.deep }}>
-                              {t.title}
+                          <motion.div variants={itemVariants}>
+                            <div className="flex items-center gap-2">
+                              <div className="font-semibold" style={{ color: color.deep }}>
+                                {t.title}
+                              </div>
+                              {isBuiltin && (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
+                                  style={{
+                                    background: `${color.teal}15`,
+                                    color: color.teal,
+                                    border: `1px solid ${color.teal}40`,
+                                  }}
+                                  title="This topic is built into the app"
+                                >
+                                  <Shield className="h-3 w-3" /> Built-in
+                                </span>
+                              )}
                             </div>
-                            {isBuiltin && (
-                              <span
-                                className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
-                                style={{
-                                  background: `${color.teal}15`,
-                                  color: color.teal,
-                                  border: `1px solid ${color.teal}40`,
-                                }}
-                                title="This topic is built into the app"
-                              >
-                                <Shield className="h-3 w-3" /> Built-in
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs" style={{ color: color.steel }}>
-                            /{t.slug}
-                          </div>
+                            <div className="text-xs" style={{ color: color.steel }}>
+                              /{t.slug}
+                            </div>
+                          </motion.div>
                         </td>
 
                         <td className="px-4 py-3 align-top text-sm" style={{ color: color.steel }}>
-                          {t.description || "—"}
+                          <motion.div variants={itemVariants}>
+                            {t.description || "—"}
+                          </motion.div>
                         </td>
 
                         <td className="px-4 py-3 align-top">
-                          {t.route_path ? (
-                            <Link
-                              to={t.route_path}
-                              className="inline-flex items-center gap-2 text-sm underline"
-                              style={{ color: color.teal }}
-                              title={t.html_url || undefined}
-                            >
-                              <FileText className="h-4 w-4" />
-                              Open Page
-                            </Link>
-                          ) : t.file_url ? (
-                            <a
-                              href={t.file_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 text-sm underline"
-                              style={{ color: color.teal }}
-                              title={t.file_url}
-                            >
-                              <FileText className="h-4 w-4" />
-                              Open File
-                            </a>
-                          ) : (
-                            <span className="text-sm" style={{ color: color.steel }}>
-                              No file
-                            </span>
-                          )}
+                          <motion.div variants={itemVariants}>
+                            {t.route_path ? (
+                              <Link
+                                to={t.route_path}
+                                className="inline-flex items-center gap-2 text-sm underline"
+                                style={{ color: color.teal }}
+                                title={t.html_url || undefined}
+                              >
+                                <FileText className="h-4 w-4" />
+                                Open Page
+                              </Link>
+                            ) : t.file_url ? (
+                              <a
+                                href={t.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 text-sm underline"
+                                style={{ color: color.teal }}
+                                title={t.file_url}
+                              >
+                                <FileText className="h-4 w-4" />
+                                Open File
+                              </a>
+                            ) : (
+                              <span className="text-sm" style={{ color: color.steel }}>
+                                No file
+                              </span>
+                            )}
+                          </motion.div>
                         </td>
 
                         {/* Created By (email) */}
                         <td className="px-4 py-3 align-top text-sm" style={{ color: color.steel }}>
-                          {t.created_by_email || t.created_by || "—"}
+                          <motion.div variants={itemVariants}>
+                            {t.created_by_email || t.created_by || "—"}
+                          </motion.div>
                         </td>
 
                         {/* Created At */}
                         <td className="px-4 py-3 align-top text-sm" style={{ color: color.steel }}>
-                          {new Date(t.created_at).toLocaleString()}
+                          <motion.div variants={itemVariants}>
+                            {new Date(t.created_at).toLocaleString()}
+                          </motion.div>
                         </td>
 
                         {/* Actions */}
                         <td className="px-4 py-3 align-top">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => openEdit(t)}
-                              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
-                              style={{ borderColor: color.mist, color: color.deep, background: "#fff" }}
-                              disabled={isBuiltin}
-                              title={isBuiltin ? "Built-in topics are edited in code" : "Edit"}
-                            >
-                              <PencilLine className="h-4 w-4" />
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(t)}
-                              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
-                              style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" }}
-                              disabled={isBuiltin}
-                              title={isBuiltin ? "Built-in topics cannot be deleted" : "Delete"}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </button>
-                          </div>
+                          <motion.div variants={itemVariants}>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => openEdit(t)}
+                                className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
+                                style={{ borderColor: color.mist, color: color.deep, background: "#fff" }}
+                                disabled={isBuiltin}
+                                title={isBuiltin ? "Built-in topics are edited in code" : "Edit"}
+                              >
+                                <PencilLine className="h-4 w-4" />
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(t)}
+                                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+                                style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" }}
+                                disabled={isBuiltin}
+                                title={isBuiltin ? "Built-in topics cannot be deleted" : "Delete"}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete
+                              </button>
+                            </div>
+                          </motion.div>
                         </td>
-                      </motion.tr>
+                      </tr>
                     );
                   })}
                 </tbody>

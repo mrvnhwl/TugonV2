@@ -2014,7 +2014,7 @@ export default function UserInput({
                             virtual-keyboard-mode={virtualKeyboardEnabled ? "manual" : "off"}
                             smart-fence={true}
                             smart-superscript={true}
-                            smart-mode={true}
+                            smart-mode={true} 
                             style={{
                               width: "100%",
                               border: "none",

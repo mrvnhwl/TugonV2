@@ -225,6 +225,76 @@ If ANY field is unrelated to General Mathematics, set isValid to false and provi
 }
 
 // ========================================
+// LATEX FORMATTER - Remove LaTeX formatting
+// ========================================
+function stripLatexFormatting(text: string): string {
+  if (!text) return text;
+  
+  // Remove inline math: $...$ or \(...\)
+  text = text.replace(/\$([^$]+)\$/g, '$1');
+  text = text.replace(/\\\(([^)]+)\\\)/g, '$1');
+  
+  // Remove display math: $$...$$ or \[...\]
+  text = text.replace(/\$\$([^$]+)\$\$/g, '$1');
+  text = text.replace(/\\\[([^\]]+)\\\]/g, '$1');
+  
+  // Remove common LaTeX commands
+  text = text.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)'); // \frac{a}{b} -> (a)/(b)
+  text = text.replace(/\\sqrt\{([^}]+)\}/g, '√($1)'); // \sqrt{x} -> √(x)
+  text = text.replace(/\\sqrt\[([^\]]+)\]\{([^}]+)\}/g, '$1√($2)'); // \sqrt[n]{x} -> n√(x)
+  
+  // Remove LaTeX symbols
+  text = text.replace(/\\geq/g, '≥');
+  text = text.replace(/\\leq/g, '≤');
+  text = text.replace(/\\neq/g, '≠');
+  text = text.replace(/\\times/g, '×');
+  text = text.replace(/\\div/g, '÷');
+  text = text.replace(/\\pm/g, '±');
+  text = text.replace(/\\infty/g, '∞');
+  text = text.replace(/\\pi/g, 'π');
+  text = text.replace(/\\theta/g, 'θ');
+  text = text.replace(/\\alpha/g, 'α');
+  text = text.replace(/\\beta/g, 'β');
+  text = text.replace(/\\gamma/g, 'γ');
+  text = text.replace(/\\delta/g, 'δ');
+  text = text.replace(/\\sum/g, 'Σ');
+  text = text.replace(/\\int/g, '∫');
+  text = text.replace(/\\partial/g, '∂');
+  
+  // Remove text formatting commands
+  text = text.replace(/\\textbf\{([^}]+)\}/g, '$1'); // \textbf{x} -> x
+  text = text.replace(/\\textit\{([^}]+)\}/g, '$1'); // \textit{x} -> x
+  text = text.replace(/\\text\{([^}]+)\}/g, '$1'); // \text{x} -> x
+  
+  // Remove superscript/subscript notation
+  text = text.replace(/\^(\d+)/g, '^$1'); // Keep simple exponents
+  text = text.replace(/\^\\?\{([^}]+)\}/g, '^($1)'); // ^{2x} -> ^(2x)
+  text = text.replace(/_(\d+)/g, '_$1'); // Keep simple subscripts
+  text = text.replace(/_\\?\{([^}]+)\}/g, '_($1)'); // _{2x} -> _(2x)
+  
+  // Remove remaining backslashes
+  text = text.replace(/\\\\/g, ''); // Double backslashes
+  text = text.replace(/\\(?=[a-zA-Z])/g, ''); // Backslash before letters
+  
+  // Clean up extra spaces
+  text = text.replace(/\s+/g, ' ').trim();
+  
+  return text;
+}
+
+// Apply LaTeX stripping to the refined content
+function cleanRefinedContent(content: any): any {
+  return {
+    title: stripLatexFormatting(content.title),
+    about_refined: stripLatexFormatting(content.about_refined),
+    terms_expounded: content.terms_expounded.map((term: any) => ({
+      term: stripLatexFormatting(term.term),
+      explanation: stripLatexFormatting(term.explanation)
+    }))
+  };
+}
+
+// ========================================
 // AI REFINEMENT FUNCTION
 // ========================================
 async function refineWithGemini(submission: any) {
@@ -325,7 +395,9 @@ Provide ONLY the JSON object. No additional text before or after.`.trim();
     // Attempt 1: Parse as-is
     const parsed = JSON.parse(jsonString);
     console.log('✅ JSON parsed successfully on first attempt');
-    return parsed;
+    const cleaned = cleanRefinedContent(parsed);
+    console.log('🧹 LaTeX formatting stripped from content');
+    return cleaned;
   } catch (firstError: any) {
     console.warn('⚠️ First parse failed:', firstError.message);
     
@@ -335,7 +407,9 @@ Provide ONLY the JSON object. No additional text before or after.`.trim();
       const fixedBackslashes = jsonString.replace(/\\\\\\\\/g, '\\\\');
       const parsed = JSON.parse(fixedBackslashes);
       console.log('✅ JSON parsed after fixing backslashes');
-      return parsed;
+      const cleaned = cleanRefinedContent(parsed);
+      console.log('🧹 LaTeX formatting stripped from content');
+      return cleaned;
     } catch (secondError: any) {
       console.warn('⚠️ Second parse failed:', secondError.message);
       
@@ -369,7 +443,9 @@ Provide ONLY the JSON object. No additional text before or after.`.trim();
         console.log('🔧 Attempting to parse repaired JSON...');
         const parsed = JSON.parse(repairedJson);
         console.log('✅ JSON parsed after repair');
-        return parsed;
+        const cleaned = cleanRefinedContent(parsed);
+        console.log('🧹 LaTeX formatting stripped from content');
+        return cleaned;
       } catch (thirdError: any) {
         console.error('❌ All parsing attempts failed');
         console.error('📄 Original error:', firstError.message);

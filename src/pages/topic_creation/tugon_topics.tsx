@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Eye, CheckCircle, XCircle, Loader, Send, AlertCircle } from "lucide-react";
 import { supabase } from "../../lib/supabase";
@@ -51,10 +52,222 @@ interface ValidationResult {
   created_at: string;
 }
 
+/* ----------------------------- Helper Components ----------------------------- */
+
+// Component to handle validated topic buttons with status check
+function ValidatedTopicButtons({ 
+  submission, 
+  user, 
+  isTeacher, 
+  onRefresh,
+  onView,
+  onEdit,
+  onDelete
+}: { 
+  submission: TopicSubmission; 
+  user: any; 
+  isTeacher: boolean;
+  onRefresh: () => void;
+  onView: (draft: DraftTopic) => void;
+  onEdit: (draft: DraftTopic) => void;
+  onDelete: (draft: DraftTopic) => void;
+}) {
+  const [teacherTopicStatus, setTeacherTopicStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkTeacherTopicStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("teacher_topics")
+          .select("status")
+          .eq("submission_id", submission.id)
+          .maybeSingle();
+
+        if (!error && data) {
+          setTeacherTopicStatus(data.status);
+        }
+      } catch (err) {
+        console.error("Error checking teacher_topic status:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkTeacherTopicStatus();
+  }, [submission.id]);
+
+  // Don't render buttons if status is "published"
+  if (loading) {
+    return (
+      <div className="flex gap-2 mt-3">
+        <span className="text-sm" style={{ color: color.steel }}>Loading...</span>
+      </div>
+    );
+  }
+
+  if (teacherTopicStatus === "published") {
+    return (
+      <div className="flex gap-2 mt-3">
+        <span 
+          className="px-3 py-1.5 rounded-lg text-sm font-semibold"
+          style={{ background: "#d1fae5", color: "#065f46" }}
+        >
+          ✓ This topic is published. View it in the Published Topics tab.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      <button
+        onClick={async () => {
+          const { data, error } = await supabase
+            .from("teacher_topics")
+            .select("*")
+            .eq("submission_id", submission.id)
+            .maybeSingle();
+
+          if (error) {
+            console.error("Error fetching topic:", error);
+            alert(`Failed to load topic details: ${error.message}\nCode: ${error.code}\nHint: ${error.hint || 'Check RLS policies'}`);
+            return;
+          }
+
+          if (!data) {
+            alert("No teacher topic found for this submission. It may have been deleted or you don't have permission to view it.");
+            return;
+          }
+
+          onView(data as DraftTopic);
+        }}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+        style={{ background: color.ocean, color: "#fff" }}
+      >
+        <Eye size={14} />
+        View
+      </button>
+      <button
+        onClick={async () => {
+          const { data, error } = await supabase
+            .from("teacher_topics")
+            .select("*")
+            .eq("submission_id", submission.id)
+            .maybeSingle();
+
+          if (error) {
+            console.error("Error fetching topic:", error);
+            alert(`Failed to load topic details: ${error.message}\nCode: ${error.code}\nHint: ${error.hint || 'Check RLS policies'}`);
+            return;
+          }
+
+          if (!data) {
+            alert("No teacher topic found for this submission. It may have been deleted or you don't have permission to view it.");
+            return;
+          }
+
+          onEdit(data as DraftTopic);
+        }}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+        style={{ background: color.teal, color: "#fff" }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg>
+        Edit
+      </button>
+      {isTeacher && (
+        <button
+          onClick={async () => {
+            const { data, error } = await supabase
+              .from("teacher_topics")
+              .select("*")
+              .eq("submission_id", submission.id)
+              .maybeSingle();
+
+            if (error) {
+              console.error("Error fetching topic:", error);
+              alert(`Failed to load topic: ${error.message}\nCode: ${error.code}`);
+              return;
+            }
+
+            if (!data) {
+              alert("No teacher topic found for this submission.");
+              return;
+            }
+
+            const confirmPublish = window.confirm(
+              `Are you sure you want to publish "${data.title}"?\n\nThis will make it visible to all students.`
+            );
+            
+            if (confirmPublish) {
+              const { error: publishError } = await supabase
+                .from("teacher_topics")
+                .update({
+                  status: "published",
+                  is_active: true,
+                  reviewed_by: user?.id,
+                  reviewed_at: new Date().toISOString(),
+                })
+                .eq("id", data.id);
+
+              if (publishError) {
+                console.error("Error publishing topic:", publishError);
+                alert(`Failed to publish: ${publishError.message}`);
+              } else {
+                alert("✅ Topic published successfully!");
+                onRefresh();
+              }
+            }
+          }}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+          style={{ background: "#10b981", color: "#fff" }}
+        >
+          <CheckCircle size={14} />
+          Publish
+        </button>
+      )}
+      <button
+        onClick={async () => {
+          const { data, error } = await supabase
+            .from("teacher_topics")
+            .select("*")
+            .eq("submission_id", submission.id)
+            .maybeSingle();
+
+          if (error) {
+            console.error("Error fetching topic:", error);
+            alert(`Failed to load topic: ${error.message}`);
+            return;
+          }
+
+          if (!data) {
+            alert("No teacher topic found for this submission.");
+            return;
+          }
+
+          onDelete(data as DraftTopic);
+        }}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+        style={{ background: "#ef4444", color: "#fff" }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </svg>
+        Delete
+      </button>
+    </div>
+  );
+}
+
 /* ----------------------------- Main Component ----------------------------- */
 
 export default function TugonTopics() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Submission form state
   const [submissionTitle, setSubmissionTitle] = useState("");
@@ -68,6 +281,9 @@ export default function TugonTopics() {
   const [mySubmissions, setMySubmissions] = useState<TopicSubmission[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(true);
 
+  // User role state (fetch from profiles table)
+  const [userRole, setUserRole] = useState<string | null>(null);
+
   // Teacher drafts state
   const [pendingDrafts, setPendingDrafts] = useState<DraftTopic[]>([]);
   const [loadingDrafts, setLoadingDrafts] = useState(false);
@@ -77,6 +293,8 @@ export default function TugonTopics() {
   // Published topics state
   const [publishedTopics, setPublishedTopics] = useState<any[]>([]);
   const [loadingPublished, setLoadingPublished] = useState(false);
+  const [showPublishedModal, setShowPublishedModal] = useState(false);
+  const [selectedPublishedTopic, setSelectedPublishedTopic] = useState<any | null>(null);
 
   // Validation details state
   const [showValidationModal, setShowValidationModal] = useState(false);
@@ -107,12 +325,40 @@ export default function TugonTopics() {
   useEffect(() => {
     if (user) {
       loadMySubmissions();
+      loadUserRole();
       // Only load drafts if user is a teacher
       if (user.user_metadata?.role === "teacher") {
         loadPendingDrafts();
       }
     }
   }, [user]);
+
+  const loadUserRole = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (error) {
+        console.error("Error loading user role:", error);
+        return;
+      }
+
+      console.log("✅ User role loaded:", data?.role);
+      setUserRole(data?.role || null);
+
+      // Load drafts if teacher
+      if (data?.role === "teacher") {
+        loadPendingDrafts();
+      }
+    } catch (err: any) {
+      console.error("Error loading user role:", err);
+    }
+  };
 
   const loadMySubmissions = async () => {
     if (!user) return;
@@ -446,6 +692,8 @@ export default function TugonTopics() {
         .update({
           status: "published",
           is_active: true,
+          reviewed_by: user?.id,
+          reviewed_at: new Date().toISOString(),
         })
         .eq("id", selectedDraft.id);
 
@@ -453,6 +701,7 @@ export default function TugonTopics() {
 
       alert("✅ Topic approved and published!");
       loadPendingDrafts();
+      loadPublishedTopics(); // Refresh published topics list
       setShowDraftModal(false);
       setSelectedDraft(null);
     } catch (err: any) {
@@ -533,7 +782,8 @@ export default function TugonTopics() {
     );
   }
 
-  const isTeacher = user.user_metadata?.role === "teacher";
+  // Use role from profiles table instead of user_metadata
+  const isTeacher = userRole === "teacher";
 
   return (
     <div
@@ -558,7 +808,7 @@ export default function TugonTopics() {
               Topic Management
             </h1>
             <p className="text-sm sm:text-base" style={{ color: color.steel }}>
-              Submit new topics, track submissions, and review AI-generated drafts
+              Submit math topic ideas, and Let AI assist in drafting them for you.
             </p>
           </div>
 
@@ -668,7 +918,7 @@ export default function TugonTopics() {
                       disabled={submitting}
                       className="w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all bg-white placeholder-gray-400 disabled:bg-gray-100"
                       style={{ borderColor: color.mist }}
-                      placeholder="e.g., Functions and Relations"
+                      placeholder="Submit title of your topic here..."
                     />
                   </div>
 
@@ -753,8 +1003,7 @@ export default function TugonTopics() {
                 >
                   <p className="text-sm" style={{ color: color.deep }}>
                     <strong>Note:</strong> Your topic will be validated by AI to ensure it's appropriate
-                    for General Mathematics curriculum. If approved, teachers will review the AI-generated
-                    content before publication.
+                    for General Mathematics curriculum.
                   </p>
                 </div>
 
@@ -877,160 +1126,68 @@ export default function TugonTopics() {
 
                         {/* Only show validation details for rejected and pending */}
                         {(submission.status === "rejected" || submission.status === "pending") && (
-                          <button
-                            onClick={() => viewValidationDetails(submission.id)}
-                            className="text-sm font-semibold hover:underline flex items-center gap-1"
-                            style={{ color: color.ocean }}
-                          >
-                            <Eye size={16} />
-                            View Validation Details
-                          </button>
-                        )}
-
-                        {/* Show View/Edit/Delete/Publish buttons for validated topics (in teacher_topics) */}
-                        {submission.status === "validated" && (
                           <div className="flex flex-wrap gap-2 mt-3">
                             <button
-                              onClick={async () => {
-                                // Fetch the teacher_topics entry
-                                const { data, error } = await supabase
-                                  .from("teacher_topics")
-                                  .select("*")
-                                  .eq("submission_id", submission.id)
-                                  .maybeSingle();
-
-                                if (error) {
-                                  console.error("Error fetching topic:", error);
-                                  alert(`Failed to load topic details: ${error.message}\nCode: ${error.code}\nHint: ${error.hint || 'Check RLS policies'}`);
-                                  return;
-                                }
-
-                                if (!data) {
-                                  alert("No teacher topic found for this submission. It may have been deleted or you don't have permission to view it.");
-                                  return;
-                                }
-
-                                viewDraft(data as DraftTopic);
-                              }}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
-                              style={{ background: color.ocean, color: "#fff" }}
+                              onClick={() => viewValidationDetails(submission.id)}
+                              className="text-sm font-semibold hover:underline flex items-center gap-1"
+                              style={{ color: color.ocean }}
                             >
-                              <Eye size={14} />
-                              View
+                              <Eye size={16} />
+                              View Validation Details
                             </button>
-                            <button
-                              onClick={async () => {
-                                const { data, error } = await supabase
-                                  .from("teacher_topics")
-                                  .select("*")
-                                  .eq("submission_id", submission.id)
-                                  .maybeSingle();
 
-                                if (error) {
-                                  console.error("Error fetching topic:", error);
-                                  alert(`Failed to load topic details: ${error.message}\nCode: ${error.code}\nHint: ${error.hint || 'Check RLS policies'}`);
-                                  return;
-                                }
-
-                                if (!data) {
-                                  alert("No teacher topic found for this submission. It may have been deleted or you don't have permission to view it.");
-                                  return;
-                                }
-
-                                openEditModal(data as DraftTopic);
-                              }}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
-                              style={{ background: color.teal, color: "#fff" }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                              Edit
-                            </button>
-                            {isTeacher && (
+                            {/* Delete button for rejected topics */}
+                            {submission.status === "rejected" && (
                               <button
                                 onClick={async () => {
-                                  const { data, error } = await supabase
-                                    .from("teacher_topics")
-                                    .select("*")
-                                    .eq("submission_id", submission.id)
-                                    .maybeSingle();
-
-                                  if (error) {
-                                    console.error("Error fetching topic:", error);
-                                    alert(`Failed to load topic: ${error.message}\nCode: ${error.code}`);
-                                    return;
-                                  }
-
-                                  if (!data) {
-                                    alert("No teacher topic found for this submission.");
-                                    return;
-                                  }
-
-                                  // Publish the topic
-                                  const confirmPublish = window.confirm(
-                                    `Are you sure you want to publish "${data.title}"?\n\nThis will make it visible to all students.`
+                                  const confirmDelete = window.confirm(
+                                    `Are you sure you want to delete the topic "${submission.title}"?\n\nThis action cannot be undone.`
                                   );
                                   
-                                  if (confirmPublish) {
-                                    const { error: publishError } = await supabase
-                                      .from("teacher_topics")
-                                      .update({
-                                        status: "published",
-                                        is_active: true,
-                                        reviewed_by: user?.id,
-                                        reviewed_at: new Date().toISOString(),
-                                      })
-                                      .eq("id", data.id);
+                                  if (confirmDelete) {
+                                    try {
+                                      const { error } = await supabase
+                                        .from("topic_submissions")
+                                        .delete()
+                                        .eq("id", submission.id);
 
-                                    if (publishError) {
-                                      console.error("Error publishing topic:", publishError);
-                                      alert(`Failed to publish: ${publishError.message}`);
-                                    } else {
-                                      alert("✅ Topic published successfully!");
-                                      loadMySubmissions();
+                                      if (error) {
+                                        console.error("Error deleting submission:", error);
+                                        alert(`Failed to delete: ${error.message}`);
+                                      } else {
+                                        alert("✅ Topic deleted successfully!");
+                                        loadMySubmissions();
+                                      }
+                                    } catch (err: any) {
+                                      console.error("Error deleting submission:", err);
+                                      alert(`Failed to delete: ${err.message}`);
                                     }
                                   }
                                 }}
                                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
-                                style={{ background: "#10b981", color: "#fff" }}
+                                style={{ background: "#ef4444", color: "#fff" }}
                               >
-                                <CheckCircle size={14} />
-                                Publish
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                                Delete
                               </button>
                             )}
-                            <button
-                              onClick={async () => {
-                                const { data, error } = await supabase
-                                  .from("teacher_topics")
-                                  .select("*")
-                                  .eq("submission_id", submission.id)
-                                  .maybeSingle();
-
-                                if (error) {
-                                  console.error("Error fetching topic:", error);
-                                  alert(`Failed to load topic: ${error.message}`);
-                                  return;
-                                }
-
-                                if (!data) {
-                                  alert("No teacher topic found for this submission.");
-                                  return;
-                                }
-
-                                confirmDeleteTopic(data as DraftTopic);
-                              }}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
-                              style={{ background: "#ef4444", color: "#fff" }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              </svg>
-                              Delete
-                            </button>
                           </div>
+                        )}
+
+                        {/* Show View/Edit/Delete/Publish buttons for validated topics (in teacher_topics) */}
+                        {submission.status === "validated" && (
+                          <ValidatedTopicButtons 
+                            submission={submission} 
+                            user={user} 
+                            isTeacher={isTeacher}
+                            onRefresh={loadMySubmissions}
+                            onView={viewDraft}
+                            onEdit={openEditModal}
+                            onDelete={confirmDeleteTopic}
+                          />
                         )}
                       </motion.div>
                     ))}
@@ -1211,61 +1368,65 @@ export default function TugonTopics() {
                         {/* Action buttons */}
                         <div className="flex flex-wrap gap-2 mt-3">
                           <button
-                            onClick={async () => {
-                              // Fetch full details and show in modal
-                              const draftData: DraftTopic = {
-                                id: topic.teacher_topic_id,
-                                submission_id: topic.submission_id,
-                                title: topic.title,
-                                about_refined: topic.about_refined,
-                                terms_expounded: topic.terms_expounded,
-                                video_image_link: topic.video_image_link,
-                                status: "published",
-                                is_active: topic.is_active,
-                                created_at: topic.created_at,
-                                creator_name: topic.creator_full_name,
-                              };
-                              viewDraft(draftData);
-                            }}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                            onClick={() => navigate(`/topic-presenter/${topic.id}`)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors hover:opacity-90"
                             style={{ background: color.ocean, color: "#fff" }}
                           >
                             <Eye size={14} />
-                            View
+                            Open Page
                           </button>
-
+                          
                           {isTeacher && (
                             <button
                               onClick={async () => {
                                 const confirmUnpublish = window.confirm(
-                                  `Are you sure you want to unpublish "${topic.title}"?\n\nThis will make it invisible to students but keep it in teacher_topics.`
+                                  `⚠️ WARNING: UNPUBLISH TOPIC\n\n` +
+                                  `Are you sure you want to unpublish "${topic.title}"?\n\n` +
+                                  `This action will:\n` +
+                                  `• Permanently delete it from the Published Topics table\n` +
+                                  `• Make the topic invisible to all students\n` +
+                                  `• Change status to "unpublished" in teacher_topics\n` +
+                                  `• Keep it in teacher_topics for future reference\n\n` +
+                                  `Click OK to confirm unpublishing.`
                                 );
                                 
                                 if (confirmUnpublish) {
                                   try {
-                                    // Update published_topics to set is_active = false
+                                    // Step 1: Update teacher_topics - set status to "unpublished" and is_active to false
+                                    const { error: teacherTopicError } = await supabase
+                                      .from("teacher_topics")
+                                      .update({ 
+                                        status: "unpublished",
+                                        is_active: false 
+                                      })
+                                      .eq("id", topic.teacher_topic_id);
+
+                                    if (teacherTopicError) {
+                                      console.error("Error updating teacher_topics:", teacherTopicError);
+                                      alert(`❌ Failed to update teacher_topics: ${teacherTopicError.message}`);
+                                      return;
+                                    }
+
+                                    // Step 2: Delete the record from published_topics table
                                     const { error: unpublishError } = await supabase
                                       .from("published_topics")
-                                      .update({
-                                        is_active: false,
-                                        unpublished_at: new Date().toISOString(),
-                                      })
+                                      .delete()
                                       .eq("id", topic.id);
 
                                     if (unpublishError) {
                                       console.error("Error unpublishing topic:", unpublishError);
-                                      alert(`Failed to unpublish: ${unpublishError.message}`);
+                                      alert(`❌ Failed to unpublish: ${unpublishError.message}`);
                                     } else {
-                                      alert("✅ Topic unpublished successfully!");
+                                      alert("✅ Topic unpublished successfully!\n\nThe topic has been deleted from the Published Topics table and status changed to 'unpublished' in teacher_topics.");
                                       loadPublishedTopics();
                                     }
                                   } catch (err: any) {
                                     console.error("Error unpublishing:", err);
-                                    alert(`Failed to unpublish: ${err.message}`);
+                                    alert(`❌ Failed to unpublish: ${err.message}`);
                                   }
                                 }
                               }}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors hover:opacity-90"
                               style={{ background: "#f59e0b", color: "#fff" }}
                             >
                               <XCircle size={14} />
@@ -1736,6 +1897,205 @@ export default function TugonTopics() {
                 >
                   {deleting ? "Deleting..." : "Delete"}
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ----------------------------- Published Topic View Modal ----------------------------- */}
+      <AnimatePresence>
+        {showPublishedModal && selectedPublishedTopic && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => setShowPublishedModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden ring-1"
+              style={{ borderColor: `${color.mist}55` }}
+            >
+              {/* Header */}
+              <div
+                className="px-6 py-5 flex items-center justify-between"
+                style={{ background: color.ocean }}
+              >
+                <h2 className="text-xl font-bold text-white">Published Topic Details</h2>
+                <button
+                  onClick={() => setShowPublishedModal(false)}
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                  title="Close"
+                >
+                  <X size={20} className="text-white" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] space-y-6">
+                {/* Title */}
+                <div>
+                  <h3 className="font-semibold text-sm mb-2" style={{ color: color.steel }}>
+                    Title
+                  </h3>
+                  <p className="text-xl font-bold" style={{ color: color.deep }}>
+                    {selectedPublishedTopic.title}
+                  </p>
+                </div>
+
+                {/* About */}
+                <div>
+                  <h3 className="font-semibold text-sm mb-2" style={{ color: color.steel }}>
+                    Description
+                  </h3>
+                  <p className="text-base leading-relaxed" style={{ color: color.deep }}>
+                    {selectedPublishedTopic.about_refined}
+                  </p>
+                </div>
+
+                {/* Terms & Explanations */}
+                <div>
+                  <h3 className="font-semibold text-sm mb-3" style={{ color: color.steel }}>
+                    Key Terms & Explanations
+                  </h3>
+                  <div className="space-y-4">
+                    {selectedPublishedTopic.terms_expounded.map((item: any, index: number) => (
+                      <div
+                        key={index}
+                        className="p-4 rounded-xl border"
+                        style={{ borderColor: color.mist, background: `${color.mist}15` }}
+                      >
+                        <h4
+                          className="font-bold text-base mb-2"
+                          style={{ color: color.deep }}
+                        >
+                          {index + 1}. {item.term}
+                        </h4>
+                        <p className="text-sm leading-relaxed" style={{ color: color.steel }}>
+                          {item.explanation}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Video Link */}
+                {selectedPublishedTopic.video_image_link && (
+                  <div>
+                    <h3 className="font-semibold text-sm mb-2" style={{ color: color.steel }}>
+                      Media Link
+                    </h3>
+                    <a
+                      href={selectedPublishedTopic.video_image_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm hover:underline"
+                      style={{ color: color.ocean }}
+                    >
+                      {selectedPublishedTopic.video_image_link}
+                    </a>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div
+                  className="p-4 rounded-lg"
+                  style={{ background: `${color.mist}20` }}
+                >
+                  <p className="text-xs" style={{ color: color.steel }}>
+                    <strong>Created by:</strong> {selectedPublishedTopic.creator_full_name || "Unknown"}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: color.steel }}>
+                    <strong>Published by:</strong> {selectedPublishedTopic.publisher_full_name || "Unknown"}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: color.steel }}>
+                    <strong>Published:</strong> {new Date(selectedPublishedTopic.published_at).toLocaleString()}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: color.steel }}>
+                    <strong>Views:</strong> {selectedPublishedTopic.view_count || 0}
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div
+                className="border-t p-6"
+                style={{ borderColor: color.mist, background: `${color.mist}11` }}
+              >
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPublishedModal(false)}
+                    className="flex-1 py-3 rounded-xl font-semibold transition-colors shadow-sm"
+                    style={{ background: color.steel, color: "#fff" }}
+                  >
+                    Close
+                  </button>
+                  
+                  {isTeacher && (
+                    <button
+                      onClick={async () => {
+                        const confirmUnpublish = window.confirm(
+                          `⚠️ WARNING: UNPUBLISH TOPIC\n\n` +
+                          `Are you sure you want to unpublish "${selectedPublishedTopic.title}"?\n\n` +
+                          `This action will:\n` +
+                          `• Permanently delete it from the Published Topics table\n` +
+                          `• Make the topic invisible to all students\n` +
+                          `• Change status to "unpublished" in teacher_topics\n` +
+                          `• Keep it in teacher_topics for future reference\n\n` +
+                          `Click OK to confirm unpublishing.`
+                        );
+                        
+                        if (confirmUnpublish) {
+                          try {
+                            // Step 1: Update teacher_topics - set status to "unpublished" and is_active to false
+                            const { error: teacherTopicError } = await supabase
+                              .from("teacher_topics")
+                              .update({ 
+                                status: "unpublished",
+                                is_active: false 
+                              })
+                              .eq("id", selectedPublishedTopic.teacher_topic_id);
+
+                            if (teacherTopicError) {
+                              console.error("Error updating teacher_topics:", teacherTopicError);
+                              alert(`❌ Failed to update teacher_topics: ${teacherTopicError.message}`);
+                              return;
+                            }
+
+                            // Step 2: Delete the record from published_topics table
+                            const { error: unpublishError } = await supabase
+                              .from("published_topics")
+                              .delete()
+                              .eq("id", selectedPublishedTopic.id);
+
+                            if (unpublishError) {
+                              console.error("Error unpublishing topic:", unpublishError);
+                              alert(`❌ Failed to unpublish: ${unpublishError.message}`);
+                            } else {
+                              alert("✅ Topic unpublished successfully!\n\nThe topic has been deleted from the Published Topics table and status changed to 'unpublished' in teacher_topics.");
+                              setShowPublishedModal(false);
+                              loadPublishedTopics();
+                            }
+                          } catch (err: any) {
+                            console.error("Error unpublishing:", err);
+                            alert(`❌ Failed to unpublish: ${err.message}`);
+                          }
+                        }
+                      }}
+                      className="flex-1 py-3 rounded-xl font-bold transition-colors shadow-md flex items-center justify-center gap-2"
+                      style={{ background: "#f59e0b", color: "#fff" }}
+                    >
+                      <XCircle size={18} />
+                      Unpublish Topic
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>

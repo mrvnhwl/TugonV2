@@ -15,12 +15,14 @@ Added a new "Published Topics" tab to the Topic Management interface that displa
 ## Features Implemented
 
 ### 1. **New Tab Button**
+
 - Green "Published Topics" tab with CheckCircle icon
 - Displays count of published topics: `Published Topics (N)`
 - Auto-loads published topics when clicked
 - Available to both teachers and students
 
 ### 2. **State Management**
+
 ```typescript
 // Published topics state
 const [publishedTopics, setPublishedTopics] = useState<any[]>([]);
@@ -28,6 +30,7 @@ const [loadingPublished, setLoadingPublished] = useState(false);
 ```
 
 ### 3. **Data Loading Function**
+
 ```typescript
 const loadPublishedTopics = async () => {
   try {
@@ -50,6 +53,7 @@ const loadPublishedTopics = async () => {
 ### 4. **Published Topics Display**
 
 #### **Card Information Shown:**
+
 - ✅ Topic title with "PUBLISHED" badge
 - ✅ About/description (truncated to 150 characters)
 - ✅ Creator full name (from `creator_full_name`)
@@ -59,6 +63,7 @@ const loadPublishedTopics = async () => {
 - ✅ Key terms (first 4 with overflow indicator)
 
 #### **Metadata Row:**
+
 ```
 Created by: John Doe • Published by: Jane Smith • Published: 10/21/2025 • Views: 42
 ```
@@ -66,12 +71,14 @@ Created by: John Doe • Published by: Jane Smith • Published: 10/21/2025 • 
 ### 5. **Action Buttons**
 
 #### **View Button** (All Users)
+
 - Blue button with Eye icon
 - Opens draft modal with full topic details
 - Shows all terms with explanations
 - Displays video/image link if available
 
 #### **Unpublish Button** (Teachers Only)
+
 - Orange button with XCircle icon
 - Shows confirmation dialog
 - Updates `published_topics.is_active = false`
@@ -80,12 +87,14 @@ Created by: John Doe • Published by: Jane Smith • Published: 10/21/2025 • 
 - Keeps record in database (soft delete)
 
 ### 6. **Empty State**
+
 - Displays when no published topics exist
 - Shows AlertCircle icon
 - Message: "No published topics yet"
 - Subtext: "Topics will appear here once they are published by teachers."
 
 ### 7. **Loading State**
+
 - Animated spinner during data fetch
 - Message: "Loading published topics..."
 - Teal color scheme matching theme
@@ -95,6 +104,7 @@ Created by: John Doe • Published by: Jane Smith • Published: 10/21/2025 • 
 ## Tab System Update
 
 Updated tab type definition:
+
 ```typescript
 const [activeTab, setActiveTab] = useState<
   "submit" | "my-submissions" | "review-drafts" | "published-topics"
@@ -106,17 +116,20 @@ const [activeTab, setActiveTab] = useState<
 ## UI/UX Features
 
 ### **Color Scheme**
+
 - Tab background: `#10b981` (green) when active
 - Published badge: Green with white text
 - View button: Ocean blue (`#0ea5e9`)
 - Unpublish button: Orange (`#f59e0b`)
 
 ### **Animations**
+
 - Framer Motion fade-in for topic cards
 - Smooth transitions between tabs
 - Hover effects on action buttons
 
 ### **Responsive Design**
+
 - Flex-wrap for action buttons on mobile
 - Truncated descriptions with ellipsis
 - Scrollable content area
@@ -126,16 +139,20 @@ const [activeTab, setActiveTab] = useState<
 ## Database Integration
 
 ### **Table: `published_topics`**
+
 Queries:
+
 - Fetches only `is_active = true` records
 - Orders by `published_at DESC` (newest first)
 - Selects all columns for full metadata
 
 ### **Unpublish Operation**
+
 Updates:
+
 ```sql
 UPDATE published_topics
-SET 
+SET
   is_active = false,
   unpublished_at = NOW()
 WHERE id = <topic_id>
@@ -145,12 +162,12 @@ WHERE id = <topic_id>
 
 ## Teacher vs Student Permissions
 
-| Feature | Teachers | Students |
-|---------|----------|----------|
-| View Published Topics Tab | ✅ | ✅ |
-| See all published topics | ✅ | ✅ |
-| View full details | ✅ | ✅ |
-| Unpublish topics | ✅ | ❌ |
+| Feature                   | Teachers | Students |
+| ------------------------- | -------- | -------- |
+| View Published Topics Tab | ✅       | ✅       |
+| See all published topics  | ✅       | ✅       |
+| View full details         | ✅       | ✅       |
+| Unpublish topics          | ✅       | ❌       |
 
 ---
 
@@ -206,6 +223,6 @@ WHERE id = <topic_id>
 
 ✅ **Part 1:** Add Publish button under validated status  
 ✅ **Part 2:** Add cascading delete rules for topic cleanup  
-✅ **Part 3:** Add Published Topics tab to view published_topics table  
+✅ **Part 3:** Add Published Topics tab to view published_topics table
 
 **All 3 parts of the to-do list are now complete!** 🎉

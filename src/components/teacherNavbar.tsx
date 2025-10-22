@@ -147,16 +147,12 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 <NavItem to="/student-progress" onNavigate={closeMenuOnNavigate}>
                   Student Progress
                 </NavItem>
-                {/* NEW: Manage Topics */}
-                <NavItem to="/manage-topics" onNavigate={closeMenuOnNavigate}>
+                {/* NEW: Topic Creation Selection */}
+                <NavItem to="/topic-creation-selection" onNavigate={closeMenuOnNavigate}>
                   Manage Topics
                 </NavItem>
                 <NavItem to="/topicselector" onNavigate={closeMenuOnNavigate}>
                    Manage Tugonsense
-                </NavItem>
-                {/* NEW: Topic Creation */}
-                <NavItem to="/tugon-topics" onNavigate={closeMenuOnNavigate}>
-                  Topic Creation
                 </NavItem>
 
                 <span aria-hidden className="mx-2" style={{ width: 1, height: 24, background: "#ffffff33" }} />
@@ -235,16 +231,12 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 <NavItem to="/student-progress" onNavigate={closeMenuOnNavigate}>
                   Student Progress
                 </NavItem>
-                {/* NEW: Manage Topics (mobile) */}
-                <NavItem to="/manage-topics" onNavigate={closeMenuOnNavigate}>
-                  Manage Topics
+                {/* NEW: Topic Creation Selection (mobile) */}
+                <NavItem to="/topic-creation-selection" onNavigate={closeMenuOnNavigate}>
+                  Topic Creation
                 </NavItem>
                 <NavItem to="/topicselector" onNavigate={closeMenuOnNavigate}>
                   Topic Selector
-                </NavItem>
-                {/* NEW: Topic Creation (mobile) */}
-                <NavItem to="/tugon-topics" onNavigate={closeMenuOnNavigate}>
-                  Topic Creation
                 </NavItem>
 
                 <div className="px-2 pt-2 flex items-center gap-2">
