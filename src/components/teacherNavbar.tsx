@@ -147,6 +147,9 @@ function TeacherNavbar({ className = "" }: { className?: string }) {
                 <NavItem to="/student-progress" onNavigate={closeMenuOnNavigate}>
                   Student Progress
                 </NavItem>
+                 <NavItem to="/manage-sections" onNavigate={closeMenuOnNavigate}>
+                  Manage Topics
+                </NavItem>
                 {/* NEW: Topic Creation Selection */}
                 <NavItem to="/topic-creation-selection" onNavigate={closeMenuOnNavigate}>
                   Manage Topics
