@@ -62,7 +62,8 @@ function ValidatedTopicButtons({
   onRefresh,
   onView,
   onEdit,
-  onDelete
+  onDelete,
+  onPublish
 }: { 
   submission: TopicSubmission; 
   user: any; 
@@ -71,6 +72,7 @@ function ValidatedTopicButtons({
   onView: (draft: DraftTopic) => void;
   onEdit: (draft: DraftTopic) => void;
   onDelete: (draft: DraftTopic) => void;
+  onPublish: (draft: DraftTopic) => void;
 }) {
   const [teacherTopicStatus, setTeacherTopicStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,29 +200,8 @@ function ValidatedTopicButtons({
               return;
             }
 
-            const confirmPublish = window.confirm(
-              `Are you sure you want to publish "${data.title}"?\n\nThis will make it visible to all students.`
-            );
-            
-            if (confirmPublish) {
-              const { error: publishError } = await supabase
-                .from("teacher_topics")
-                .update({
-                  status: "published",
-                  is_active: true,
-                  reviewed_by: user?.id,
-                  reviewed_at: new Date().toISOString(),
-                })
-                .eq("id", data.id);
-
-              if (publishError) {
-                console.error("Error publishing topic:", publishError);
-                alert(`Failed to publish: ${publishError.message}`);
-              } else {
-                alert("✅ Topic published successfully!");
-                onRefresh();
-              }
-            }
+            // Open publish modal with section selector
+            onPublish(data as DraftTopic);
           }}
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
           style={{ background: "#10b981", color: "#fff" }}
@@ -314,6 +295,14 @@ export default function TugonTopics() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [topicToDelete, setTopicToDelete] = useState<DraftTopic | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Publish modal state
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [topicToPublish, setTopicToPublish] = useState<DraftTopic | null>(null);
+  const [availableSections, setAvailableSections] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedSections, setSelectedSections] = useState<string[]>([]);
+  const [loadingSections, setLoadingSections] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<"submit" | "my-submissions" | "review-drafts" | "published-topics">(
@@ -418,6 +407,25 @@ export default function TugonTopics() {
       console.error("Error loading published topics:", err);
     } finally {
       setLoadingPublished(false);
+    }
+  };
+
+  const loadSections = async () => {
+    try {
+      setLoadingSections(true);
+
+      const { data, error } = await supabase
+        .from("sections")
+        .select("id, name")
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+
+      setAvailableSections(data || []);
+    } catch (err: any) {
+      console.error("Error loading sections:", err);
+    } finally {
+      setLoadingSections(false);
     }
   };
 
@@ -655,6 +663,63 @@ export default function TugonTopics() {
   const confirmDeleteTopic = (draft: DraftTopic) => {
     setTopicToDelete(draft);
     setShowDeleteConfirm(true);
+  };
+
+  const openPublishModal = async (draft: DraftTopic) => {
+    setTopicToPublish(draft);
+    setSelectedSections([]);
+    await loadSections();
+    setShowPublishModal(true);
+  };
+
+  const publishTopic = async () => {
+    if (!topicToPublish) return;
+
+    if (selectedSections.length === 0) {
+      alert("Please select at least one section to publish to.");
+      return;
+    }
+
+    try {
+      setPublishing(true);
+
+      const { error: publishError } = await supabase
+        .from("teacher_topics")
+        .update({
+          status: "published",
+          is_active: true,
+          reviewed_by: user?.id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", topicToPublish.id);
+
+      if (publishError) throw publishError;
+
+      // Also update published_topics with section info
+      const { error: updatePublishedError } = await supabase
+        .from("published_topics")
+        .update({
+          publish_to_sections: selectedSections,
+        })
+        .eq("teacher_topic_id", topicToPublish.id);
+
+      if (updatePublishedError) {
+        console.warn("Warning: Could not update publish_to_sections:", updatePublishedError);
+      }
+
+      alert(`✅ Topic published successfully to ${selectedSections.length} section(s)!`);
+      loadMySubmissions();
+      loadPendingDrafts();
+      loadPublishedTopics();
+      setShowPublishModal(false);
+      setTopicToPublish(null);
+      setSelectedSections([]);
+    } catch (err: any) {
+      console.error("Error publishing topic:", err);
+      alert(`Failed to publish: ${err.message}`);
+    } finally {
+      setPublishing(false);
+    }
   };
 
   const deleteTopic = async () => {
@@ -1187,6 +1252,7 @@ export default function TugonTopics() {
                             onView={viewDraft}
                             onEdit={openEditModal}
                             onDelete={confirmDeleteTopic}
+                            onPublish={openPublishModal}
                           />
                         )}
                       </motion.div>
@@ -2096,6 +2162,178 @@ export default function TugonTopics() {
                     </button>
                   )}
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ----------------------------- Publish Topic Modal (Section Selector) ----------------------------- */}
+      <AnimatePresence>
+        {showPublishModal && topicToPublish && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => setShowPublishModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden ring-1"
+              style={{ borderColor: `${color.mist}55` }}
+            >
+              {/* Header */}
+              <div
+                className="px-6 py-5 flex items-center justify-between"
+                style={{ background: "#10b981" }}
+              >
+                <h2 className="text-xl font-bold text-white">Publish Topic to Sections</h2>
+                <button
+                  onClick={() => setShowPublishModal(false)}
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                  title="Close"
+                >
+                  <X size={20} className="text-white" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+                {/* Topic Info */}
+                <div className="p-4 rounded-xl" style={{ background: `${color.mist}15` }}>
+                  <h3 className="font-bold text-lg mb-1" style={{ color: color.deep }}>
+                    {topicToPublish.title}
+                  </h3>
+                  <p className="text-sm" style={{ color: color.steel }}>
+                    {topicToPublish.about_refined}
+                  </p>
+                </div>
+
+                {/* Section Selector */}
+                <div>
+                  <h3 className="font-semibold text-base mb-3" style={{ color: color.deep }}>
+                    Select Sections to Publish To
+                  </h3>
+                  
+                  {loadingSections ? (
+                    <div className="text-center py-8">
+                      <motion.div
+                        className="inline-block rounded-full h-10 w-10 border-4 border-t-4"
+                        style={{ borderColor: `${color.teal}40` }}
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      />
+                      <p className="text-sm mt-3" style={{ color: color.steel }}>
+                        Loading sections...
+                      </p>
+                    </div>
+                  ) : availableSections.length === 0 ? (
+                    <div className="text-center py-8">
+                      <AlertCircle size={40} className="mx-auto mb-3" style={{ color: color.mist }} />
+                      <p className="text-sm" style={{ color: color.steel }}>
+                        No sections available. Please create sections first.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto border rounded-xl p-3" style={{ borderColor: color.mist }}>
+                      {availableSections.map((section) => (
+                        <label
+                          key={section.id}
+                          className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                          style={{ border: `1px solid ${color.mist}` }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedSections.includes(section.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedSections([...selectedSections, section.id]);
+                              } else {
+                                setSelectedSections(selectedSections.filter(id => id !== section.id));
+                              }
+                            }}
+                            className="w-5 h-5 rounded border-2 cursor-pointer"
+                            style={{ accentColor: color.teal }}
+                          />
+                          <span className="font-medium flex-1" style={{ color: color.deep }}>
+                            {section.name}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Quick Actions */}
+                  {availableSections.length > 0 && (
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => setSelectedSections(availableSections.map(s => s.id))}
+                        className="text-sm px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ background: `${color.teal}15`, color: color.teal }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        onClick={() => setSelectedSections([])}
+                        className="text-sm px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ background: `${color.steel}15`, color: color.steel }}
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected Count */}
+                {selectedSections.length > 0 && (
+                  <div className="p-3 rounded-lg" style={{ background: `${color.teal}15` }}>
+                    <p className="text-sm font-semibold" style={{ color: color.teal }}>
+                      ✓ {selectedSections.length} section{selectedSections.length !== 1 ? 's' : ''} selected
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div
+                className="border-t p-6 flex gap-3"
+                style={{ borderColor: color.mist, background: `${color.mist}11` }}
+              >
+                <button
+                  onClick={() => setShowPublishModal(false)}
+                  className="flex-1 py-3 rounded-xl font-bold transition-colors shadow-md"
+                  style={{ background: color.steel, color: "#fff" }}
+                  disabled={publishing}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={publishTopic}
+                  disabled={publishing || selectedSections.length === 0}
+                  className="flex-1 py-3 rounded-xl font-bold transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ background: "#10b981", color: "#fff" }}
+                >
+                  {publishing ? (
+                    <>
+                      <motion.div
+                        className="inline-block rounded-full h-4 w-4 border-2 border-t-2 border-white"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      />
+                      Publishing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={18} />
+                      Publish to {selectedSections.length} Section{selectedSections.length !== 1 ? 's' : ''}
+                    </>
+                  )}
+                </button>
               </div>
             </motion.div>
           </motion.div>
