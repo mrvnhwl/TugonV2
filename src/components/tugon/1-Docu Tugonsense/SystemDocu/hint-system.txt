@@ -1,0 +1,86 @@
+HINT INPUT by TUGON (HIT) - AI-Powered Hint System Documentation
+====================================================
+
+OVERVIEW
+--------
+HintBubble is an intelligent hint system that provides contextual feedback and guidance
+for mathematical problem-solving. It integrates with the input validation system to
+offer personalized hints, corrections, and explanations based on user input, user behavior and question intent(Category question and question text)
+expected answers.
+
+COMPONENT STRUCTURE
+------------------
+
+File: src/components/tugon/HintBubble.tsx
+
+Core Features:
+- AI-powered hint generation
+- Context-aware feedback based on user input vs expected answers
+- Multiple hint types (validation, explanation, encouragement)
+- Interactive bubble UI with animations
+- Integration with UserInputValidator for validation context
+
+HINT TYPES & TRIGGERS
+--------------------
+
+1. Validation Hints
+   - Triggered when user input doesn't match expected answer
+   - Provides specific feedback on what's wrong
+   - Guides user toward correct solution approach
+
+2. Explanation Hints
+   - Triggered on request or after multiple wrong attempts
+   - Explains the mathematical concept or method
+   - Breaks down problem-solving steps
+
+3. Encouragement Hints
+   - Triggered after correct answers
+   - Positive reinforcement messages
+   - Motivational feedback for continued learning
+
+4. Spam Detection Feedback
+   - Triggered by UserInput spam detection
+   - Reminds user to focus on quality input
+   - Prevents hint abuse
+
+INTEGRATION WITH INPUT SYSTEM
+-----------------------------
+
+Data Flow:
+UserInput → AnswerWizard → UserInputValidator → HintBubble
+
+1. User types in UserInput component
+2. AnswerWizard validates using UserInputValidator
+3. Validation results passed to HintBubble
+4. HintBubble generates contextual hints based on:
+   - User input array (string[])
+   - Expected answer array (string[])
+   - Validation result (correct/wrong/partial)
+   - Current step/question context
+
+Context Data Received:
+- userInput: string[] - Current user input lines
+- expectedAnswer: string[] - Expected solution from answers.ts
+- validationResult: ValidationResult - Detailed validation state
+- stepIndex: number - Current question/step
+- topicId: number - Current mathematical topic
+- categoryId: number - Current question category
+
+HINT GENERATION LOGIC
+--------------------
+
+AI Context Building:
+```typescript
+const hintContext = {
+  userAnswer: userInput,           // ["g(7) = 7 + 5", "g(7) = 12"]
+  expectedAnswer: expectedAnswer,  // ["g(7) = 7 + 5", "g(7) = 12"]
+  validationResult: {
+    isValid: false,
+    isCorrect: false,
+    isWrong: true,
+    nonEmpty: true
+  },
+  stepIndex: 0,
+  topic: "Evaluating Functions",
+  category: "g(x)=x+5 problems"
+};

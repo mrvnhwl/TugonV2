@@ -1,0 +1,185 @@
+// src/components/tugon/templates/QuestionTemplate.tsx
+import { useState, useEffect } from "react";
+import AnswerWizard, { WizardStep } from "../input-system/AnswerWizard";
+import { FillInBlanksTemplate } from "./FillInTheBlanks";
+import { supabase } from "../../../lib/supabase";
+import type { GivenQuestion } from "../../data/questions/types";
+import { motion, AnimatePresence } from "framer-motion";
+
+interface QuestionTemplateProps {
+  topicId: number;
+  categoryId: number;
+  questionId: number;
+  onValidationResult: (
+    type: "correct" | "incorrect" | "partial",
+    currentStep: number
+  ) => void;
+  onAnswerChange?: () => void;
+  onSubmit: (finalSteps: WizardStep[], validationResult?: any) => void;
+  onIndexChange: (index: number) => void;
+  onAttemptUpdate?: (attempt: any) => void;
+  expectedAnswers?: any;
+}
+
+export default function QuestionTemplate({
+  topicId,
+  categoryId,
+  questionId,
+  onValidationResult,
+  expectedAnswers,
+  onSubmit,
+  onIndexChange,
+  onAnswerChange,
+  onAttemptUpdate,
+}: QuestionTemplateProps) {
+  const [question, setQuestion] = useState<GivenQuestion | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "correct" | "incorrect"; message: string } | null>(null);
+
+  useEffect(() => {
+    const fetchQuestion = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const { data, error: fetchError } = await supabase
+          .from("tugonsense_questions")
+          .select("*")
+          .eq("topic_id", topicId)
+          .eq("category_id", categoryId)
+          .eq("question_id", questionId)
+          .single();
+
+        if (fetchError) throw fetchError;
+        if (!data) throw new Error("Question not found");
+
+        setQuestion({
+          question_id: data.question_id,
+          question_text: data.question_text,
+          guide_text: data.guide_text || "",
+          category_text: data.category_text || undefined,
+          question_type: data.question_type as GivenQuestion["question_type"],
+        });
+      } catch (err: any) {
+        setError(err.message || "Failed to load question");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchQuestion();
+  }, [topicId, categoryId, questionId]);
+
+  // Wrapper for validation to trigger the Duolingo-style feedback panel
+  const handleValidation = (type: "correct" | "incorrect" | "partial", step: number) => {
+    if (type === "correct") {
+      setFeedback({ type: "correct", message: "Amazing! You got it right! 🎉" });
+    } else if (type === "incorrect") {
+      setFeedback({ type: "incorrect", message: "Not quite! Let's try that again. ✍️" });
+    }
+    onValidationResult(type, step);
+  };
+
+  if (loading) return <div className="p-6 text-center animate-pulse bg-white rounded-2xl border shadow-sm">Loading question...</div>;
+  if (error || !question) return <div className="p-4 text-center text-red-600 bg-red-50 rounded-xl">⚠️ Error loading question</div>;
+
+  return (
+    <div className="relative w-full max-w-2xl mx-auto flex flex-col items-center">
+      {/* Progress Bar (Simplified) */}
+      <div className="w-full h-3 bg-gray-200 rounded-full mb-8 overflow-hidden">
+        <motion.div
+          className="h-full bg-green-500"
+          initial={{ width: "0%" }}
+          animate={{ width: "50%" }} // This should be dynamic based on progress
+          transition={{ duration: 0.5 }}
+        />
+      </div>
+
+      {/* Main Question Content */}
+      <div className="w-full mb-12">
+        {(() => {
+          switch (question.question_type) {
+            case "fill-in-blanks":
+              return (
+                <div className="p-4">
+                  <FillInBlanksTemplate
+                    topicId={topicId}
+                    categoryId={categoryId}
+                    questionId={questionId}
+                    onValidationResult={(type) => handleValidation(type, 0)}
+                    onAnswerChange={onAnswerChange}
+                  />
+                </div>
+              );
+            case "multiple-choice":
+              return (
+                <div className="p-6 text-center bg-white rounded-2xl shadow-sm border border-gray-200">
+                  <h2 className="font-semibold text-gray-700 text-lg mb-2">Multiple Choice</h2>
+                  <p className="text-gray-500 text-sm">Coming soon...</p>
+                </div>
+              );
+            case "true-false":
+              return (
+                <div className="p-6 text-center bg-white rounded-2xl shadow-sm border border-gray-200">
+                  <h2 className="font-semibold text-gray-700 text-lg mb-2">True or False</h2>
+                  <p className="text-gray-500 text-sm">Coming soon...</p>
+                </div>
+              );
+            default:
+              return (
+                <div className="p-4">
+                  <AnswerWizard
+                    key={`step-by-step-${topicId}-${categoryId}-${questionId}`}
+                    topicId={topicId}
+                    categoryId={categoryId}
+                    questionId={questionId}
+                    steps={[]}
+                    {...(expectedAnswers && { expectedAnswers })}
+                    onValidationResult={handleValidation}
+                    onSubmit={onSubmit}
+                    onIndexChange={onIndexChange}
+                    onAnswerChange={onAnswerChange}
+                    onAttemptUpdate={onAttemptUpdate}
+                  />
+                </div>
+              );
+          }
+        })()}
+      </div>
+
+      {/* Duolingo-style Feedback Panel */}
+      <AnimatePresence>
+        {feedback && (
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 20, stiffness: 100 }}
+            className={`fixed bottom-0 left-0 right-0 p-6 z-50 flex items-center justify-between ${
+              feedback.type === "correct" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+            } border-t-4 ${feedback.type === "correct" ? "border-green-500" : "border-red-500"}`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${
+                feedback.type === "correct" ? "bg-green-500 text-white" : "bg-red-500 text-white"
+              }`}>
+                {feedback.type === "correct" ? "✓" : "✕"}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">{feedback.type === "correct" ? "Correct!" : "Incorrect"}</h3>
+                <p className="text-sm opacity-90">{feedback.message}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setFeedback(null)}
+              className={`px-6 py-3 rounded-xl font-bold text-white shadow-md transition-transform active:scale-95 ${
+                feedback.type === "correct" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+              } border-b-4 ${feedback.type === "correct" ? "border-green-800" : "border-red-800"}`}
+            >
+              Continue
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

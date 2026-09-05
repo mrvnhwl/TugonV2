@@ -1,0 +1,888 @@
+//Tugonplay
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import QuestionBox from "../../components/tugon/question-system/QuestionBox";
+import CategoryQuestion from "../../components/tugon/question-system/CategoryQuestion";
+import { defaultTopics } from "../../components/data/questions/index";
+import { getAnswerForQuestion, answersByTopicAndCategory } from "../../components/data/answers/index";
+import AnswerWizard, { Step, WizardStep } from "../../components/tugon/input-system/AnswerWizard"; //possible removal due to answerWizard integrated by QuestionTemplate
+import HintBubble from "../../components/tugon/hint-system/HintBubble";
+import Character from "../../components/tugon/hint-system/Character";
+import QuestionTemplate from '../../components/tugon/template/QuestionTemplate.tsx';
+import { Heading, SubHeading, Text, Small } from "../../components/Typography";
+import AttemptVisualizer from "../../components/tugon/AttemptVisualizer";
+import Feedback from "../../components/tugon/hint-system/feedback";
+import { UserAttempt } from "../../components/tugon/input-system/UserInput";
+import { useProgress } from "../../components/tugon/services/useProgress";
+import { progressService } from "../../components/tugon/services/progressServices";
+import QuestionSuccessNotification from "../../components/tugon/QuestionSuccessNotification";
+import SuccessModal from "../../components/tugon/successModal"; // Add this import
+import FeedbackPanel from "../../components/tugon/FeedbackPanel"; // ✨ NEW: Duolingo-style feedback
+import { motion, AnimatePresence } from "framer-motion";
+import color from "../../styles/color";
+
+const FALLBACK_HINT_TEXT = "Try isolating y. Start by substituting x = 2.";
+
+export default function TugonPlay() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [attempts, setAttempts] = useState(0);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [userAttempts, setUserAttempts] = useState<UserAttempt[]>([]);
+  const [allCategoryAttempts, setAllCategoryAttempts] = useState<UserAttempt[]>([]); // ✨ NEW: Track all attempts across questions in category
+  const idleTimer = useRef<number | null>(null);
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null); // 🎵 Background music ref
+  
+  // 🔊 NEW: Sound effect refs
+  const hooraySoundRef = useRef<HTMLAudioElement | null>(null);
+  const successModalSoundRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Add progress tracking
+  const { recordAttempt, getQuestionProgress, resetQuestionSession, progress } = useProgress();
+  const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(1); // ✨ NEW: Track total steps for progress bar
+  // Add success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showQuickNotification, setShowQuickNotification] = useState(false);
+
+  // ✨ NEW: Feedback Panel State
+  const [feedback, setFeedback] = useState<{
+    isOpen: boolean;
+    isCorrect: boolean;
+    hint?: string;
+  }>({
+    isOpen: false,
+    isCorrect: false,
+  });
+
+  const [categoryStats, setCategoryStats] = useState<{
+    categoryCompleted: boolean;
+    totalQuestions: number;
+    questionsDetails: Array<{
+      questionId: number;
+      attempts: number;
+      timeSpent: number;
+      colorCodedHintsUsed: number;
+      shortHintMessagesUsed: number;
+    }>;
+    totalTimeSpent: number;
+    totalAttempts: number;
+  } | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  // Add exit warning modal state
+  const [showExitWarning, setShowExitWarning] = useState(false);
+  // Extract URL parameters
+  const topicId = Number(searchParams.get("topic")) || 1;
+  const categoryId = Number(searchParams.get("category")) || 1;
+  const questionId = Number(searchParams.get("question")) || 1;
+  const legacyQ = Number(searchParams.get("q"));
+  const finalCategoryId = legacyQ || categoryId;
+
+  // Get current question progress
+  const currentQuestionProgress = getQuestionProgress(topicId, finalCategoryId, questionId);
+  // For MathLive re-rendering
+
+  // Initialize session start time when question changes
+  useEffect(() => {
+    setSessionStartTime(Date.now());
+    setAttempts(0); // Reset attempts counter for new question
+    setIsCorrect(null); // Reset correct state
+    console.log(`🎯 Starting question: Topic ${topicId}, Category ${finalCategoryId}, Question ${questionId}`);
+    
+    // ✨ NEW: Reset session attempts ONLY if question was previously completed (retry scenario)
+    if (currentQuestionProgress?.isCompleted) {
+      console.log(`♻️ Question ${questionId} was completed, resetting session for retry`);
+      resetQuestionSession(topicId, finalCategoryId, questionId);
+    }
+    
+    // ADD THESE RESETS FOR USER INPUT:
+  setUserAttempts([]); // Reset user attempts
+
+    // Log current progress for this question
+    if (currentQuestionProgress) {
+      console.log('📊 Current question progress:', {
+        completed: currentQuestionProgress.isCompleted,
+        attempts: currentQuestionProgress.attempts,
+        correctAnswers: currentQuestionProgress.correctAnswers,
+        timeSpent: Math.round(currentQuestionProgress.timeSpent / 60) + ' minutes'
+      });
+    } else {
+      console.log('📊 No previous progress for this question');
+    }
+  }, [topicId, finalCategoryId, questionId]); // ✨ REMOVED resetQuestionSession from dependencies to prevent infinite loops
+
+  // Get the guide_text from question.ts based on current question
+  const getGuideText = () => {
+    const topic = defaultTopics.find(t => t.id === topicId);
+    if (topic) {
+      const category = topic.level.find(q => q.category_id === finalCategoryId);
+      if (category) {
+        const specificQuestion = category.given_question.find(gq => gq.question_id === questionId);
+        return specificQuestion?.guide_text || FALLBACK_HINT_TEXT;
+      }
+    }
+    return FALLBACK_HINT_TEXT;
+  };
+
+  // Initialize hint with guide_text from current question
+  const [hint, setHint] = useState(getGuideText());
+
+  // Update hint when URL parameters change
+  useEffect(() => {
+    setHint(getGuideText());
+  }, [topicId, finalCategoryId, questionId]);
+
+  // Get expected answers using the new structure
+  const expectedAnswers = useMemo(() => {
+  const topic = answersByTopicAndCategory[topicId as keyof typeof answersByTopicAndCategory];
+  if (!topic) return undefined;
+  
+  const category = topic[finalCategoryId as keyof typeof topic];
+  if (!category || !Array.isArray(category)) return undefined;
+  
+  // FIXED: Find the specific question by questionId and return it as array
+  const specificAnswer = category.find(answer => answer.questionId === questionId);
+  return specificAnswer ? [specificAnswer] : undefined;
+}, [topicId, finalCategoryId, questionId]); // ← Add proper dependencies
+
+
+
+  const topic = defaultTopics.find((t) => t.id === topicId);
+  const topicName = topic?.name || "Question";
+
+  // Get current question's expected answer for validation
+  const getCurrentExpectedAnswer = () => {
+    return getAnswerForQuestion(topicId, finalCategoryId, questionId);
+  };
+
+  const steps: Step[] = [
+    { id: "s1", label: "Short answer", placeholder: "Enter a single-line answer" },
+    { id: "m1", label: "Explain your steps", placeholder: "Explain in detail", rows: 4 },
+    { id: "g1", label: "Graph your function" },
+  ];
+
+  const resetIdle = () => {
+    if (idleTimer.current) window.clearTimeout(idleTimer.current);
+    idleTimer.current = window.setTimeout(() => {
+      if (!isCorrect) {
+        // Use dynamic guide text for idle hint as well
+        setHint(`Stuck? ${getGuideText()}`);
+      }
+    }, 20000);
+  };
+
+  useEffect(() => {
+    resetIdle();
+    return () => { if (idleTimer.current) window.clearTimeout(idleTimer.current); };
+  }, []);
+
+  // 🎵 Background music management
+  useEffect(() => {
+    // Create and configure audio element
+    const audio = new Audio('/tugonsenseSounds/BGMusic.mp3');
+    audio.loop = true; // Loop the background music
+    audio.volume = 0.3; // Set volume to 30% (adjust as needed)
+    bgMusicRef.current = audio;
+
+    // Play music when component mounts
+    const playMusic = async () => {
+      try {
+        await audio.play();
+        console.log('🎵 Background music started');
+      } catch (error) {
+        console.log('🔇 Background music autoplay blocked:', error);
+        // Note: Autoplay might be blocked by browser policy
+        // Music will play on first user interaction
+      }
+    };
+
+    playMusic();
+
+    // Cleanup: Stop and remove audio when component unmounts
+    return () => {
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause();
+        bgMusicRef.current.currentTime = 0;
+        bgMusicRef.current = null;
+        console.log('🎵 Background music stopped');
+      }
+    };
+  }, []); // Empty dependency array - run once on mount
+
+  // 🔊 NEW: Sound effects initialization
+  useEffect(() => {
+    // Initialize sound effects
+    hooraySoundRef.current = new Audio('/tugonsenseSounds/hooraybgsound.mp3');
+    successModalSoundRef.current = new Audio('/tugonsenseSounds/successmodalbgsound.mp3');
+    
+    // Preload sounds
+    hooraySoundRef.current.load();
+    successModalSoundRef.current.load();
+    
+    // Cleanup
+    return () => {
+      if (hooraySoundRef.current) {
+        hooraySoundRef.current.pause();
+        hooraySoundRef.current = null;
+      }
+      if (successModalSoundRef.current) {
+        successModalSoundRef.current.pause();
+        successModalSoundRef.current = null;
+      }
+    };
+  }, []);
+
+  // 🔊 Play hooray sound (for QuestionSuccessNotification)
+  const playHooraySound = () => {
+    if (hooraySoundRef.current) {
+      hooraySoundRef.current.currentTime = 0;
+      hooraySoundRef.current.play().catch(err => {
+        console.warn('Could not play hooray sound:', err);
+      });
+    }
+  };
+
+  // 🔊 Play success modal sound (for SuccessModal)
+  const playSuccessModalSound = () => {
+    if (successModalSoundRef.current) {
+      successModalSoundRef.current.currentTime = 0;
+      successModalSoundRef.current.play().catch(err => {
+        console.warn('Could not play success modal sound:', err);
+      });
+    }
+  };
+
+  // ✨ NEW: Build category stats from user attempts with proper time tracking
+  const buildCategoryStatsFromAttempts = (allAttempts: UserAttempt[]) => {
+    // Group attempts by questionId
+    const attemptsByQuestion = new Map<number, UserAttempt[]>();
+    
+    allAttempts.forEach(attempt => {
+      const qId = attempt.questionId;
+      if (!attemptsByQuestion.has(qId)) {
+        attemptsByQuestion.set(qId, []);
+      }
+      attemptsByQuestion.get(qId)!.push(attempt);
+    });
+
+    // Build question details from grouped attempts
+    const questionsDetails = Array.from(attemptsByQuestion.entries()).map(([qId, questionAttempts]) => {
+      // Calculate total time for this question
+      // Use the last attempt's sessionStartTime difference
+      const lastAttempt = questionAttempts[questionAttempts.length - 1];
+      const firstAttempt = questionAttempts[0];
+      
+      // Time calculation: difference between last attempt time and session start
+      const timeSpent = lastAttempt.attemptTime && firstAttempt.stepStartTime 
+        ? Math.round((lastAttempt.attemptTime - firstAttempt.stepStartTime) / 1000) // Convert to seconds
+        : 0;
+
+      // Get final counts from the last attempt (cumulative counters)
+      const colorHints = lastAttempt.colorHintsShownCount || 0;
+      const shortHints = lastAttempt.shortHintsShownCount || 0;
+
+      return {
+        questionId: qId,
+        attempts: questionAttempts.length, // Total number of attempts (Submit/Enter presses)
+        timeSpent, // Total time spent on this question in seconds
+        colorCodedHintsUsed: colorHints, // FeedbackOverlay displays
+        shortHintMessagesUsed: shortHints, // toast.custom() calls
+      };
+    });
+
+    // Calculate category totals
+    const totalTimeSpent = questionsDetails.reduce((sum, q) => sum + q.timeSpent, 0);
+    const totalAttempts = questionsDetails.reduce((sum, q) => sum + q.attempts, 0);
+
+    return {
+      categoryCompleted: true, // Will be set by caller
+      totalQuestions: questionsDetails.length,
+      questionsDetails,
+      totalTimeSpent,
+      totalAttempts,
+    };
+  };
+
+  // Enhanced attempt handler with progress tracking and success modal
+  const handleAttempt = ({ correct }: { correct: boolean }) => {
+  const currentTime = Date.now();
+  const timeSpent = Math.round((currentTime - sessionStartTime) / 1000); // in seconds
+  const sessionAttempts = attempts + 1;
+  
+  setAttempts(sessionAttempts);
+  setIsCorrect(correct);
+  
+  // ✨ NEW: Get actual hint counts from latest userAttempt (cumulative values)
+  const latestAttempt = userAttempts[userAttempts.length - 1];
+  const colorHintsUsed = latestAttempt?.colorHintsShownCount || 0;
+  const shortHintsUsed = latestAttempt?.shortHintsShownCount || 0;
+  
+  // Record the attempt in progress system with actual hint tracking
+  recordAttempt({
+    topicId,
+    categoryId: finalCategoryId,
+    questionId,
+    isCorrect: correct,
+    timeSpent,
+    score: correct ? 100 : 0,
+    colorCodedHintsUsed: colorHintsUsed, // ✨ Updated: Real color hint count
+    shortHintMessagesUsed: shortHintsUsed // ✨ Updated: Real toast hint count
+  });
+
+  // Console logging for monitoring
+  console.log('🎯 Attempt recorded:', {
+    topicId,
+    categoryId: finalCategoryId,
+    questionId,
+    correct,
+    timeSpent: timeSpent + 's',
+    sessionAttempts
+  });
+
+  if (correct) {
+    console.log('✅ Question completed successfully!');
+
+    // Check if category is completed
+    const isCategoryComplete = progressService.isCategoryCompleted(topicId, finalCategoryId);
+
+    console.log('🔍 Checking category completion:', {
+      topicId,
+      categoryId: finalCategoryId,
+      isComplete: isCategoryComplete
+    });
+
+    if (isCategoryComplete) {
+      // Category completed - ALWAYS show full modal with all question details
+      console.log('🎊 CATEGORY COMPLETED! Showing full success modal');
+
+      // ✨ Build stats from user attempts for this session
+      const stats = buildCategoryStatsFromAttempts(allCategoryAttempts);
+      stats.categoryCompleted = true; // Mark as completed
+
+      console.log('📊 Category stats from user attempts:', stats);
+      console.log('📊 Questions details:', stats.questionsDetails);
+
+      // Mark that we're showing the modal (for history tracking)
+      progressService.markSuccessModalShown(topicId, finalCategoryId);
+
+      // 🔊 Play success modal sound
+      playSuccessModalSound();
+
+      setCategoryStats(stats);
+      setShowSuccessModal(true);
+    } else {
+      // Question completed but category not done - show Duolingo-style feedback panel
+      console.log('✨ Question correct! Showing feedback panel...');
+
+      setFeedback({
+        isOpen: true,
+        isCorrect: true,
+      });
+
+      // Auto-navigate to next question after user clicks "Continue" (handled by FeedbackPanel onClose)
+    }
+
+    setHint("Great job! 🎉 You solved it correctly.");
+    return;
+  }
+
+  // Progressive hints for wrong answers
+  const baseGuideText = getGuideText();
+  setFeedback({
+    isOpen: true,
+    isCorrect: false,
+    hint: `Hint: ${baseGuideText}`,
+  });
+  setHint(() => {
+    if (attempts === 0) return `Hint: ${baseGuideText}`;
+    if (attempts === 1) return `Try again: ${baseGuideText}`;
+    return `Keep trying: ${baseGuideText}`;
+  });
+  resetIdle();
+
+};
+
+  // Navigation helpers for modal
+  const handleNextQuestion = () => {
+    // Find next question in sequence
+    const topic = defaultTopics.find(t => t.id === topicId);
+    if (topic) {
+      const category = topic.level.find(c => c.category_id === finalCategoryId);
+      if (category) {
+        const currentQuestionIndex = category.given_question.findIndex(q => q.question_id === questionId);
+        const nextQuestion = category.given_question[currentQuestionIndex + 1];
+        
+        if (nextQuestion) {
+          // Go to next question in same category
+          navigate(`/tugonplay?topic=${topicId}&category=${finalCategoryId}&question=${nextQuestion.question_id}`);
+        } else {
+          // Find next category
+          const currentCategoryIndex = topic.level.findIndex(c => c.category_id === finalCategoryId);
+          const nextCategory = topic.level[currentCategoryIndex + 1];
+          
+          if (nextCategory && nextCategory.given_question.length > 0) {
+            // Go to first question of next category
+            navigate(`/tugonplay?topic=${topicId}&category=${nextCategory.category_id}&question=${nextCategory.given_question[0].question_id}`);
+          } else {
+            // No more questions, go back to TugonSense
+            navigate("/tugonsense");
+          }
+        }
+      }
+    }
+    setShowSuccessModal(false);
+  };
+
+  const handleBackToSense = () => {
+    setShowSuccessModal(false);
+    navigate("/tugonsense");
+  };
+
+  const handleCloseModal = () => {
+    setShowSuccessModal(false);
+    // Reset session time for potential next attempt
+    setSessionStartTime(Date.now());
+  };
+
+  // Exit warning handlers
+  const handleExitClick = () => {
+    setShowExitWarning(true);
+  };
+
+  const handleCancelExit = () => {
+    setShowExitWarning(false);
+  };
+
+  const handleConfirmExit = () => {
+    setShowExitWarning(false);
+    navigate("/tugonsense");
+  };
+
+  const handleSubmit = (finalSteps: WizardStep[]) => {
+    console.log("Wizard steps:", finalSteps);
+    console.log("Current expected answer:", getCurrentExpectedAnswer());
+    // You can replace this with actual submission logic
+  };
+
+  const handleIndexChange = (newIndex: number) => {
+    setCurrentStepIndex(newIndex);
+
+    // ✨ NEW: Update total steps for progress bar
+    const topic = answersByTopicAndCategory[topicId as keyof typeof answersByTopicAndCategory];
+    const category = topic?.[finalCategoryId as keyof typeof topic];
+    if (category && Array.isArray(category)) {
+      setTotalSteps(category.length);
+    }
+  };
+  //for feedback
+  useEffect(() => {
+  setSessionStartTime(Date.now());
+  setAttempts(0);
+  setIsCorrect(null);
+  setUserAttempts([]);
+  setCurrentStepIndex(0); // ← ADD THIS LINE
+  
+  console.log(`🎯 Starting question: Topic ${topicId}, Category ${finalCategoryId}, Question ${questionId}`);
+  
+  // ... rest of the useEffect
+}, [topicId, finalCategoryId, questionId]);
+  const handleAttemptUpdate = (attempts: UserAttempt[]) => {
+    setUserAttempts(attempts);
+    
+    // ✨ NEW: Accumulate all attempts across questions in the category
+    setAllCategoryAttempts(prev => {
+      // Remove old attempts for this question and add new ones
+      const filtered = prev.filter(a => a.questionId !== questionId);
+      return [...filtered, ...attempts];
+    });
+    
+    console.log('🎯 TugonPlay received attempts:', attempts);
+    console.log('📊 All category attempts:', allCategoryAttempts.length);
+  };
+
+  // Progress monitoring component
+  const ProgressMonitor = () => {
+    if (!currentQuestionProgress) return null;
+
+    {/* Progress Monitor Content 
+    return (
+      <div className="fixed top-20 right-4 bg-white/90 backdrop-blur rounded-lg p-3 shadow-lg border text-xs z-40">
+        <div className="text-gray-600 font-medium mb-1">Progress Monitor</div>
+        <div className="space-y-1">
+          <div>Attempts: {currentQuestionProgress.attempts}</div>
+          <div>Correct: {currentQuestionProgress.correctAnswers}</div>
+          <div>Status: {currentQuestionProgress.isCompleted ? '✅ Complete' : '⏳ In Progress'}</div>
+          <div>Time: {Math.round(currentQuestionProgress.timeSpent / 60)}m</div>
+        </div>
+      </div>
+    );*/}
+  };
+
+  return (
+  <div className="h-screen flex flex-col overflow-hidden bg-white">
+    {/* Progress Monitor - Development only */}
+    <ProgressMonitor />
+  
+    {/* Quick Success Notification - Shows for individual question completion */}
+    <QuestionSuccessNotification
+      isOpen={showQuickNotification}
+      onClose={() => setShowQuickNotification(false)}
+      autoCloseDelay={3000}
+    />
+  
+    {/* Success Modal - Shows only when category is completed */}
+    <SuccessModal
+      isOpen={showSuccessModal}
+      onClose={handleCloseModal}
+      onNextQuestion={handleNextQuestion}
+      onBackToSense={handleBackToSense}
+      questionInfo={{
+        topicId,
+        categoryId: finalCategoryId,
+        questionId
+      }}
+      categoryStats={categoryStats}
+    />
+
+    {/* Exit Warning Modal */}
+    {showExitWarning && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 animate-in fade-in zoom-in duration-200">
+          <div className="text-center">
+            {/* Warning Icon */}
+            <div className="mx-auto w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">
+              Are you sure you want to quit?
+            </h3>
+            
+            {/* Description */}
+            <p className="text-gray-600 mb-8">
+              Your progress on this question will be saved, but you'll need to start over when you return.
+            </p>
+            
+            {/* Buttons */}
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleCancelExit}
+                className="px-6 py-3 bg-[#397F85] text-white font-semibold rounded-xl hover:bg-[#2d6368] transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg"
+              >
+               Keep Going
+              </button>
+              <button
+                onClick={handleConfirmExit}
+                className="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                Go Back
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* MOBILE LAYOUT (sm and below) */}
+    <div className="flex-1 overflow-y-auto sm:hidden">
+      {/* Mobile: Navbar + CategoryQuestion Combined */}
+      <div className="bg-gradient-to-r from-[#397F85] to-[#327373]">
+        {/* Navbar */}
+        <div className="h-16 flex items-center justify-between px-4 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">T</span>
+            </div>
+            <SubHeading className="text-white font-bold text-lg">
+              TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
+            </SubHeading>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-white/80 text-sm">
+              <span>Q{questionId}</span>
+              <div className="w-1 h-4 bg-white/30 rounded-full"></div>
+              <span>Topic {topicId}</span>
+            </div>
+            
+            <button
+              onClick={handleExitClick}
+              className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
+            >
+              ✕
+            </button>
+          </div>
+          {/* ✨ NEW: Progress Bar */}
+          <div className="absolute bottom-0 left-0 w-full h-1 bg-white/20">
+            <motion.div
+              className="h-full bg-white"
+              initial={{ width: 0 }}
+              animate={{ width: `${((currentStepIndex + 1) / totalSteps) * 100}%` }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            />
+          </div>
+        </div>
+        
+        {/* CategoryQuestion - Integrated with navbar background - WIDER */}
+        <div className="px-2 pb-6">
+          <CategoryQuestion 
+            topicId={topicId}
+            categoryId={finalCategoryId}
+            questionId={questionId}
+          />
+        </div>
+      </div>
+      
+      {/* Mobile: QuestionTemplate with margin - LESS WIDE, MORE HEIGHT */}
+      <div className="px-8 py-8 min-h-[60vh]">
+        <QuestionTemplate
+          key={`mobile-template-${topicId}-${finalCategoryId}-${questionId}`}
+          topicId={topicId}
+          categoryId={finalCategoryId}
+          questionId={questionId}
+          onValidationResult={(type, currentStep) => {
+            console.log(`📱 Mobile onValidationResult callback:`, { type, currentStep });
+            // Only trigger handleAttempt when all steps are complete (correct or all incorrect)
+            if (type === "correct") {
+              console.log(`✅ All steps completed correctly!`);
+              handleAttempt({ correct: true });
+            } else if (type === "partial") {
+              console.log(`⏳ Step ${currentStep} correct, but more steps needed`);
+              // Don't call handleAttempt yet - waiting for all steps
+            } else {
+              console.log(`❌ Step ${currentStep} incorrect`);
+              // Optionally handle wrong answers here if needed
+            }
+          }}
+          onSubmit={handleSubmit}
+          onIndexChange={handleIndexChange}
+          onAnswerChange={resetIdle}
+          onAttemptUpdate={handleAttemptUpdate}
+        />
+      </div>
+    </div>
+
+    {/* DESKTOP LAYOUT (sm and above) */}
+    <div className="hidden sm:flex sm:flex-col sm:h-screen">
+      {/* Desktop: Navbar + CategoryQuestion Combined - Upper Section */}
+      <div className="bg-gradient-to-r from-[#397F85] to-[#327373] flex-shrink-0">
+        {/* Navbar */}
+        <div className="h-16 flex items-center justify-between px-6 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">T</span>
+            </div>
+            <SubHeading className="text-white font-bold text-lg">
+              TugonPlay {currentQuestionProgress?.isCompleted && "✅"}
+            </SubHeading>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-white/80 text-sm">
+              <span>Q{questionId}</span>
+              <div className="w-1 h-4 bg-white/30 rounded-full"></div>
+              <span>Topic {topicId}</span>
+            </div>
+            
+            <button
+              onClick={handleExitClick}
+              className="text-white bg-white/10 hover:bg-white/20 border-none text-xl p-2 rounded-lg transition-all duration-200 hover:scale-105"
+            >
+              ✕
+            </button>
+          </div>
+          {/* ✨ NEW: Progress Bar */}
+          <div className="absolute bottom-0 left-0 w-full h-1 bg-white/20">
+            <motion.div
+              className="h-full bg-white"
+              initial={{ width: 0 }}
+              animate={{ width: `${((currentStepIndex + 1) / totalSteps) * 100}%` }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            />
+          </div>
+        </div>
+        
+        {/* CategoryQuestion - Expanded upper section - WIDER */}
+        <div className="px-4 py-8 min-h-[240px] flex items-center justify-center">
+          <div className="w-full max-w-4xl">
+            <CategoryQuestion 
+              topicId={topicId}
+              categoryId={finalCategoryId}
+              questionId={questionId}
+            />
+          </div>
+        </div>
+      </div>
+       {/* Feedback Container - Between sections */}
+      
+  
+      {/* Desktop: QuestionTemplate - Middle Section - LESS WIDE, MORE HEIGHT */}
+      <div className="flex-1 bg-[#F7F7F7] overflow-y-auto min-h-[50vh]">
+        <div className="container mx-auto px-6 py-12">
+          <div className="max-w-2xl mx-auto w-full bg-white rounded-3xl shadow-sm border border-gray-200 p-8">
+          <QuestionTemplate
+            key={`desktop-template-${topicId}-${finalCategoryId}-${questionId}`}
+            topicId={topicId}
+            categoryId={finalCategoryId}
+            questionId={questionId}
+            onValidationResult={(type, currentStep) => {
+                console.log(`🖥️ Desktop onValidationResult callback:`, { type, currentStep });
+                // Only trigger handleAttempt when all steps are complete (correct or all incorrect)
+                if (type === "correct") {
+                  console.log(`✅ All steps completed correctly!`);
+                  handleAttempt({ correct: true });
+                } else if (type === "partial") {
+                  console.log(`⏳ Step ${currentStep} correct, but more steps needed`);
+                  // Don't call handleAttempt yet - waiting for all steps
+                } else {
+                  console.log(`❌ Step ${currentStep} incorrect`);
+                  // Optionally handle wrong answers here if needed
+                }
+              }}
+              onSubmit={handleSubmit}
+              onIndexChange={handleIndexChange}
+              onAnswerChange={resetIdle}
+              onAttemptUpdate={handleAttemptUpdate}
+            />
+          </div>
+   
+      
+        </div>
+      </div>
+    </div>
+       
+    {/* Attempt Visualizer - Floating Panel 
+    <AttemptVisualizer 
+      attempts={userAttempts} 
+      className="animate-in slide-in-from-right duration-300"
+    />*/}
+
+    {/* Desktop Character - Only shows on desktop */}
+    <CharacterPositionedDesktop />
+    {/* ✨ NEW: Feedback Panel */}
+    <FeedbackPanel
+      status={feedback.isOpen ? (feedback.isCorrect ? 'correct' : 'incorrect') : null}
+      hint={feedback.hint}
+      onClose={() => {
+        setFeedback({ isOpen: false, isCorrect: false });
+        if (feedback.isCorrect) {
+          handleNextQuestion();
+        }
+      }}
+    />
+  </div>
+);
+}
+
+// Mobile Character positioning (only for mobile)
+function CharacterPositionedMobile() {
+  const [position, setPosition] = useState({ top: '50%', left: '50%' });
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const updatePosition = () => {
+      const screenWidth = window.innerWidth;
+      setIsMobile(screenWidth < 640); // below sm breakpoint
+      
+      if (screenWidth < 640) {
+        // Target the actual QuestionBox element, not just the container
+        const questionBoxElement = document.querySelector('#question-box-container-mobile .bg-white, #question-box-container-mobile .border, #question-box-container-mobile > div');
+        
+        if (questionBoxElement) {
+          const rect = questionBoxElement.getBoundingClientRect();
+          
+          setPosition({
+            top: `${rect.top + 35}px`, // Position near the top of QuestionBox
+            left: `${rect.right - 60}px` // Move more to the left - overlap by 40px instead of 20px
+          });
+        }
+      }
+    };
+
+    // Update position initially and on resize
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition);
+
+    // Use a slight delay to ensure QuestionBox is rendered
+    const timer = setTimeout(updatePosition, 100);
+
+    // Clean up
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition);
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // Only render on mobile
+  if (!isMobile) return null;
+
+  return (
+    <div 
+      className="fixed z-50 transition-all duration-300 sm:hidden"
+      style={{
+        top: position.top,
+        left: position.left,
+      }}
+    >
+     
+    </div>
+  );
+}
+
+// Desktop Character positioning (only for sm and above)
+function CharacterPositionedDesktop() {
+  const [position, setPosition] = useState({ top: '50%', left: '50%' });
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const updatePosition = () => {
+      const screenWidth = window.innerWidth;
+      setIsDesktop(screenWidth >= 640); // sm breakpoint
+      
+      if (screenWidth >= 640) {
+        const container = document.getElementById('answer-wizard-container');
+        if (container) {
+          const rect = container.getBoundingClientRect();
+          
+          setPosition({
+            top: `${rect.top + rect.height / 2}px`,
+            left: `${rect.right + 16}px`
+          });
+        }
+      }
+    };
+
+    // Update position initially and on resize
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition);
+
+    // Clean up
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition);
+    };
+  }, []);
+
+  // Only render on desktop
+  if (!isDesktop) return null;
+
+  return (
+    <div 
+      className="fixed z-50 transform -translate-y-1/2 transition-all duration-300"
+      style={{
+        top: position.top,
+        left: position.left,
+      }}
+    >
+      
+    </div>
+  );
+}

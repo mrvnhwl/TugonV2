@@ -1,0 +1,207 @@
+# Implementation Guide: MathLive + Compute Engine Enhanced Validator
+
+## Installation Steps
+
+### 1. Install Dependencies
+```bash
+# Core dependencies
+npm install @cortex-js/compute-engine
+npm install mathlive
+
+# Optional: if not already installed
+npm install mathjs
+```
+
+### 2. Add CSS for Real-time Feedback
+```css
+/* Add to your global CSS file */
+.ml-valid {
+  border: 2px solid #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+.ml-invalid {
+  border: 2px solid #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  animation: shake 0.3s ease-in-out;
+}
+
+.ml-incomplete {
+  border: 2px solid #f59e0b !important;
+  background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
+.ml-empty {
+  border: 2px solid #6b7280 !important;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+/* Error tooltip styling */
+.ml-error-tooltip {
+  position: absolute;
+  background: #ef4444;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 1000;
+  top: -30px;
+  left: 0;
+}
+
+/* Suggestion dropdown */
+.ml-suggestions {
+  position: absolute;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 999;
+  top: 100%;
+  left: 0;
+  right: 0;
+}
+
+.ml-suggestion-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.ml-suggestion-item:hover {
+  background: #f9fafb;
+}
+```
+
+## Static File Structure for Questions & Answers
+
+### 1. Question Configuration File (`questions.json`)
+```json
+{
+  "questions": [
+    {
+      "id": "evaluate-function",
+      "title": "Evaluate f(x) = 2x + 5 at x = 3",
+      "description": "Find the value of the function f(x) = 2x + 5 when x = 3.",
+      "type": "step-by-step",
+      "inputTypes": ["math", "math", "math"],
+      "inputSources": ["mathfield", "mathfield", "mathfield"],
+      "steps": [
+        {
+          "label": "substitution",
+          "answer": "f(3) = 2(3) + 5",
+          "expectedLatex": "f(3) = 2 \\cdot 3 + 5",
+          "alternativeAnswers": ["f(3) = 2 * 3 + 5", "f(3) = 2×3 + 5"],
+          "mathLiveKeyboard": "algebra",
+          "hints": [
+            "Replace x with 3 in the function",
+            "Don't forget to use parentheses around 3"
+          ],
+          "transformationRules": ["expand", "simplify"],
+          "validationRules": {
+            "mustContain": ["f(3)", "2", "3", "5"],
+            "mustNotContain": ["x"],
+            "format": "equation"
+          }
+        },
+        {
+          "label": "simplification",
+          "answer": "6 + 5",
+          "expectedLatex": "6 + 5",
+          "alternativeAnswers": ["2 × 3 + 5", "2*3 + 5"],
+          "mathLiveKeyboard": "numeric",
+          "hints": [
+            "Calculate 2 × 3",
+            "Show the multiplication result"
+          ],
+          "transformationRules": ["simplify"],
+          "validationRules": {
+            "mustContain": ["6", "5"],
+            "format": "expression"
+          }
+        },
+        {
+          "label": "final",
+          "answer": "11",
+          "expectedLatex": "11",
+          "alternativeAnswers": [],
+          "mathLiveKeyboard": "numeric",
+          "hints": [
+            "Add the two numbers together"
+          ],
+          "validationRules": {
+            "format": "number"
+          }
+        }
+      ],
+      "mathLiveConfig": [
+        {
+          "stepIndex": 0,
+          "keyboard": "algebra",
+          "smartMode": true,
+          "inlineShortcuts": {
+            "f": "f",
+            "*": "\\cdot"
+          },
+          "macros": {
+            "f": "f(#1)"
+          }
+        },
+        {
+          "stepIndex": 1,
+          "keyboard": "numeric",
+          "smartMode": false
+        },
+        {
+          "stepIndex": 2,
+          "keyboard": "numeric",
+          "smartMode": false
+        }
+      ],
+      "validation": {
+        "enableRealTime": true,
+        "enableSemanticChecks": true,
+        "strictMode": false,
+        "allowedTransformations": ["expand", "simplify", "factor"]
+      }
+    },
+    {
+      "id": "function-check",
+      "title": "Determine if the relation is a function",
+      "description": "Look at the graph and determine if it represents a function.",
+      "type": "text-answer",
+      "inputTypes": ["text"],
+      "inputSources": ["textfield"],
+      "steps": [
+        {
+          "label": "text",
+          "answer": "yes",
+          "alternativeAnswers": ["y", "true", "function", "it is a function"],
+          "hints": [
+            "Use the vertical line test",
+            "Can any vertical line intersect the graph more than once?"
+          ],
+          "validationRules": {
+            "format": "text"
+          }
+        }
+      ],
+      "validation": {
+        "enableRealTime": false,
+        "enableSemanticChecks": false,
+        "strictMode": false,
+        "allowedTransformations": []
+      }
+    },
+    {
+      "id": "mixed-explanation",
+      "title": "Solve and explain",
+      "description": "Solve the equation and explain your method.",
+      "type": "mixed",
+      "inputTypes": ["text", "math", "math
